@@ -1,0 +1,8 @@
+{
+  "name": "Remix Habiba 2",
+  "description": "Comprehensive poultry and livestock farm management system with live market rates, batch tracking, mortality analysis, and mobile-friendly workflow.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
