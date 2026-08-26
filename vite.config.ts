@@ -51,6 +51,9 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        },
         devOptions: {
           enabled: process.env.DISABLE_HMR !== 'true',
           type: 'module',

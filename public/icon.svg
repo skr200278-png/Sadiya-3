@@ -1,50 +1,163 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#16a34a"/>
+    <!-- Background Card Gradient (Crisp White to Soft Off-White) -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+
+    <!-- Outer Emerald Rim Gradient -->
+    <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e"/>
       <stop offset="100%" stop-color="#15803d"/>
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25"/>
+
+    <!-- Roof Gradient -->
+    <linearGradient id="roofGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#166534"/>
+    </linearGradient>
+
+    <!-- Silo Dome Gradient -->
+    <linearGradient id="siloDomeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+
+    <!-- Golden Accent Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#eab308"/>
+    </linearGradient>
+
+    <!-- Multi-stage Drop Shadows for depth -->
+    <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#052e16" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.12"/>
+    </filter>
+
+    <filter id="houseShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.15"/>
     </filter>
   </defs>
 
-  <!-- Base Rounded Container -->
-  <rect width="512" height="512" rx="128" fill="url(#greenGradient)"/>
+  <!-- 1. Master Pristine White Badge (Guarantees 100% clear separation on any background) -->
+  <g filter="url(#badgeShadow)">
+    <!-- Outer accent rim -->
+    <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#rimGrad)"/>
+    <!-- Inner pure white card -->
+    <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#cardGrad)"/>
+    <!-- Subtle inner border -->
+    <rect x="32" y="32" width="448" height="448" rx="104" fill="none" stroke="#e2e8f0" stroke-width="2"/>
+  </g>
 
-  <!-- Farm House / Barn Structure -->
-  <g filter="url(#shadow)">
-    <!-- Roof with nice overhang -->
-    <path d="M256 110 L96 230 L132 230 L256 136 L380 230 L416 230 Z" fill="#ffffff"/>
+  <!-- 2. Golden Sun Rays / Dawn Glow in Background -->
+  <circle cx="256" cy="190" r="90" fill="#fef08a" opacity="0.35"/>
+  <circle cx="256" cy="190" r="65" fill="url(#goldGrad)" opacity="0.25"/>
+
+  <!-- 3. Farm House & Barn Elements -->
+  <g filter="url(#houseShadow)">
     
-    <!-- Main House Body -->
-    <rect x="136" y="230" width="240" height="175" rx="8" fill="#ffffff"/>
-    
-    <!-- Roof Cap / Vent triangle -->
-    <polygon points="256,155 220,195 292,195" fill="#15803d"/>
-    
-    <!-- Silo / Side Tower on left -->
-    <rect x="100" y="190" width="36" height="215" rx="18" fill="#e2e8f0"/>
-    <path d="M100 205 Q118 175 136 205 Z" fill="#cbd5e1"/>
-    
-    <!-- Barn Double Door -->
-    <rect x="216" y="275" width="80" height="130" rx="6" fill="#15803d"/>
-    <!-- Door X pattern -->
-    <line x1="222" y1="285" x2="290" y2="395" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
-    <line x1="290" y1="285" x2="222" y2="395" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
-    <line x1="256" y1="275" x2="256" y2="405" stroke="#ffffff" stroke-width="3"/>
-    
-    <!-- Left & Right Windows -->
-    <rect x="156" y="265" width="36" height="40" rx="4" fill="#22c55e"/>
-    <line x1="174" y1="265" x2="174" y2="305" stroke="#ffffff" stroke-width="2"/>
-    <line x1="156" y1="285" x2="192" y2="285" stroke="#ffffff" stroke-width="2"/>
-    
-    <rect x="320" y="265" width="36" height="40" rx="4" fill="#22c55e"/>
-    <line x1="338" y1="265" x2="338" y2="305" stroke="#ffffff" stroke-width="2"/>
-    <line x1="320" y1="285" x2="356" y2="285" stroke="#ffffff" stroke-width="2"/>
-    
-    <!-- Golden Wheat / Sprout Accent at peak -->
-    <path d="M256 95 Q265 70 280 65 Q265 85 256 95" fill="#facc15"/>
-    <path d="M256 95 Q247 70 232 65 Q247 85 256 95" fill="#facc15"/>
+    <!-- Left Silo (Grain Storage Tower) -->
+    <g>
+      <!-- Silo Dome Roof -->
+      <path d="M112 210 Q130 170 148 210 Z" fill="url(#siloDomeGrad)"/>
+      <line x1="130" y1="170" x2="130" y2="160" stroke="#64748b" stroke-width="3" stroke-linecap="round"/>
+      <!-- Silo Body -->
+      <rect x="112" y="210" width="36" height="175" fill="#e2e8f0" rx="3"/>
+      <!-- Silo Bands / Details -->
+      <line x1="112" y1="240" x2="148" y2="240" stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="112" y1="275" x2="148" y2="275" stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="112" y1="310" x2="148" y2="310" stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="112" y1="345" x2="148" y2="345" stroke="#cbd5e1" stroke-width="2.5"/>
+    </g>
+
+    <!-- Main Barn House Body -->
+    <rect x="146" y="235" width="220" height="150" rx="6" fill="#f1f5f9"/>
+    <!-- Horizontal Barn Siding Textures -->
+    <line x1="146" y1="265" x2="366" y2="265" stroke="#e2e8f0" stroke-width="1.5"/>
+    <line x1="146" y1="295" x2="366" y2="295" stroke="#e2e8f0" stroke-width="1.5"/>
+    <line x1="146" y1="325" x2="366" y2="325" stroke="#e2e8f0" stroke-width="1.5"/>
+    <line x1="146" y1="355" x2="366" y2="355" stroke="#e2e8f0" stroke-width="1.5"/>
+
+    <!-- Left & Right Windows with Sky Blue Reflection -->
+    <g>
+      <!-- Left Window -->
+      <rect x="165" y="260" width="36" height="42" rx="4" fill="#38bdf8"/>
+      <rect x="165" y="260" width="36" height="42" rx="4" fill="none" stroke="#ffffff" stroke-width="3"/>
+      <line x1="183" y1="260" x2="183" y2="302" stroke="#ffffff" stroke-width="2.5"/>
+      <line x1="165" y1="281" x2="201" y2="281" stroke="#ffffff" stroke-width="2.5"/>
+
+      <!-- Right Window -->
+      <rect x="311" y="260" width="36" height="42" rx="4" fill="#38bdf8"/>
+      <rect x="311" y="260" width="36" height="42" rx="4" fill="none" stroke="#ffffff" stroke-width="3"/>
+      <line x1="329" y1="260" x2="329" y2="302" stroke="#ffffff" stroke-width="2.5"/>
+      <line x1="311" y1="281" x2="347" y2="281" stroke="#ffffff" stroke-width="2.5"/>
+    </g>
+
+    <!-- Main Barn Double Doors (Classic Emerald Farm Doors with White Cross Braces) -->
+    <g>
+      <rect x="218" y="270" width="76" height="115" rx="5" fill="url(#roofGrad)"/>
+      <rect x="218" y="270" width="76" height="115" rx="5" fill="none" stroke="#ffffff" stroke-width="2"/>
+      <!-- Center Split Line -->
+      <line x1="256" y1="270" x2="256" y2="385" stroke="#ffffff" stroke-width="2.5"/>
+      <!-- Left Door Cross -->
+      <line x1="223" y1="278" x2="251" y2="377" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="251" y1="278" x2="223" y2="377" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <!-- Right Door Cross -->
+      <line x1="261" y1="278" x2="289" y2="377" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="289" y1="278" x2="261" y2="377" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <!-- Door handles -->
+      <circle cx="251" cy="335" r="2.5" fill="#fde047"/>
+      <circle cx="261" cy="335" r="2.5" fill="#fde047"/>
+    </g>
+
+    <!-- Main Pitch Roof (Vibrant Green with Eaves & Ridge) -->
+    <g>
+      <!-- Roof Fascia / Eaves -->
+      <path d="M256 122 L112 242 L138 242 L256 142 L374 242 L400 242 Z" fill="#ffffff"/>
+      <path d="M256 122 L112 242 L138 242 L256 142 L374 242 L400 242 Z" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+      <!-- Main Roof Triangle Body -->
+      <polygon points="256,134 140,235 372,235" fill="url(#roofGrad)"/>
+      
+      <!-- Attic Loft Round Window / Star Vent -->
+      <circle cx="256" cy="190" r="22" fill="#ffffff"/>
+      <circle cx="256" cy="190" r="18" fill="#15803d"/>
+      <circle cx="256" cy="190" r="18" fill="none" stroke="#ffffff" stroke-width="2"/>
+      <path d="M256 174 L256 206 M240 190 L272 190" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="256" cy="190" r="5" fill="url(#goldGrad)"/>
+
+      <!-- Weather Vane / Farm Top Accent -->
+      <path d="M256 120 L256 92" stroke="#eab308" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M246 100 L256 88 L266 100" fill="none" stroke="#eab308" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+  </g>
+
+  <!-- 4. Lush Green Field Ground & Golden Wheat Stalks at Base -->
+  <g>
+    <!-- Ground Contour -->
+    <path d="M48 405 Q150 375 256 385 Q362 395 464 380 L464 424 Q362 444 256 440 Q150 436 48 424 Z" fill="url(#roofGrad)"/>
+    <path d="M48 416 Q150 395 256 405 Q362 415 464 400 L464 428 Q362 444 256 440 Q150 436 48 428 Z" fill="#14532d" opacity="0.4"/>
+
+    <!-- Left Wheat Stalk -->
+    <g transform="translate(75, 340) rotate(-15)">
+      <path d="M15 65 Q18 35 22 5" stroke="#eab308" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <ellipse cx="14" cy="20" rx="4" ry="7" transform="rotate(-30 14 20)" fill="url(#goldGrad)"/>
+      <ellipse cx="28" cy="20" rx="4" ry="7" transform="rotate(30 28 20)" fill="url(#goldGrad)"/>
+      <ellipse cx="16" cy="35" rx="4" ry="7" transform="rotate(-30 16 35)" fill="url(#goldGrad)"/>
+      <ellipse cx="27" cy="35" rx="4" ry="7" transform="rotate(30 27 35)" fill="url(#goldGrad)"/>
+      <ellipse cx="22" cy="8" rx="4" ry="7" fill="url(#goldGrad)"/>
+    </g>
+
+    <!-- Right Wheat Stalk -->
+    <g transform="translate(395, 335) rotate(15)">
+      <path d="M15 65 Q12 35 8 5" stroke="#eab308" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <ellipse cx="6" cy="20" rx="4" ry="7" transform="rotate(-30 6 20)" fill="url(#goldGrad)"/>
+      <ellipse cx="20" cy="20" rx="4" ry="7" transform="rotate(30 20 20)" fill="url(#goldGrad)"/>
+      <ellipse cx="7" cy="35" rx="4" ry="7" transform="rotate(-30 7 35)" fill="url(#goldGrad)"/>
+      <ellipse cx="18" cy="35" rx="4" ry="7" transform="rotate(30 18 35)" fill="url(#goldGrad)"/>
+      <ellipse cx="10" cy="8" rx="4" ry="7" fill="url(#goldGrad)"/>
+    </g>
   </g>
 </svg>

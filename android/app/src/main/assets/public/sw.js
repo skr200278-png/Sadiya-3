@@ -81,37 +81,34 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "1872c500de691dce40960bb85481de07"
   }, {
     "url": "index.html",
-    "revision": "d8f9f7cec2aef8c37c18ca952e44d3d1"
+    "revision": "bf8659847a488ccaa800a4c1afbbd627"
   }, {
     "url": "assets/purify.es-CLGrRn1w.js",
     "revision": null
   }, {
-    "url": "assets/index.es-qNOabG4o.js",
+    "url": "assets/index.es-nC0ApTAk.js",
     "revision": null
   }, {
-    "url": "assets/index-rAOs4cee.css",
+    "url": "assets/index-DuAUxc0B.css",
     "revision": null
   }, {
-    "url": "assets/index-D2_7H-Ut.js",
+    "url": "assets/index-C-MIBqkC.js",
     "revision": null
   }, {
     "url": "assets/html2canvas.esm-QH1iLAAe.js",
     "revision": null
   }, {
-    "url": "pwa-192x192.png",
-    "revision": "9a8958814dfb494ad9d83bb688a082ae"
-  }, {
-    "url": "pwa-512x512.png",
-    "revision": "33673e8262520889bb9bceccd25dee06"
+    "url": "farm_app_icon_1779214389225.png",
+    "revision": "bfda33f57f5d79003119b97174afa93d"
   }, {
     "url": "screenshot-desktop.png",
-    "revision": "ab5f2b9031dfe934d45036aea9f3bdc0"
+    "revision": "becff3db1a316066326f5b5aac7f4e5c"
   }, {
     "url": "screenshot-mobile.png",
-    "revision": "d1ec0bbabca404a68c57d8ab53178eee"
+    "revision": "36e1add3ee4042f09f088ad9baca7c19"
   }, {
     "url": "manifest.json",
-    "revision": "b84f0260da3eeed0bf6cc7ea4756ae76"
+    "revision": "794dedef863dbf8e7873b35c2637c5fa"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));

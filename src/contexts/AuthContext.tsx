@@ -129,15 +129,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 src={logoSrc} 
                 onError={() => {
                   if (logoSrc === 'farm_app_icon_1779214389225.png') {
-                    setLogoSrc('pwa-192x192.png');
-                  } else if (logoSrc === 'pwa-192x192.png') {
                     setLogoSrc('icon-192x192.png');
                   } else {
                     setLogoSrc('');
                   }
                 }}
                 alt="Digital Farm Logo" 
-                className="w-32 h-32 mx-auto drop-shadow-2xl mb-4 rounded-3xl object-cover border-2 border-white/30 shadow-green-950/50" 
+                className="w-32 h-32 mx-auto drop-shadow-2xl mb-4 rounded-3xl object-cover bg-white p-2 border-2 border-white/80 shadow-2xl" 
               />
             ) : (
               <div className="w-32 h-32 mx-auto mb-4 bg-white/15 rounded-3xl p-5 shadow-2xl text-white flex items-center justify-center border border-white/30">
