@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText } from 'lucide-react';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import InstallPWA from '../components/InstallPWA';
 import { demoStore } from '../utils/demoStore';
 
 export default function Profile() {
@@ -15,6 +15,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const submitLock = useRef(false);
   
   const [name, setName] = useState('');
@@ -28,6 +29,8 @@ export default function Profile() {
     setLanguage(currentLanguage);
   }, [currentLanguage]);
 
+  const isDemo = Boolean(isDemoUser || currentUser?.uid === 'demo_khamari_user_1' || !auth.currentUser);
+
   useEffect(() => {
     if (currentUser) {
       if (currentUser.displayName && !name) setName(currentUser.displayName);
@@ -38,7 +41,7 @@ export default function Profile() {
   const fetchProfile = async () => {
     if (!currentUser) return;
     try {
-      if (isDemoUser) {
+      if (isDemo) {
         const data = demoStore.getProfile();
         if (data.name) setName(data.name);
         if (data.phone) setPhone(data.phone);
@@ -72,7 +75,7 @@ export default function Profile() {
     submitLock.current = true;
     
     try {
-      if (isDemoUser) {
+      if (isDemo) {
         demoStore.setProfile({
           name,
           phone,
@@ -135,6 +138,28 @@ export default function Profile() {
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!currentUser?.email) {
+      toast.error(language === 'bn' ? 'আপনার অ্যাকাউন্টে ইমেইল যুক্ত নেই।' : 'No email associated with this account.');
+      return;
+    }
+    if (currentUser.email.includes('@digitalfarm.app')) {
+      toast(language === 'bn' ? 'মোবাইল নম্বর অ্যাকাউন্ট হলে পাসওয়ার্ড রিসেটের জন্য হেল্পলাইনে যোগাযোগ করুন।' : 'For phone-based accounts, please contact support to reset password.', { icon: '📞' });
+      setShowDeveloperSupport(true);
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await sendPasswordResetEmail(auth, currentUser.email);
+      toast.success(language === 'bn' ? `পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে (${currentUser.email}) পাঠানো হয়েছে!` : 'Password reset link sent to your email!');
+    } catch (err: any) {
+      toast.error(err.message || 'Error sending password reset email');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   if (loading) return <div className="text-center py-10">{t('common.loading')}</div>;
 
   return (
@@ -160,11 +185,12 @@ export default function Profile() {
           )}
         </div>
         <h3 className="font-bold text-lg text-gray-800">{name || (currentLanguage === 'en' ? 'Name not set' : 'নাম সেট করা নেই')}</h3>
-        <p className="text-sm text-gray-500">{currentUser?.email}</p>
+        <p className="text-sm text-gray-500">
+          {currentUser?.email?.includes('@digitalfarm.app') 
+            ? (phone ? `মোবাইল: ${phone}` : 'মোবাইল অ্যাকাউন্ট') 
+            : (currentUser?.email || (phone ? `মোবাইল: ${phone}` : ''))}
+        </p>
       </div>
-
-      {/* PWA Install Notice */}
-      <InstallPWA />
 
       <form onSubmit={handleSave} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h3 className="font-bold text-gray-800 border-b pb-2">{t('profile.title')}</h3>
@@ -225,6 +251,48 @@ export default function Profile() {
 
       {/* Support & About Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100 mt-4">
+        <button 
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer text-left" 
+          onClick={() => navigate('/doctor')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center">
+              <Stethoscope size={18} />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-gray-800 text-sm">{language === 'bn' ? 'ডাক্তারি পরামর্শ ও টেলিমেডিসিন' : 'Veterinary Doctor Consultation'}</p>
+                <span className="text-[9px] font-black bg-teal-100 text-teal-800 px-1.5 py-0.2 rounded-full uppercase">
+                  24/7
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {language === 'bn' ? 'বিশেষজ্ঞ ডাক্তার, হটলাইন (১৬১২৩) ও প্রেসক্রিপশন' : 'Specialist vets, hotline 16123 & prescriptions'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-gray-400" />
+        </button>
+
+        <button 
+          disabled={isResettingPassword}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer text-left" 
+          onClick={handlePasswordReset}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+              <KeyRound size={18} />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-gray-800 text-sm">{language === 'bn' ? 'পাসওয়ার্ড রিসেট / পরিবর্তন' : 'Reset / Change Password'}</p>
+              <p className="text-xs text-gray-500">
+                {isResettingPassword ? (language === 'bn' ? 'পাঠানো হচ্ছে...' : 'Sending...') : (language === 'bn' ? 'ইমেইলে রিসেট লিংক পাঠান' : 'Send reset link to email')}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-gray-400" />
+        </button>
+
         <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors" onClick={() => setShowDeveloperSupport(true)}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
@@ -250,6 +318,7 @@ export default function Profile() {
           </div>
           <ChevronRight size={20} className="text-gray-400" />
         </button>
+
         <button onClick={() => navigate('/privacy-policy')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">

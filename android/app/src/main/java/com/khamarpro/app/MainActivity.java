@@ -1,4 +1,4 @@
-package com.sufian.businessmanagement;
+package com.khamarpro.app;
 
 import com.getcapacitor.BridgeActivity;
 

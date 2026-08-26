@@ -1,7 +1,9 @@
 {
   "name": "Remix Habiba 2",
-  "description": "Comprehensive poultry and livestock farm management system with live market rates, batch tracking, mortality analysis, and mobile-friendly workflow.",
-  "requestFramePermissions": [],
+  "description": "Comprehensive poultry and livestock farm management system (KhamarPro) with voice log entry, cash memos, live market rates, FCR calculations, batch tracking, and Play Store release configuration.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

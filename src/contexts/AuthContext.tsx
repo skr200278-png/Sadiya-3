@@ -29,8 +29,18 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isDemoUser, setIsDemoUser] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('is_demo_mock') === 'true') {
+      return DEMO_USER;
+    }
+    return null;
+  });
+  const [isDemoUser, setIsDemoUser] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('is_demo_mock') === 'true') {
+      return true;
+    }
+    return false;
+  });
   const [loading, setLoading] = useState(true);
   const [logoSrc, setLogoSrc] = useState('farm_app_icon_1779214389225.png');
 
@@ -84,18 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginAsDemo = async () => {
-    try {
-      const { signInAnonymously } = await import('firebase/auth');
-      const res = await signInAnonymously(auth);
-      localStorage.removeItem('is_demo_mock');
-      setCurrentUser(res.user);
-      setIsDemoUser(true);
-    } catch (err) {
-      console.warn('Anonymous login failed or disabled, activating client demo profile:', err);
-      localStorage.setItem('is_demo_mock', 'true');
-      setCurrentUser(DEMO_USER);
-      setIsDemoUser(true);
-    }
+    localStorage.setItem('is_demo_mock', 'true');
+    setCurrentUser(DEMO_USER);
+    setIsDemoUser(true);
   };
 
   const logout = async () => {
@@ -111,8 +112,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const effectiveIsDemo = Boolean(
+    isDemoUser ||
+    currentUser?.uid === 'demo_khamari_user_1' ||
+    (currentUser as any)?.isAnonymous ||
+    (!auth.currentUser && !!currentUser)
+  );
+
   return (
-    <AuthContext.Provider value={{ currentUser, isDemoUser, loading, loginAsDemo, logout }}>
+    <AuthContext.Provider value={{ currentUser, isDemoUser: effectiveIsDemo, loading, loginAsDemo, logout }}>
       {loading ? (
         <div className="min-h-screen flex flex-col items-center justify-center bg-green-700">
           <div className="text-center animate-pulse">

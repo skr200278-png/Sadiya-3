@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Package, ClipboardList, Wallet, FileText, Menu, AlertTriangle, ShieldPlus, LayoutGrid } from 'lucide-react';
+import { Home, Package, ClipboardList, Wallet, FileText, Menu, AlertTriangle, ShieldPlus, LayoutGrid, Mic, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { demoStore } from '../utils/demoStore';
+import VoiceAssistantModal from './VoiceAssistantModal';
 
 export default function Layout() {
   const { currentUser, isDemoUser, logout } = useAuth();
   const { t, language } = useLanguage();
   const location = useLocation();
   const [profileData, setProfileData] = useState<any>(null);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
 
   useEffect(() => {
     if (isDemoUser) {
@@ -46,47 +48,61 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 pb-16">
+    <div className="flex flex-col min-h-screen bg-gray-50 pb-20">
       
       {/* Top Bar */}
-      <header className="bg-green-600 text-white shadow-md sticky top-0 z-10">
+      <header className="bg-emerald-700 text-white shadow-md sticky top-0 z-20">
         <div className="px-4 py-3 flex items-center justify-between relative max-w-2xl mx-auto w-full">
-          <div className="w-8"></div> {/* Spacer for symmetry */}
-          <h1 className="text-xl font-bold flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis px-2">
-            {profileData?.farmName || (isDemoUser ? (language === 'bn' ? 'ডেমো খামার' : 'Demo Farm') : t('app.title'))}
+          <button
+            onClick={() => setIsVoiceOpen(true)}
+            className="flex items-center gap-1.5 bg-emerald-800/80 hover:bg-emerald-800 text-yellow-300 px-2.5 py-1 rounded-xl text-xs font-black border border-emerald-600 shadow-2xs transition-all active:scale-95 cursor-pointer"
+            title={language === 'bn' ? 'ভয়েস এন্ট্রি করুন' : 'Voice Entry'}
+          >
+            <Mic size={15} className="animate-pulse text-yellow-300" />
+            <span className="text-[11px] hidden xs:inline">{language === 'bn' ? 'ভয়েস' : 'Voice'}</span>
+          </button>
+
+          <h1 className="text-lg sm:text-xl font-black flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis px-2 tracking-tight">
+            {profileData?.farmName || t('app.title')}
           </h1>
-          <Link to="/profile" className="p-1 hover:bg-green-700 rounded-full transition-colors w-8 h-8 flex items-center justify-center shrink-0">
+
+          <Link to="/profile" className="p-0.5 hover:bg-emerald-800 rounded-full transition-colors w-8 h-8 flex items-center justify-center shrink-0">
             {currentUser?.photoURL ? (
               <img src={currentUser.photoURL} alt="Profile" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
             ) : (
-              <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-green-500">
-                 <span className="text-sm font-bold">{(profileData?.name || currentUser?.displayName || 'U').charAt(0).toUpperCase()}</span>
+              <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-emerald-600">
+                 <span className="text-xs font-black">{(profileData?.name || currentUser?.displayName || 'U').charAt(0).toUpperCase()}</span>
               </div>
             )}
           </Link>
         </div>
       </header>
 
-      {/* Demo Mode Notice */}
-      {isDemoUser && (
-        <div className="bg-amber-500 text-amber-950 px-4 py-1.5 text-xs font-semibold flex items-center justify-between max-w-2xl mx-auto w-full shadow-sm">
-          <span>🧪 {language === 'bn' ? 'আপনি ডেমো ট্রায়াল মোডে আছেন' : 'You are in Demo Trial Mode'}</span>
-          <button 
-            onClick={() => logout()}
-            className="bg-amber-900 hover:bg-amber-950 text-white text-[11px] px-2.5 py-0.5 rounded-md transition-colors cursor-pointer"
-          >
-            {language === 'bn' ? 'লগআউট' : 'Logout'}
-          </button>
-        </div>
-      )}
-
       {/* Main Content */}
-      <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
+      <main className="flex-1 p-3 sm:p-4 max-w-2xl mx-auto w-full">
         <Outlet />
       </main>
 
+      {/* Floating Voice Assistant Button */}
+      <div className="fixed bottom-20 right-4 z-30 max-w-2xl mx-auto">
+        <button
+          onClick={() => setIsVoiceOpen(true)}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white p-3.5 rounded-full shadow-xl shadow-teal-700/30 flex items-center gap-2 border-2 border-white transition-all active:scale-95 cursor-pointer"
+          title={language === 'bn' ? 'মুখে বলে হিসাব এন্ট্রি করুন' : 'Voice Entry Assistant'}
+        >
+          <Mic size={22} className="text-yellow-300 animate-pulse" />
+          <span className="text-xs font-black pr-1 hidden sm:inline">{language === 'bn' ? 'ভয়েস হিসাব' : 'Voice Log'}</span>
+        </button>
+      </div>
+
+      {/* Voice Assistant Modal */}
+      <VoiceAssistantModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+      />
+
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-inner z-10">
+      <nav className="fixed bottom-0 w-full bg-white/95 backdrop-blur-xs border-t border-gray-200 shadow-lg z-20">
         <div className="flex justify-around p-2 max-w-2xl mx-auto w-full">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -95,12 +111,12 @@ export default function Layout() {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
-                isActive ? 'text-green-600 font-semibold' : 'text-gray-500 hover:text-green-500'
+              className={`flex flex-col items-center p-2 rounded-xl transition-colors ${
+                isActive ? 'text-emerald-700 font-bold bg-emerald-50/80' : 'text-gray-500 hover:text-emerald-600'
               }`}
             >
-              <Icon size={24} />
-              <span className="text-[10px] mt-1">{item.name}</span>
+              <Icon size={22} />
+              <span className="text-[10px] font-bold mt-1">{item.name}</span>
             </Link>
           );
         })}
@@ -108,4 +124,4 @@ export default function Layout() {
       </nav>
     </div>
   );
-};
+}

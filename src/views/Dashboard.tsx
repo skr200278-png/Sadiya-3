@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, doc, onSnapshot } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { demoStore } from '../utils/demoStore';
@@ -27,7 +27,9 @@ import {
   Store,
   FileText,
   Flame,
-  ArrowRight
+  ArrowRight,
+  BarChart3,
+  Stethoscope
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -42,6 +44,7 @@ export default function Dashboard() {
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
   const [activeBatch, setActiveBatch] = useState<any>(null);
+  const [categoryBatches, setCategoryBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalMortality, setTotalMortality] = useState<number>(0);
   const [profileData, setProfileData] = useState<any>(null);
@@ -118,25 +121,39 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (isDemoUser) {
+    const isDemo = Boolean(isDemoUser || currentUser?.uid === 'demo_khamari_user_1' || !auth.currentUser);
+
+    if (isDemo) {
       setProfileData(demoStore.getProfile());
       const loadDemoDashboard = () => {
         const allBatches = demoStore.getBatches();
-        const active = allBatches.find(b => b.status === 'active' && b.farmType === selectedType) 
-          || allBatches.find(b => b.status === 'active') 
+        const activeMatching = allBatches.filter(b => b.status === 'active' && b.farmType === selectedType);
+        setCategoryBatches(activeMatching);
+
+        const savedBatchId = localStorage.getItem(`selected_batch_id_${selectedType}`);
+        const selected = activeMatching.find(b => b.id === savedBatchId) 
+          || activeMatching[0] 
           || null;
-        setActiveBatch(active);
-        if (active) {
-          const mort = demoStore.getMortalityRecords(active.id);
+        
+        setActiveBatch(selected);
+        if (selected) {
+          const mort = demoStore.getMortalityRecords(selected.id);
           const totalM = mort.reduce((acc, m) => acc + (Number(m.count) || 0), 0);
           setTotalMortality(totalM);
+          loadActivities(selected.id);
         } else {
           setTotalMortality(0);
+          loadActivities();
         }
+        setLoading(false);
+      };
 
-        // Activities
+      const loadActivities = (batchIdFilter?: string) => {
         const acts: any[] = [];
-        demoStore.getFeedRecords().slice(0, 2).forEach(d => {
+        const feeds = batchIdFilter 
+          ? demoStore.getFeedRecords(batchIdFilter) 
+          : demoStore.getFeedRecords();
+        feeds.slice(0, 2).forEach(d => {
           acts.push({
             id: d.id,
             type: 'feed',
@@ -148,7 +165,11 @@ export default function Dashboard() {
             amount: d.cost || 0
           });
         });
-        demoStore.getMedicineRecords().slice(0, 2).forEach(d => {
+
+        const meds = batchIdFilter 
+          ? demoStore.getMedicineRecords(batchIdFilter) 
+          : demoStore.getMedicineRecords();
+        meds.slice(0, 2).forEach(d => {
           acts.push({
             id: d.id,
             type: 'medicine',
@@ -160,7 +181,11 @@ export default function Dashboard() {
             amount: d.cost || 0
           });
         });
-        demoStore.getExpenses().slice(0, 2).forEach(d => {
+
+        const exps = batchIdFilter 
+          ? demoStore.getExpenses(batchIdFilter) 
+          : demoStore.getExpenses();
+        exps.slice(0, 2).forEach(d => {
           acts.push({
             id: d.id,
             type: 'expense',
@@ -172,7 +197,11 @@ export default function Dashboard() {
             amount: d.amount || 0
           });
         });
-        demoStore.getSales().slice(0, 2).forEach(d => {
+
+        const sales = batchIdFilter 
+          ? demoStore.getSales(batchIdFilter) 
+          : demoStore.getSales();
+        sales.slice(0, 2).forEach(d => {
           acts.push({
             id: d.id,
             type: 'sales',
@@ -186,7 +215,6 @@ export default function Dashboard() {
         });
         acts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setRecentActivities(acts.slice(0, 3));
-        setLoading(false);
       };
 
       loadDemoDashboard();
@@ -194,10 +222,10 @@ export default function Dashboard() {
       return () => unsub();
     }
 
-    fetchActiveBatch();
+    fetchActiveBatches();
     fetchRecentActivitiesAndStats();
     
-    if (currentUser) {
+    if (currentUser && auth.currentUser) {
       const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (docObj) => {
         if (docObj.exists()) {
           setProfileData(docObj.data());
@@ -209,7 +237,7 @@ export default function Dashboard() {
     }
   }, [currentUser, isDemoUser, selectedType]);
 
-  const fetchActiveBatch = async () => {
+  const fetchActiveBatches = async () => {
     if (!currentUser) return;
     try {
       const q = query(
@@ -219,29 +247,34 @@ export default function Dashboard() {
         where('farmType', '==', selectedType)
       );
       const snapshot = await fastGetDocs(q);
-      if (!snapshot.empty) {
-        const batchData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-        setActiveBatch(batchData);
-        fetchMortality(batchData.id);
+      const batchesList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCategoryBatches(batchesList);
+
+      const savedBatchId = localStorage.getItem(`selected_batch_id_${selectedType}`);
+      const matched = batchesList.find(b => b.id === savedBatchId) || batchesList[0] || null;
+      
+      setActiveBatch(matched);
+      if (matched) {
+        fetchMortality(matched.id);
       } else {
-        const qFallback = query(
-          collection(db, 'batches'),
-          where('userId', '==', currentUser.uid),
-          where('status', '==', 'active')
-        );
-        const fbSnap = await fastGetDocs(qFallback);
-        if (!fbSnap.empty) {
-          const batchData = { id: fbSnap.docs[0].id, ...fbSnap.docs[0].data() };
-          setActiveBatch(batchData);
-          fetchMortality(batchData.id);
-        } else {
-          setActiveBatch(null);
-        }
+        setTotalMortality(0);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'batches');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectBatch = (batch: any) => {
+    setActiveBatch(batch);
+    localStorage.setItem(`selected_batch_id_${selectedType}`, batch.id);
+    if (isDemoUser) {
+      const mort = demoStore.getMortalityRecords(batch.id);
+      const totalM = mort.reduce((acc, m) => acc + (Number(m.count) || 0), 0);
+      setTotalMortality(totalM);
+    } else {
+      fetchMortality(batch.id);
     }
   };
 
@@ -409,16 +442,43 @@ export default function Dashboard() {
 
   const styleConfig = {
     poultry: {
-      heading: language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm',
-      tagline: language === 'bn' ? 'মুরগির ব্যাচ ও বাজার ট্র্যাকার' : 'Flock and Market Tracker',
+      heading: language === 'bn' ? 'পাখি পালন খামার' : 'Bird & Poultry Farm',
+      tagline: language === 'bn' ? 'মুরগি, হাঁস, কোয়েল ব্যাচ ও হিসাব' : 'Flock, Duck and Market Tracker',
+      unitLabel: language === 'bn' ? 'বাচ্চা' : 'Chicks',
+      unitItem: language === 'bn' ? 'টি পাখি' : 'birds',
+      buyLabel: language === 'bn' ? 'বাচ্চার ক্রয়দর' : 'Chick Rate',
+      rateSuffix: language === 'bn' ? '৳ /পিস' : '৳ /pc',
+      aliveLabel: language === 'bn' ? 'জীবিত পাখি' : 'Alive Birds',
+      mortLabel: language === 'bn' ? 'মোট মৃত্যু' : 'Mortality',
+      countLabel: language === 'bn' ? 'শুরুর সংখ্যা' : 'Total Count',
+      ageLabel: language === 'bn' ? 'বর্তমান বয়স' : 'Current Age',
+      icon: '🐦'
     },
     cattle: {
-      heading: language === 'bn' ? 'পশুপালন খামার' : 'Livestock Farm',
-      tagline: language === 'bn' ? 'গরু, বাছুর ও দুধ ট্র্যাকার' : 'Cattle & Dairy Tracker',
+      heading: language === 'bn' ? 'পশু পালন খামার' : 'Livestock Farm',
+      tagline: language === 'bn' ? 'গরু, ষাঁড়, ছাগল ও দুধ ট্র্যাকার' : 'Cattle, Goat & Dairy Tracker',
+      unitLabel: language === 'bn' ? 'পশু' : 'Cattle',
+      unitItem: language === 'bn' ? 'টি পশু' : 'heads',
+      buyLabel: language === 'bn' ? 'পশুর ক্রয়দর' : 'Cattle Price',
+      rateSuffix: language === 'bn' ? '৳ /পশু' : '৳ /head',
+      aliveLabel: language === 'bn' ? 'জীবিত ও সুস্থ' : 'Healthy Cattle',
+      mortLabel: language === 'bn' ? 'মৃত / অসুস্থ' : 'Loss / Illness',
+      countLabel: language === 'bn' ? 'মোট পশুর সংখ্যা' : 'Total Animals',
+      ageLabel: language === 'bn' ? 'পালন বয়স' : 'Farming Days',
+      icon: '🐄'
     },
     fish: {
-      heading: language === 'bn' ? 'মৎস্য চাষ খামার' : 'Fisheries Pond',
-      tagline: language === 'bn' ? 'পুকুর ও মাছ চাষ ট্র্যাকার' : 'Pond & Fish Tracker',
+      heading: language === 'bn' ? 'মাছ চাষ খামার' : 'Fisheries Pond',
+      tagline: language === 'bn' ? 'তেলাপিয়া, কার্প ও মাছ চাষ ট্র্যাকার' : 'Pond & Fish Tracker',
+      unitLabel: language === 'bn' ? 'পোনা' : 'Fingerlings',
+      unitItem: language === 'bn' ? 'টি পোনা' : 'fry',
+      buyLabel: language === 'bn' ? 'পোনা ক্রয়দর' : 'Fry Rate',
+      rateSuffix: language === 'bn' ? '৳ /পিস' : '৳ /pc',
+      aliveLabel: language === 'bn' ? 'জীবিত মাছ' : 'Live Fish',
+      mortLabel: language === 'bn' ? 'পোনা মৃত্যু' : 'Fry Loss',
+      countLabel: language === 'bn' ? 'মোট পোনা সংখ্যা' : 'Total Fry',
+      ageLabel: language === 'bn' ? 'চাষের বয়স' : 'Culture Age',
+      icon: '🐟'
     }
   };
 
@@ -447,41 +507,98 @@ export default function Dashboard() {
         <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5 shrink-0 border border-slate-200/60 shadow-2xs">
           <button
             onClick={() => handleSelectTypeOnDashboard('poultry')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               selectedType === 'poultry'
                 ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/40'
                 : 'text-slate-400 hover:text-slate-700'
             }`}
-            title="Poultry"
+            title="Birds & Poultry"
           >
-            🐔
+            <span>🐦</span>
+            <span className="text-[10px] hidden sm:inline">{language === 'bn' ? 'পাখি' : 'Birds'}</span>
           </button>
           <button
             onClick={() => handleSelectTypeOnDashboard('cattle')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               selectedType === 'cattle'
                 ? 'bg-white text-amber-800 shadow-xs border border-slate-200/40'
                 : 'text-slate-400 hover:text-slate-700'
             }`}
-            title="Cattle"
+            title="Animals & Cattle"
           >
-            🐄
+            <span>🐄</span>
+            <span className="text-[10px] hidden sm:inline">{language === 'bn' ? 'পশু' : 'Animals'}</span>
           </button>
           <button
             onClick={() => handleSelectTypeOnDashboard('fish')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               selectedType === 'fish'
                 ? 'bg-white text-blue-800 shadow-xs border border-slate-200/40'
                 : 'text-slate-400 hover:text-slate-700'
             }`}
-            title="Fishery"
+            title="Fish & Aquaculture"
           >
-            🐟
+            <span>🐟</span>
+            <span className="text-[10px] hidden sm:inline">{language === 'bn' ? 'মাছ' : 'Fish'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Central Active Batch Spotlight Card (কেনার তারিখ, দর, সংখ্যা, বয়স, জীবিত ও মৃত্যু) */}
+      {/* 2. Interactive Multi-Batch Selector Bar */}
+      <div className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-xs border border-slate-100">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm">{activeStyle.icon}</span>
+            <h3 className="text-xs font-extrabold text-slate-800 truncate">
+              {language === 'bn' 
+                ? `${selectedType === 'poultry' ? 'পাখির (মুরগি/হাঁস)' : selectedType === 'cattle' ? 'পশুর (গরু/ছাগল)' : 'মাছের'} সক্রিয় ব্যাচসমূহ (${categoryBatches.length}টি)`
+                : `Active ${selectedType} Batches (${categoryBatches.length})`}
+            </h3>
+          </div>
+          <Link
+            to="/batches"
+            className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 px-2 py-1 rounded-lg border border-emerald-200/60 flex items-center gap-1 shrink-0 transition-colors"
+          >
+            <Plus size={11} />
+            <span>{language === 'bn' ? 'নতুন ব্যাচ' : 'New Batch'}</span>
+          </Link>
+        </div>
+
+        {/* Horizontal scrollable batch selector buttons */}
+        {categoryBatches.length > 0 ? (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            {categoryBatches.map((b) => {
+              const isCurrent = activeBatch?.id === b.id;
+              const batchAge = calculateAge(b.startDate);
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => handleSelectBatch(b)}
+                  className={`shrink-0 px-3 py-1.5 rounded-xl text-left transition-all cursor-pointer flex items-center gap-2 border ${
+                    isCurrent
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white border-emerald-700 shadow-xs font-extrabold'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/70 font-bold'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
+                  <div className="min-w-0 max-w-[170px] sm:max-w-[220px]">
+                    <p className="text-[11px] truncate leading-tight">{b.batchName}</p>
+                    <p className={`text-[9px] truncate ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
+                      {b.totalChicks} {activeStyle.unitItem} • {batchAge} {language === 'bn' ? 'দিন' : 'd'}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="py-2 text-center text-[10px] text-slate-400 font-medium">
+            {language === 'bn' ? `এই ক্যাটাগরিতে কোনো সক্রিয় ব্যাচ নেই।` : `No active batch in this category.`}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Central Active Batch Spotlight Card (কেনার তারিখ, দর, সংখ্যা, বয়স, জীবিত ও মৃত্যু) */}
       {activeBatch ? (
         <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-emerald-200/80 relative overflow-hidden">
           {/* Header of Active Batch */}
@@ -492,7 +609,7 @@ export default function Dashboard() {
               </div>
               <div className="min-w-0">
                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">
-                  {language === 'bn' ? 'চলমান ব্যাচ' : 'Active Batch'}
+                  {language === 'bn' ? 'নির্বাচিত ব্যাচের লাইভ হিসাব' : 'Selected Active Batch'}
                 </p>
                 <h3 className="text-xs sm:text-sm font-extrabold text-slate-850 truncate leading-tight">
                   {activeBatch.batchName}
@@ -510,7 +627,7 @@ export default function Dashboard() {
             <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
                 <Calendar size={10} className="text-blue-500" />
-                {language === 'bn' ? 'কেনার তারিখ' : 'Buy Date'}
+                {language === 'bn' ? 'শুরুর / ক্রয়ের তারিখ' : 'Buy Date'}
               </span>
               <p className="text-xs font-black text-slate-800 font-sans">
                 {formatDateDisplay(activeBatch.startDate)}
@@ -521,21 +638,21 @@ export default function Dashboard() {
             <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
                 <DollarSign size={10} className="text-emerald-600" />
-                {language === 'bn' ? 'বাচ্চার ক্রয়দর' : 'Chick Rate'}
+                {activeStyle.buyLabel}
               </span>
               <p className="text-xs font-black text-emerald-700 font-sans">
-                {costPerChick > 0 ? `৳ ${costPerChick}/পিস` : (language === 'bn' ? 'দর যুক্ত নেই' : 'N/A')}
+                {costPerChick > 0 ? `৳ ${costPerChick.toLocaleString()} ${activeStyle.rateSuffix}` : (language === 'bn' ? 'দর যুক্ত নেই' : 'N/A')}
               </p>
             </div>
 
-            {/* 3. Total Starting Birds */}
+            {/* 3. Total Starting Animals */}
             <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
                 <Users size={10} className="text-indigo-500" />
-                {language === 'bn' ? 'শুরুর সংখ্যা' : 'Total Count'}
+                {activeStyle.countLabel}
               </span>
               <p className="text-xs font-black text-indigo-700 font-sans">
-                {totalChicksCount} {language === 'bn' ? 'টি' : ''}
+                {totalChicksCount.toLocaleString()} {language === 'bn' ? 'টি' : ''}
               </p>
             </div>
 
@@ -543,7 +660,7 @@ export default function Dashboard() {
             <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
               <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
                 <Clock size={10} className="text-amber-500" />
-                {language === 'bn' ? 'বর্তমান বয়স' : 'Current Age'}
+                {activeStyle.ageLabel}
               </span>
               <p className="text-xs font-black text-amber-700 font-sans">
                 {calculateAge(activeBatch.startDate)} {language === 'bn' ? 'দিন' : 'days'}
@@ -551,16 +668,16 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Secondary Highlight: Alive Birds & Mortality Rate */}
+          {/* Secondary Highlight: Alive Animals & Mortality Rate */}
           <div className="grid grid-cols-2 gap-2 mb-2.5">
-            {/* Alive Birds */}
+            {/* Alive Animals */}
             <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-200 flex items-center justify-between">
               <div>
                 <span className="text-[9px] font-bold text-emerald-800 block">
-                  {language === 'bn' ? 'জীবিত পাখি' : 'Alive Birds'}
+                  {activeStyle.aliveLabel}
                 </span>
                 <p className="text-sm font-black text-emerald-700 font-sans leading-none mt-1">
-                  {aliveBirdsCount} <span className="text-[9px] text-emerald-600 font-bold">{language === 'bn' ? 'টি' : 'pcs'}</span>
+                  {aliveBirdsCount.toLocaleString()} <span className="text-[9px] text-emerald-600 font-bold">{language === 'bn' ? 'টি' : 'pcs'}</span>
                 </p>
               </div>
               <span className="text-[9px] font-black text-emerald-700 bg-white px-1.5 py-0.5 rounded-full border border-emerald-200">
@@ -572,10 +689,10 @@ export default function Dashboard() {
             <div className="bg-red-50/50 p-2 rounded-xl border border-red-200 flex items-center justify-between">
               <div>
                 <span className="text-[9px] font-bold text-red-700 block">
-                  {language === 'bn' ? 'মোট মৃত্যু' : 'Mortality'}
+                  {activeStyle.mortLabel}
                 </span>
                 <p className="text-sm font-black text-red-600 font-sans leading-none mt-1">
-                  {totalMortality} <span className="text-[9px] text-red-400 font-bold">/ {totalChicksCount}</span>
+                  {totalMortality.toLocaleString()} <span className="text-[9px] text-red-400 font-bold">/ {totalChicksCount.toLocaleString()}</span>
                 </p>
               </div>
               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${mortStat.color}`}>
@@ -589,7 +706,7 @@ export default function Dashboard() {
             to="/batches"
             className="w-full py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            {language === 'bn' ? 'ব্যাচ ও FCR এনালাইটিক্স' : 'Batch Details & FCR Analytics'}
+            {language === 'bn' ? 'সকল ব্যাচ ও FCR এনালাইটিক্স' : 'All Batches & FCR Analytics'}
             <ChevronRight size={13} />
           </Link>
         </div>
@@ -599,10 +716,12 @@ export default function Dashboard() {
           <div className="bg-slate-50 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-1.5">
             <Package size={20} className="text-slate-400" />
           </div>
-          <h4 className="font-extrabold text-slate-800 text-xs mb-1">
+          <h4 className="font-extrabold text-slate-850 text-xs mb-1">
             {language === 'bn' ? `কোনো চলমান ${selectedType === 'poultry' ? 'পোল্ট্রি' : selectedType === 'cattle' ? 'পশু' : 'মাছ'} ব্যাচ নেই` : `No active ${selectedType} batch`}
           </h4>
-          <p className="text-[9px] text-slate-400 mb-2">{t('dashboard.noBatchesSub')}</p>
+          <p className="text-[9px] text-slate-400 mb-2">
+            {language === 'bn' ? 'নতুন ব্যাচ শুরু করতে নিচের বাটনে চাপ দিন' : 'Click below to create a new batch'}
+          </p>
           <Link to="/batches" className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-emerald-700 inline-flex items-center gap-1 text-xs shadow-2xs">
             <Plus size={13} />
             {t('dashboard.createBatch')}
@@ -610,7 +729,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3. Quick Actions Launcher with 9 Buttons (খাবার, ঔষধ, মৃত্যু, খরচ, বিক্রয়, বকেয়া, 📋 তদারকি, 🏷️ বাজার দর, 🌟 স্পনসর) */}
+      {/* 3. Quick Actions Launcher with 9 Grid Buttons + 1 Full Width Expert Advice Button */}
       <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100">
         <div className="flex items-center justify-between mb-2.5">
           <h4 className="font-extrabold text-slate-850 text-xs flex items-center gap-1.5">
@@ -618,12 +737,13 @@ export default function Dashboard() {
             {t('dashboard.quickActions')}
           </h4>
           <span className="text-[9px] font-bold text-slate-400">
-            {language === 'bn' ? '৯টি জরুরি শর্টকাট' : '9 Quick Shortcuts'}
+            {language === 'bn' ? 'জরুরি শর্টকাট' : 'Quick Shortcuts'}
           </span>
         </div>
 
+        {/* 3x3 Grid of 9 primary action buttons */}
         <div className="grid grid-cols-3 gap-2">
-          {/* 1. Feed */}
+          {/* Row 1, Item 1: Feed */}
           <Link to="/feed" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-amber-300 hover:bg-amber-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
@@ -631,7 +751,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.feed')}</span>
           </Link>
 
-          {/* 2. Medicine */}
+          {/* Row 1, Item 2: Medicine */}
           <Link to="/medicine" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-blue-300 hover:bg-blue-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -639,7 +759,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.medicine')}</span>
           </Link>
 
-          {/* 3. Mortality */}
+          {/* Row 1, Item 3: Mortality */}
           <Link to="/mortality" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-red-300 hover:bg-red-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
                <AlertTriangle size={15} strokeWidth={2.5} />
@@ -647,7 +767,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{language === 'bn' ? 'মৃত্যু' : t('dashboard.mortality')}</span>
           </Link>
 
-          {/* 4. Expenses */}
+          {/* Row 2, Item 1: Expenses */}
           <Link to="/expenses" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-purple-300 hover:bg-purple-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -655,7 +775,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.expenses')}</span>
           </Link>
 
-          {/* 5. Sales */}
+          {/* Row 2, Item 2: Sales */}
           <Link to="/sales" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-teal-300 hover:bg-teal-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
@@ -663,7 +783,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.sales')}</span>
           </Link>
 
-          {/* 6. Dues */}
+          {/* Row 2, Item 3: Dues */}
           <Link to="/dues" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-pink-300 hover:bg-pink-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-pink-100 text-pink-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -671,7 +791,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.dues')}</span>
           </Link>
 
-          {/* 7. Daily Care / Chores (Tadaroki) with Live Badge */}
+          {/* Row 3, Item 1: Daily Care / Chores (Tadaroki) */}
           <button 
             type="button"
             onClick={() => setIsChoresModalOpen(true)}
@@ -694,7 +814,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* 8. Live Market Rates (লাইভ বাজার দর পপআপ) with LIVE Badge */}
+          {/* Row 3, Item 2: Live Market Rates with LIVE Badge */}
           <button 
             type="button"
             onClick={() => setIsMarketRatesModalOpen(true)}
@@ -711,7 +831,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* 9. Sponsored Partners (স্পনসর খাদ্য ও ঔষধ পার্টনার্স) with PRO Badge */}
+          {/* Row 3, Item 3: Sponsored Partners with PRO Badge */}
           <button 
             type="button"
             onClick={() => setIsSponsorsModalOpen(true)}
@@ -727,12 +847,64 @@ export default function Dashboard() {
               {language === 'bn' ? 'স্পনসর' : 'Sponsors'}
             </span>
           </button>
+
+          {/* Row 4 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
+          <Link
+            to="/reports"
+            className="col-span-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/80 to-blue-50/90 p-2.5 rounded-xl border border-indigo-200/80 flex items-center justify-between hover:border-indigo-400 hover:bg-indigo-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 text-left min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <BarChart3 size={16} strokeWidth={2.3} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-indigo-950 leading-tight">
+                    {language === 'bn' ? 'রিপোর্ট ও খামার বিশ্লেষণ' : 'Reports & Farm Analytics'}
+                  </span>
+                  <span className="bg-indigo-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                    REPORT
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-slate-500 font-bold truncate">
+                  {language === 'bn' ? 'লাভ-ক্ষতি, খরচের হিসাব ও এক্সেল/পিডিএফ ব্যাকআপ' : 'Profit/Loss, expenses breakdown & PDF/Excel backup'}
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-indigo-600 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
+
+        {/* Dedicated Veterinary Doctor Consultation Link */}
+        <Link
+          to="/doctor"
+          className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-blue-500/15 hover:from-teal-500/25 hover:to-blue-500/25 border border-teal-200/80 transition-all group"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+              <Stethoscope size={16} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-slate-850 truncate leading-tight">
+                  {language === 'bn' ? 'ডাক্তারি পরামর্শ ও জরুরি চিকিৎসা' : 'Doctor Consultation & Vet Care'}
+                </span>
+                <span className="bg-emerald-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase shrink-0 animate-pulse">
+                  24/7 VET
+                </span>
+              </div>
+              <p className="text-[9px] text-slate-500 font-bold truncate">
+                {language === 'bn' ? 'অভিজ্ঞ ভেটেরিনারি সার্জনদের কল, প্রেসক্রিপশন ও হটলাইন (১৬১২৩)' : 'Call registered vets, get prescriptions & helpline 16123'}
+              </p>
+            </div>
+          </div>
+          <ArrowRight size={14} className="text-teal-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
 
         {/* Dedicated Marketplace / Buyer Network Link */}
         <Link
           to="/marketplace"
-          className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 hover:from-amber-500/20 hover:to-red-500/20 border-amber-200/60 transition-all group"
+          className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 hover:from-amber-500/20 hover:to-red-500/20 border-amber-200/60 transition-all group"
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
@@ -763,10 +935,9 @@ export default function Dashboard() {
             <Activity size={14} className="text-green-600" />
             {t('dashboard.recentActivity')}
           </h4>
-          <Link to="/reports" className="text-[9px] font-bold text-emerald-700 hover:underline flex items-center gap-0.5">
-            <FileText size={10} />
-            {language === 'bn' ? 'রিপোর্ট' : 'Reports'}
-          </Link>
+          <span className="text-[9px] font-bold text-slate-400">
+            {recentActivities.length > 0 ? `${recentActivities.length} ${language === 'bn' ? 'টি এন্ট্রি' : 'entries'}` : (language === 'bn' ? 'লাইভ আপডেট' : 'Live')}
+          </span>
         </div>
 
         {recentActivities.length > 0 ? (

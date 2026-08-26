@@ -126,13 +126,15 @@ export interface DemoUserProfile {
 export interface DemoMarketPost {
   id: string;
   userId: string;
+  postType?: 'sell' | 'buy'; // 'sell' = বিক্রয় বিজ্ঞাপন, 'buy' = ক্রয় চাহিদা বিজ্ঞাপন
   farmerName: string;
   farmName: string;
   phone: string;
+  whatsapp?: string;
   district: string;
   upazila?: string;
   locationDetails: string;
-  poultryType: 'broiler' | 'sonali' | 'deshi' | 'layer' | 'other';
+  poultryType: 'broiler' | 'sonali' | 'deshi' | 'layer' | 'other' | string;
   birdCount: number;
   avgWeightKg: number;
   totalWeightKg: number;
@@ -234,9 +236,11 @@ const initialMarketPosts: DemoMarketPost[] = [
   {
     id: 'post_1',
     userId: 'demo_other_user_1',
+    postType: 'sell',
     farmerName: 'মো. কামরুল হাসান',
     farmName: 'সবুজ বাংলা পোল্ট্রি খামার',
     phone: '01799887766',
+    whatsapp: '01799887766',
     district: 'গাজীপুর',
     upazila: 'শ্রীপুর',
     locationDetails: 'মাওনা চৌরাস্তা থেকে ২ কিমি পূর্বে, শ্রীপুর',
@@ -254,9 +258,11 @@ const initialMarketPosts: DemoMarketPost[] = [
   {
     id: 'post_2',
     userId: 'demo_other_user_2',
+    postType: 'sell',
     farmerName: 'মো. রোকনুজ্জামান',
     farmName: 'মা-বাবার দোয়া এগ্রো',
     phone: '01855667788',
+    whatsapp: '01855667788',
     district: 'টাঙ্গাইল',
     upazila: 'সখিপুর',
     locationDetails: 'সখিপুর বাজার সংলগ্ন খামার',
@@ -269,53 +275,145 @@ const initialMarketPosts: DemoMarketPost[] = [
     status: 'available',
     notes: '৬০ দিনের সুন্দর কালার সোনালী মুরগি। পাইকার ভাইদের সরাসরি যোগাযোগ করার অনুরোধ।',
     createdAt: new Date(Date.now() - 5 * 3600000).toISOString()
+  },
+  {
+    id: 'post_3',
+    userId: 'demo_other_user_3',
+    postType: 'buy',
+    farmerName: 'আলমগীর হোসেন (হোটেল ব্যবসায়ী)',
+    farmName: 'আলমগীর ক্যাফে অ্যান্ড রেস্টুরেন্ট',
+    phone: '01712345678',
+    whatsapp: '01712345678',
+    district: 'ঢাকা',
+    upazila: 'উত্তরা',
+    locationDetails: 'সেক্টর ৭, উত্তরা, ঢাকা',
+    poultryType: 'broiler',
+    birdCount: 500,
+    avgWeightKg: 1.8,
+    totalWeightKg: 900,
+    expectedPricePerKg: 182,
+    isEmergency: false,
+    status: 'available',
+    notes: 'রেস্তোরাঁর জন্য নিয়মিত প্রতি সপ্তাহে ৫০০ পিস ফ্রেশ ব্রয়লার প্রয়োজন। সরাসরি খামারি যোগাযোগ করুন।',
+    createdAt: new Date(Date.now() - 8 * 3600000).toISOString()
   }
 ];
 
 const initialBatches: DemoBatch[] = [
+  // 🐔 ৪টি মুরগির ব্যাচ (Poultry Batches)
   {
     id: 'demo_batch_1',
     userId: 'demo_khamari_user_1',
-    batchName: 'ব্রয়লার লট-০১ (১০০০ বাচ্চা)',
+    batchName: 'ব্রয়লার শেড-০১ (১০০০ বাচ্চা)',
     farmType: 'poultry',
-    startDate: new Date(Date.now() - 20 * 86400000).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - 22 * 86400000).toISOString().split('T')[0],
     totalChicks: 1000,
     costPerChick: 36,
     status: 'active',
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString()
+    createdAt: new Date(Date.now() - 22 * 86400000).toISOString()
   },
   {
     id: 'demo_batch_2',
     userId: 'demo_khamari_user_1',
-    batchName: 'সোনালী মুরগি লট-০২',
+    batchName: 'সোনালী মুরগি শেড-০২ (৮০০ বাচ্চা)',
     farmType: 'poultry',
-    startDate: new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0],
-    totalChicks: 500,
-    costPerChick: 28,
-    status: 'completed',
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString()
+    startDate: new Date(Date.now() - 40 * 86400000).toISOString().split('T')[0],
+    totalChicks: 800,
+    costPerChick: 30,
+    status: 'active',
+    createdAt: new Date(Date.now() - 40 * 86400000).toISOString()
   },
+  {
+    id: 'demo_batch_p3',
+    userId: 'demo_khamari_user_1',
+    batchName: 'লেয়ার ডিম মুরগি শেড-০৩ (৬০০ পাখি)',
+    farmType: 'poultry',
+    startDate: new Date(Date.now() - 75 * 86400000).toISOString().split('T')[0],
+    totalChicks: 600,
+    costPerChick: 42,
+    status: 'active',
+    createdAt: new Date(Date.now() - 75 * 86400000).toISOString()
+  },
+  {
+    id: 'demo_batch_p4',
+    userId: 'demo_khamari_user_1',
+    batchName: 'দেশি মুরগি ব্রিডিং শেড-০৪ (৩০০ পিস)',
+    farmType: 'poultry',
+    startDate: new Date(Date.now() - 15 * 86400000).toISOString().split('T')[0],
+    totalChicks: 300,
+    costPerChick: 25,
+    status: 'active',
+    createdAt: new Date(Date.now() - 15 * 86400000).toISOString()
+  },
+
+  // 🐄 ৪টি গরুর ব্যাচ (Cattle / Livestock Batches)
   {
     id: 'demo_batch_3',
     userId: 'demo_khamari_user_1',
-    batchName: 'গাভী পালন প্রকল্প',
+    batchName: 'ডেইরি গাভী শেড-০১ (দুধ প্রকল্প - ৮টি)',
     farmType: 'cattle',
-    startDate: new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - 120 * 86400000).toISOString().split('T')[0],
     totalChicks: 8,
-    costPerChick: 45000,
+    costPerChick: 65000,
     status: 'active',
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString()
+    createdAt: new Date(Date.now() - 120 * 86400000).toISOString()
   },
+  {
+    id: 'demo_batch_c2',
+    userId: 'demo_khamari_user_1',
+    batchName: 'ষাঁড় মোটাতাজাকরণ লট-০২ (কোরবানি - ৬টি)',
+    farmType: 'cattle',
+    startDate: new Date(Date.now() - 80 * 86400000).toISOString().split('T')[0],
+    totalChicks: 6,
+    costPerChick: 55000,
+    status: 'active',
+    createdAt: new Date(Date.now() - 80 * 86400000).toISOString()
+  },
+  {
+    id: 'demo_batch_c3',
+    userId: 'demo_khamari_user_1',
+    batchName: 'বাছুর পালন শেড-০৩ (৪টি বাছুর)',
+    farmType: 'cattle',
+    startDate: new Date(Date.now() - 45 * 86400000).toISOString().split('T')[0],
+    totalChicks: 4,
+    costPerChick: 22000,
+    status: 'active',
+    createdAt: new Date(Date.now() - 45 * 86400000).toISOString()
+  },
+  {
+    id: 'demo_batch_c4',
+    userId: 'demo_khamari_user_1',
+    batchName: 'দেশি ও ব্রাহমা ক্রস শেড-০৪ (৫টি)',
+    farmType: 'cattle',
+    startDate: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+    totalChicks: 5,
+    costPerChick: 48000,
+    status: 'active',
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString()
+  },
+
+  // 🐟 ২টি মাছের ব্যাচ (Fish Batches)
   {
     id: 'demo_batch_4',
     userId: 'demo_khamari_user_1',
-    batchName: 'তেলাপিয়া মাছ চাষ পুকুর-১',
+    batchName: 'তেলাপিয়া মাছ চাষ পুকুর-১ (৪০০০ পোনা)',
     farmType: 'fish',
     startDate: new Date(Date.now() - 45 * 86400000).toISOString().split('T')[0],
     totalChicks: 4000,
     costPerChick: 2.5,
     status: 'active',
     createdAt: new Date(Date.now() - 45 * 86400000).toISOString()
+  },
+  {
+    id: 'demo_batch_f2',
+    userId: 'demo_khamari_user_1',
+    batchName: 'রুই-কাতলা মিশ্র চাষ পুকুর-২ (২০০০ পোনা)',
+    farmType: 'fish',
+    startDate: new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0],
+    totalChicks: 2000,
+    costPerChick: 6,
+    status: 'active',
+    createdAt: new Date(Date.now() - 60 * 86400000).toISOString()
   }
 ];
 
@@ -768,6 +866,32 @@ export const demoStore = {
   deleteMarketBuyer(id: string): void {
     const records = this.getMarketBuyers().filter(r => r.id !== id);
     setItem('market_buyers', records);
+  },
+
+  // Clear all demo/test data for production readiness
+  clearAllData(): void {
+    setItem('batches', []);
+    setItem('feed_records', []);
+    setItem('medicine_records', []);
+    setItem('mortality_records', []);
+    setItem('expense_records', []);
+    setItem('sale_records', []);
+    setItem('due_records', []);
+    setItem('market_posts', []);
+  },
+
+  // Reset back to initial sample demo data
+  resetToInitialDemo(): void {
+    setItem('batches', initialBatches);
+    setItem('feed_records', initialFeed);
+    setItem('medicine_records', initialMedicine);
+    setItem('mortality_records', initialMortality);
+    setItem('expense_records', initialExpenses);
+    setItem('sale_records', initialSales);
+    setItem('due_records', initialDues);
+    setItem('market_posts', initialMarketPosts);
+    setItem('market_buyers', initialMarketBuyers);
   }
 };
+
 

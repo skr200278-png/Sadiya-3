@@ -1,4 +1,4 @@
-// Firebase configurations with user's project settings (polty-e357c)
+// Firebase configuration with user's polty-e357c project
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBIEQ7U0awBwchCLsWGvrBezvuKMnr6hcw",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "polty-e357c.firebaseapp.com",

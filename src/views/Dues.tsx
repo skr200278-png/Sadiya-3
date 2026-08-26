@@ -1006,6 +1006,40 @@ export default function Dues() {
                   </div>
                   
                   <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        const batchName = record.batchName || record.batchId || (language === 'bn' ? 'খামার পণ্য' : 'Farm Product');
+                        const memo: CashMemoData = {
+                          memoNo: `DUE-${record.id.slice(-6).toUpperCase()}`,
+                          date: new Date(record.date || record.updatedAt || new Date()).toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' }),
+                          batchName: batchName,
+                          buyerName: record.personName,
+                          buyerPhone: record.phone,
+                          items: [
+                            {
+                              name: record.category ? `${record.category} (বকেয়া খতিয়ান)` : 'পণ্য ক্রয় / পূর্বের বাকি',
+                              quantity: 1,
+                              unit: 'ইনভয়েস',
+                              unitPrice: Number(record.totalAmount || record.amount),
+                              totalPrice: Number(record.totalAmount || record.amount)
+                            }
+                          ],
+                          totalAmount: Number(record.totalAmount || record.amount),
+                          paidAmount: totalPaid,
+                          dueAmount: remainingDue,
+                          notes: record.note || (record.type === 'customer_due' ? 'কাস্টমার বকেয়া খতিয়ান' : 'সাপ্লায়ার দেনা খতিয়ান'),
+                          type: 'due_payment'
+                        };
+                        setReceiptData(memo);
+                        setIsReceiptOpen(true);
+                      }}
+                      className="text-[11px] bg-teal-50 text-teal-800 px-2 py-1 rounded-lg font-bold hover:bg-teal-100 border border-teal-200 transition-all cursor-pointer flex items-center gap-1"
+                      title={language === 'bn' ? 'রিসিট / মেমো তৈরি করুন' : 'Generate Receipt'}
+                    >
+                      <FileText size={12} className="text-teal-600" />
+                      <span>{language === 'bn' ? 'রিসিট' : 'Receipt'}</span>
+                    </button>
+
                     {remainingDue > 0 && (
                       <>
                         <button 
@@ -1037,6 +1071,13 @@ export default function Dues() {
           })}
         </div>
       )}
+
+      {/* Cash Memo / Due Receipt Modal */}
+      <CashMemoModal
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+        data={receiptData}
+      />
 
       {/* Partial Deposit Collection Modal */}
       {paymentRecordId && (

@@ -37,7 +37,7 @@ export default function CashMemoModal({ isOpen, onClose, data }: CashMemoModalPr
   if (!isOpen || !data) return null;
 
   const farmTitle = data.farmName || (language === 'bn' ? 'আমাদের স্মার্ট খামার' : 'Digital Smart Farm');
-  const memoNumber = data.memoNo || `MEMO-${Math.abs(data.date.replace(/[^0-9]/g, ''))}-${Math.floor(100 + Math.random() * 900)}`;
+  const memoNumber = data.memoNo || `MEMO-${data.date.replace(/[^0-9]/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
 
   const handlePrint = () => {
     window.print();

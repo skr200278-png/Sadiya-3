@@ -12,7 +12,7 @@ import { demoStore } from '../utils/demoStore';
 
 export default function Reports() {
   const { currentUser, isDemoUser } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -131,33 +131,163 @@ export default function Reports() {
   const grandTotalCost = totalCost + originalChicksTotalCost;
   const finalNetProfit = totalSales - grandTotalCost;
 
+  const generateFullBackupCSV = async () => {
+    if (!currentUser) return;
+    toast.loading(t('reports.csvStarted') || 'Exporting Excel/CSV...');
+
+    try {
+      let salesRows: any[] = [];
+      let feedRows: any[] = [];
+      let expRows: any[] = [];
+      let medRows: any[] = [];
+      let mortRows: any[] = [];
+      let dueRows: any[] = [];
+
+      if (isDemoUser) {
+        salesRows = demoStore.getSales();
+        feedRows = demoStore.getFeedRecords();
+        expRows = demoStore.getExpenses();
+        medRows = demoStore.getMedicineRecords();
+        mortRows = demoStore.getMortalityRecords();
+        dueRows = demoStore.getDues();
+      } else {
+        const [sSnap, fSnap, eSnap, mSnap, mortSnap, dSnap] = await Promise.all([
+          fastGetDocs(query(collection(db, 'sales'), where('userId', '==', currentUser.uid))),
+          fastGetDocs(query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid))),
+          fastGetDocs(query(collection(db, 'expenses'), where('userId', '==', currentUser.uid))),
+          fastGetDocs(query(collection(db, 'medicine_records'), where('userId', '==', currentUser.uid))),
+          fastGetDocs(query(collection(db, 'mortality'), where('userId', '==', currentUser.uid))),
+          fastGetDocs(query(collection(db, 'dues'), where('userId', '==', currentUser.uid))),
+        ]);
+
+        salesRows = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        feedRows = fSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        expRows = eSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        medRows = mSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        mortRows = mortSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        dueRows = dSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+
+      // Format Master Consolidated Rows
+      const masterData: any[] = [];
+
+      salesRows.forEach(s => {
+        masterData.push({
+          'Section / মডিউল': 'বিক্রয় (Sales)',
+          'Date / তারিখ': s.date,
+          'Batch / ব্যাচ': activeBatches.find(b => b.id === s.batchId)?.batchName || 'N/A',
+          'Details / বিবরণ': `${s.category || 'Sale'} - ${s.productName || s.buyerName || ''}`,
+          'Quantity / পরিমাণ': s.quantity || s.totalWeightKg || 1,
+          'Total Amount / মোট (৳)': s.totalAmount || 0,
+          'Paid / জমা (৳)': s.amountPaid || s.totalAmount || 0,
+          'Customer / Supplier': s.buyerName || 'N/A',
+          'Phone': s.buyerPhone || ''
+        });
+      });
+
+      feedRows.forEach(f => {
+        masterData.push({
+          'Section / মডিউল': 'খাবার (Feed)',
+          'Date / তারিখ': f.date,
+          'Batch / ব্যাচ': activeBatches.find(b => b.id === f.batchId)?.batchName || 'N/A',
+          'Details / বিবরণ': f.feedType || 'Feed',
+          'Quantity / পরিমাণ': `${f.quantityBags} বস্তা`,
+          'Total Amount / মোট (৳)': f.cost || 0,
+          'Paid / জমা (৳)': f.amountPaid || f.cost || 0,
+          'Customer / Supplier': f.personName || 'N/A',
+          'Phone': f.personPhone || ''
+        });
+      });
+
+      expRows.forEach(e => {
+        masterData.push({
+          'Section / মডিউল': 'খরচ (Expenses)',
+          'Date / তারিখ': e.date,
+          'Batch / ব্যাচ': activeBatches.find(b => b.id === e.batchId)?.batchName || 'N/A',
+          'Details / বিবরণ': `${e.category} - ${e.details || ''}`,
+          'Quantity / পরিমাণ': 1,
+          'Total Amount / মোট (৳)': e.amount || 0,
+          'Paid / জমা (৳)': e.amountPaid || e.amount || 0,
+          'Customer / Supplier': e.personName || 'N/A',
+          'Phone': e.personPhone || ''
+        });
+      });
+
+      medRows.forEach(m => {
+        masterData.push({
+          'Section / মডিউল': 'ওষুধ (Medicine)',
+          'Date / তারিখ': m.date,
+          'Batch / ব্যাচ': activeBatches.find(b => b.id === m.batchId)?.batchName || 'N/A',
+          'Details / বিবরণ': `${m.medicineName} (${m.type || 'medicine'})`,
+          'Quantity / পরিমাণ': 1,
+          'Total Amount / মোট (৳)': m.cost || 0,
+          'Paid / জমা (৳)': m.amountPaid || m.cost || 0,
+          'Customer / Supplier': m.personName || 'N/A',
+          'Phone': m.personPhone || ''
+        });
+      });
+
+      mortRows.forEach(mo => {
+        masterData.push({
+          'Section / মডিউল': 'মৃত্যু (Mortality)',
+          'Date / তারিখ': mo.date,
+          'Batch / ব্যাচ': activeBatches.find(b => b.id === mo.batchId)?.batchName || 'N/A',
+          'Details / বিবরণ': mo.cause || 'Mortality',
+          'Quantity / পরিমাণ': `${mo.count} টি`,
+          'Total Amount / মোট (৳)': 0,
+          'Paid / জমা (৳)': 0,
+          'Customer / Supplier': '',
+          'Phone': ''
+        });
+      });
+
+      const csv = Papa.unparse(masterData);
+      const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `KhamarPro_Full_Farm_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.dismiss();
+      toast.success(language === 'bn' ? 'সম্পূর্ণ খামারের এক্সেল ব্যাকআপ ডাউনলোড সম্পন্ন!' : 'Full farm data export completed!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Export failed');
+    }
+  };
+
   const generatePDF = () => {
     if (!selectedBatch) return;
     const doc = new jsPDF();
     
     doc.setFontSize(18);
-    doc.text('Farm Report', 14, 22);
+    doc.text('KhamarPro Farm Financial Report', 14, 20);
     
-    doc.setFontSize(12);
-    doc.text(`Batch Name: ${selectedBatch.batchName}`, 14, 32);
-    doc.text(`Status: ${selectedBatch.status === 'active' ? 'Active' : 'Completed'}`, 14, 38);
+    doc.setFontSize(11);
+    doc.text(`Batch Name: ${selectedBatch.batchName}`, 14, 30);
+    doc.text(`Status: ${selectedBatch.status === 'active' ? 'Active' : 'Completed'}`, 14, 36);
+    doc.text(`Total Chicks/Stock: ${selectedBatch.totalChicks}`, 14, 42);
+    doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 48);
     
     const tableData = [
-      ['Initial Purchase Cost', `${originalChicksTotalCost}`],
-      ['Feed Cost', `${totalFeedCost}`],
-      ['Medicine Cost', `${totalMedicineCost}`],
-      ['Other Expenses', `${totalExpenses}`],
-      ['Total Cost', `${grandTotalCost}`],
-      ['Total Sales', `${totalSales}`],
-      ['Net Profit/Loss', `${finalNetProfit}`],
-      ['Total Mortality', `${totalMortality}`],
+      ['Initial Purchase Cost (বাচ্চা ক্রয়)', `${originalChicksTotalCost}`],
+      ['Total Feed Cost (খাবারের খরচ)', `${totalFeedCost}`],
+      ['Total Medicine & Vaccine Cost (ঔষধ খরচ)', `${totalMedicineCost}`],
+      ['Other Farm Expenses (অন্যান্য ব্যয়)', `${totalExpenses}`],
+      ['GRAND TOTAL COST (সর্বমোট খরচ)', `${grandTotalCost}`],
+      ['TOTAL SALES REVENUE (মোট আয়)', `${totalSales}`],
+      ['NET PROFIT / LOSS (নিট লাভ/ক্ষতি)', `${finalNetProfit}`],
+      ['Total Mortality Count (মৃত্যু সংখ্যা)', `${totalMortality}`],
     ];
 
     (doc as any).autoTable({
-      startY: 45,
-      head: [['Metric', 'Amount (BDT) / Count']],
+      startY: 55,
+      head: [['Financial Metric / হিসাব বিবরণী', 'Amount (BDT ৳) / Count']],
       body: tableData,
       theme: 'grid',
+      headStyles: { fillColor: [5, 150, 105] }
     });
 
     doc.save(`${selectedBatch.batchName}_Report.pdf`);
@@ -179,7 +309,7 @@ export default function Reports() {
     ];
 
     const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -192,28 +322,49 @@ export default function Reports() {
 
   return (
     <div className="space-y-4 pb-4">
-      <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between gap-2">
+      <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="text-indigo-600" />
           <h2 className="text-xl font-bold text-gray-800">{t('reports.title')}</h2>
         </div>
-        {selectedBatchId && (
-          <div className="flex gap-2">
-            <button onClick={generateCSV} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100" title="Download Excel/CSV">
-              <FileSpreadsheet size={20} />
-            </button>
-            <button onClick={generatePDF} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100" title="Download PDF">
-              <FileText size={20} />
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={generateFullBackupCSV}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            title={language === 'bn' ? 'সম্পূর্ণ খামারের ডাটা এক্সেল ফাইল হিসেবে ব্যাকআপ নিন' : 'Download Complete Farm Excel Backup'}
+          >
+            <FileSpreadsheet size={16} />
+            <span>{language === 'bn' ? 'এক্সেল ব্যাকআপ (Excel)' : 'All Data Backup'}</span>
+          </button>
+
+          {selectedBatchId && (
+            <div className="flex gap-1.5">
+              <button 
+                onClick={generateCSV} 
+                className="p-2 bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-100 cursor-pointer" 
+                title={language === 'bn' ? 'ব্যাচ এক্সেল ডাউনলোড' : 'Batch Excel CSV'}
+              >
+                <FileSpreadsheet size={18} />
+              </button>
+              <button 
+                onClick={generatePDF} 
+                className="p-2 bg-red-50 text-red-700 border border-red-200 rounded-xl hover:bg-red-100 cursor-pointer" 
+                title={language === 'bn' ? 'ব্যাচ পিডিএফ ডাউনলোড' : 'Batch PDF Report'}
+              >
+                <FileText size={18} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow border border-indigo-100">
         <label className="block text-sm font-medium text-gray-700 mb-2">{t('reports.selectBatch')}</label>
         <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 font-medium text-gray-800 bg-gray-50">
           {activeBatches.map(b => (
-            <option key={b.id} value={b.id}>{b.batchName} ({b.status === 'active' ? t('feed.statusActive') : t('feed.statusCompleted')})</option>
+            <option key={b.id} value={b.id}>
+              {b.batchName} ({b.status === 'active' ? (language === 'bn' ? 'চলমান' : 'Active') : (language === 'bn' ? 'সম্পন্ন' : 'Completed')})
+            </option>
           ))}
         </select>
       </div>

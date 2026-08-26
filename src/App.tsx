@@ -24,6 +24,7 @@ import Profile from './views/Profile';
 import Guidelines from './views/Guidelines';
 import PrivacyPolicy from './views/PrivacyPolicy';
 import Marketplace from './views/Marketplace';
+import DoctorConsultation from './views/DoctorConsultation';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAuth();
@@ -47,6 +48,7 @@ function AppRoutes() {
           <Route path="sales" element={<Sales />} />
           <Route path="dues" element={<Dues />} />
           <Route path="marketplace" element={<Marketplace />} />
+          <Route path="doctor" element={<DoctorConsultation />} />
           <Route path="reports" element={<Reports />} />
           <Route path="profile" element={<Profile />} />
           <Route path="guidelines" element={<Guidelines />} />

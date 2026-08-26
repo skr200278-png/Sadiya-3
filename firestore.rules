@@ -91,5 +91,19 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Doctor Consultations / Prescription Requests
+    match /consultations/{consultationId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Community Doctor Listings / Advertisements
+    match /doctor_listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
   }
 }
