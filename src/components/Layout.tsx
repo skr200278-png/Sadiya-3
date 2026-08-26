@@ -62,9 +62,14 @@ export default function Layout() {
             <span className="text-[11px] hidden xs:inline">{language === 'bn' ? 'ভয়েস' : 'Voice'}</span>
           </button>
 
-          <h1 className="text-lg sm:text-xl font-black flex-1 text-center whitespace-nowrap overflow-hidden text-ellipsis px-2 tracking-tight">
-            {profileData?.farmName || t('app.title')}
-          </h1>
+          <div className="flex-1 flex items-center justify-center gap-2 overflow-hidden px-1">
+            <div className="w-7 h-7 bg-white rounded-lg p-0.5 shadow-xs shrink-0 flex items-center justify-center border border-emerald-500/50">
+              <img src="/farm_app_icon_1779214389225.png" alt="Khamar Pro Logo" className="w-full h-full object-contain rounded-md" />
+            </div>
+            <h1 className="text-base sm:text-lg font-black whitespace-nowrap overflow-hidden text-ellipsis tracking-tight">
+              {profileData?.farmName || t('app.title')}
+            </h1>
+          </div>
 
           <Link to="/profile" className="p-0.5 hover:bg-emerald-800 rounded-full transition-colors w-8 h-8 flex items-center justify-center shrink-0">
             {currentUser?.photoURL ? (
