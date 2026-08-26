@@ -42,9 +42,9 @@ jobs:
         working-directory: android
         run: ./gradlew --version
 
-      - name: Build Android App Bundle
+      - name: Build Android App Bundle & APK
         working-directory: android
-        run: ./gradlew bundleRelease --stacktrace
+        run: ./gradlew bundleRelease assembleRelease --stacktrace
 
       - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
@@ -52,3 +52,10 @@ jobs:
           name: KhamarPro-Release-AAB-PlayStore
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KhamarPro-Release-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
