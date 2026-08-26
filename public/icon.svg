@@ -1,8 +1,50 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="120" fill="#f97316"/>
-  <!-- stylized egg -->
-  <path d="M256 100 C 170 100 130 240 130 330 C 130 400 180 440 256 440 C 332 440 382 400 382 330 C 382 240 342 100 256 100 Z" fill="#ffffff"/>
-  <!-- decorative lines -->
-  <path d="M200 300 Q 256 360 312 300" stroke="#f97316" stroke-width="24" fill="none" stroke-linecap="round"/>
-  <path d="M220 360 Q 256 400 292 360" stroke="#f97316" stroke-width="24" fill="none" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Container -->
+  <rect width="512" height="512" rx="128" fill="url(#greenGradient)"/>
+
+  <!-- Farm House / Barn Structure -->
+  <g filter="url(#shadow)">
+    <!-- Roof with nice overhang -->
+    <path d="M256 110 L96 230 L132 230 L256 136 L380 230 L416 230 Z" fill="#ffffff"/>
+    
+    <!-- Main House Body -->
+    <rect x="136" y="230" width="240" height="175" rx="8" fill="#ffffff"/>
+    
+    <!-- Roof Cap / Vent triangle -->
+    <polygon points="256,155 220,195 292,195" fill="#15803d"/>
+    
+    <!-- Silo / Side Tower on left -->
+    <rect x="100" y="190" width="36" height="215" rx="18" fill="#e2e8f0"/>
+    <path d="M100 205 Q118 175 136 205 Z" fill="#cbd5e1"/>
+    
+    <!-- Barn Double Door -->
+    <rect x="216" y="275" width="80" height="130" rx="6" fill="#15803d"/>
+    <!-- Door X pattern -->
+    <line x1="222" y1="285" x2="290" y2="395" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+    <line x1="290" y1="285" x2="222" y2="395" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+    <line x1="256" y1="275" x2="256" y2="405" stroke="#ffffff" stroke-width="3"/>
+    
+    <!-- Left & Right Windows -->
+    <rect x="156" y="265" width="36" height="40" rx="4" fill="#22c55e"/>
+    <line x1="174" y1="265" x2="174" y2="305" stroke="#ffffff" stroke-width="2"/>
+    <line x1="156" y1="285" x2="192" y2="285" stroke="#ffffff" stroke-width="2"/>
+    
+    <rect x="320" y="265" width="36" height="40" rx="4" fill="#22c55e"/>
+    <line x1="338" y1="265" x2="338" y2="305" stroke="#ffffff" stroke-width="2"/>
+    <line x1="320" y1="285" x2="356" y2="285" stroke="#ffffff" stroke-width="2"/>
+    
+    <!-- Golden Wheat / Sprout Accent at peak -->
+    <path d="M256 95 Q265 70 280 65 Q265 85 256 95" fill="#facc15"/>
+    <path d="M256 95 Q247 70 232 65 Q247 85 256 95" fill="#facc15"/>
+  </g>
 </svg>
