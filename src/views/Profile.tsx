@@ -402,8 +402,8 @@ export default function Profile() {
             >
               <X size={20} />
             </button>
-            <div className="w-20 h-20 bg-green-100 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-inner rotate-3">
-              <LogOut size={40} className="text-green-600 -rotate-3" />
+            <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-md p-1 border border-emerald-100 overflow-hidden">
+              <img src="/farm_app_icon_1779214389225.png" alt="Khamar Pro Logo" className="w-full h-full object-contain rounded-xl" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">ডিজিটাল খামার প্রো</h2>
             <p className="text-gray-600 mb-6 text-sm">বাংলাদেশের সবচেয়ে আধুনিক খামার ব্যবস্থাপনা সফটওয়্যার।</p>

@@ -42,20 +42,56 @@ jobs:
         working-directory: android
         run: ./gradlew --version
 
+      - name: Decode Release Keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+
       - name: Build Android App Bundle & APK
         working-directory: android
+        env:
+          RELEASE_STORE_FILE: release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || secrets.KEY_PASSWORD }}
         run: ./gradlew bundleRelease assembleRelease --stacktrace
+
+      - name: Verify Signed Release APK
+        run: |
+          SIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [ -f "$SIGNED_APK" ]; then
+            echo "Signed Release APK found at $SIGNED_APK. Verifying signature..."
+            ${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose --print-certs "$SIGNED_APK" || apksigner verify --verbose --print-certs "$SIGNED_APK"
+            echo "APK signature verification successful!"
+          else
+            echo "ERROR: Signed APK not found at $SIGNED_APK!"
+            echo "Listing contents of APK release directory:"
+            ls -la android/app/build/outputs/apk/release/ || true
+            exit 1
+          fi
+
+      - name: Verify Signed Release AAB
+        run: |
+          SIGNED_AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          if [ -f "$SIGNED_AAB" ]; then
+            echo "Release AAB verified at $SIGNED_AAB"
+          else
+            echo "ERROR: Release AAB not found at $SIGNED_AAB!"
+            exit 1
+          fi
 
       - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
           name: KhamarPro-Release-AAB-PlayStore
-          path: android/app/build/outputs/bundle/release/*.aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: KhamarPro-Release-APK
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

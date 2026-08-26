@@ -81,25 +81,25 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "1872c500de691dce40960bb85481de07"
   }, {
     "url": "index.html",
-    "revision": "bf8659847a488ccaa800a4c1afbbd627"
+    "revision": "e6309e7235a546329648c7ca2adc0cc0"
   }, {
     "url": "assets/purify.es-CLGrRn1w.js",
     "revision": null
   }, {
-    "url": "assets/index.es-nC0ApTAk.js",
+    "url": "assets/index.es-BW3KUebK.js",
     "revision": null
   }, {
-    "url": "assets/index-DuAUxc0B.css",
+    "url": "assets/index-CRAuwUGt.js",
     "revision": null
   }, {
-    "url": "assets/index-C-MIBqkC.js",
+    "url": "assets/index-BVd-kZY_.css",
     "revision": null
   }, {
     "url": "assets/html2canvas.esm-QH1iLAAe.js",
     "revision": null
   }, {
     "url": "farm_app_icon_1779214389225.png",
-    "revision": "bfda33f57f5d79003119b97174afa93d"
+    "revision": "f1849a27a1f25610d80cfec02756c29e"
   }, {
     "url": "screenshot-desktop.png",
     "revision": "becff3db1a316066326f5b5aac7f4e5c"

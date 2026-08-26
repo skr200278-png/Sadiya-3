@@ -284,8 +284,8 @@ export default function Login() {
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 p-7 text-center relative">
-          <div className="w-16 h-16 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg]">
-            <Activity className="text-emerald-700" size={32} />
+          <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden">
+            <img src="/farm_app_icon_1779214389225.png" alt="Khamar Pro Logo" className="w-full h-full object-contain rounded-xl" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-wide">ডিজিটাল খামার প্রো</h1>
           <p className="text-emerald-100 text-xs mt-1 font-medium">পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা</p>
