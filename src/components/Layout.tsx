@@ -7,6 +7,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { demoStore } from '../utils/demoStore';
 import VoiceAssistantModal from './VoiceAssistantModal';
+import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 
 export default function Layout() {
   const { currentUser, isDemoUser, logout } = useAuth();
@@ -64,7 +65,12 @@ export default function Layout() {
 
           <div className="flex-1 flex items-center justify-center gap-2 overflow-hidden px-1">
             <div className="w-7 h-7 bg-white rounded-lg p-0.5 shadow-xs shrink-0 flex items-center justify-center border border-emerald-500/50">
-              <img src="/farm_app_icon_1779214389225.png" alt="Khamar Pro Logo" className="w-full h-full object-contain rounded-md" />
+              <img 
+                src={appLogo} 
+                onError={(e) => { e.currentTarget.src = '/farm_app_icon_1779214389225.png'; }} 
+                alt="Khamar Pro Logo" 
+                className="w-full h-full object-contain rounded-md" 
+              />
             </div>
             <h1 className="text-base sm:text-lg font-black whitespace-nowrap overflow-hidden text-ellipsis tracking-tight">
               {profileData?.farmName || t('app.title')}

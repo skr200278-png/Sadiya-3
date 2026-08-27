@@ -232,72 +232,7 @@ const initialMarketBuyers: DemoMarketBuyer[] = [
   }
 ];
 
-const initialMarketPosts: DemoMarketPost[] = [
-  {
-    id: 'post_1',
-    userId: 'demo_other_user_1',
-    postType: 'sell',
-    farmerName: 'মো. কামরুল হাসান',
-    farmName: 'সবুজ বাংলা পোল্ট্রি খামার',
-    phone: '01799887766',
-    whatsapp: '01799887766',
-    district: 'গাজীপুর',
-    upazila: 'শ্রীপুর',
-    locationDetails: 'মাওনা চৌরাস্তা থেকে ২ কিমি পূর্বে, শ্রীপুর',
-    poultryType: 'broiler',
-    birdCount: 1500,
-    avgWeightKg: 1.95,
-    totalWeightKg: 2925,
-    expectedPricePerKg: 178,
-    isEmergency: true,
-    emergencyReason: 'গরম বৃদ্ধি ও অতিরিক্ত ওজনের কারণে দ্রুত বিক্রি জরুরি',
-    status: 'available',
-    notes: 'সম্পূর্ণ সুস্থ ও সতেজ ব্রয়লার। আজ রাতেই গাড়ি পাঠিয়ে ওজন করে নেওয়া যাবে।',
-    createdAt: new Date(Date.now() - 2 * 3600000).toISOString() // 2 hours ago
-  },
-  {
-    id: 'post_2',
-    userId: 'demo_other_user_2',
-    postType: 'sell',
-    farmerName: 'মো. রোকনুজ্জামান',
-    farmName: 'মা-বাবার দোয়া এগ্রো',
-    phone: '01855667788',
-    whatsapp: '01855667788',
-    district: 'টাঙ্গাইল',
-    upazila: 'সখিপুর',
-    locationDetails: 'সখিপুর বাজার সংলগ্ন খামার',
-    poultryType: 'sonali',
-    birdCount: 800,
-    avgWeightKg: 0.95,
-    totalWeightKg: 760,
-    expectedPricePerKg: 285,
-    isEmergency: false,
-    status: 'available',
-    notes: '৬০ দিনের সুন্দর কালার সোনালী মুরগি। পাইকার ভাইদের সরাসরি যোগাযোগ করার অনুরোধ।',
-    createdAt: new Date(Date.now() - 5 * 3600000).toISOString()
-  },
-  {
-    id: 'post_3',
-    userId: 'demo_other_user_3',
-    postType: 'buy',
-    farmerName: 'আলমগীর হোসেন (হোটেল ব্যবসায়ী)',
-    farmName: 'আলমগীর ক্যাফে অ্যান্ড রেস্টুরেন্ট',
-    phone: '01712345678',
-    whatsapp: '01712345678',
-    district: 'ঢাকা',
-    upazila: 'উত্তরা',
-    locationDetails: 'সেক্টর ৭, উত্তরা, ঢাকা',
-    poultryType: 'broiler',
-    birdCount: 500,
-    avgWeightKg: 1.8,
-    totalWeightKg: 900,
-    expectedPricePerKg: 182,
-    isEmergency: false,
-    status: 'available',
-    notes: 'রেস্তোরাঁর জন্য নিয়মিত প্রতি সপ্তাহে ৫০০ পিস ফ্রেশ ব্রয়লার প্রয়োজন। সরাসরি খামারি যোগাযোগ করুন।',
-    createdAt: new Date(Date.now() - 8 * 3600000).toISOString()
-  }
-];
+const initialMarketPosts: DemoMarketPost[] = [];
 
 const initialBatches: DemoBatch[] = [
   // 🐔 ৪টি মুরগির ব্যাচ (Poultry Batches)
@@ -814,7 +749,13 @@ export const demoStore = {
 
   // Marketplace Sell Posts
   getMarketPosts(): DemoMarketPost[] {
-    return getItem<DemoMarketPost[]>('market_posts', initialMarketPosts);
+    const raw = getItem<DemoMarketPost[]>('market_posts', initialMarketPosts);
+    // Purge legacy hardcoded dummy posts if they exist
+    const filtered = (raw || []).filter(p => p && p.id !== 'post_1' && p.id !== 'post_2' && p.id !== 'post_3' && !p.userId?.startsWith('demo_other_user_'));
+    if (filtered.length !== (raw || []).length) {
+      setItem('market_posts', filtered);
+    }
+    return filtered;
   },
   saveMarketPost(post: Omit<DemoMarketPost, 'id' | 'createdAt'> & { id?: string }): DemoMarketPost {
     const records = this.getMarketPosts();

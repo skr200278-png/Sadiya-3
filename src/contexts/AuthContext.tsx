@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth';
 import { auth } from '../firebase';
+import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 
 export const DEMO_USER: any = {
   uid: 'demo_khamari_user_1',
@@ -42,9 +43,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   });
   const [loading, setLoading] = useState(true);
-  const [logoSrc, setLogoSrc] = useState('farm_app_icon_1779214389225.png');
+  const [logoSrc, setLogoSrc] = useState<string>(appLogo);
 
   useEffect(() => {
+    // Process any incoming OAuth redirect results (for Android / mobile redirects)
+    getRedirectResult(auth).catch((err) => {
+      console.warn("Incoming redirect auth check:", err);
+    });
+
     let authUser: User | null = null;
     let authDetermined = false;
     const isMock = localStorage.getItem('is_demo_mock') === 'true';
@@ -128,8 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               <img 
                 src={logoSrc} 
                 onError={() => {
-                  if (logoSrc === 'farm_app_icon_1779214389225.png') {
-                    setLogoSrc('icon-192x192.png');
+                  if (logoSrc === appLogo) {
+                    setLogoSrc('/farm_app_icon_1779214389225.png');
                   } else {
                     setLogoSrc('');
                   }

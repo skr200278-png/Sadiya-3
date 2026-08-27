@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  setPersistence,
+  indexedDBLocalPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 import { 
   Activity, 
   Mail, 
@@ -63,6 +69,36 @@ export default function Login() {
       return true;
     }
   });
+
+  // Handle incoming OAuth redirect logins (crucial for mobile WebView and partitioned environments)
+  useEffect(() => {
+    let isMounted = true;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted) return;
+        if (result && result.user) {
+          setLoading(true);
+          await bootstrapUser(
+            result.user.uid, 
+            result.user.displayName, 
+            (result.user as any).phoneNumber || null, 
+            result.user.email
+          );
+          toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');
+          navigate('/', { replace: true });
+        }
+      })
+      .catch((err: any) => {
+        console.warn("Redirect result check notice:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
 
   if (currentUser) {
     return <Navigate to="/" replace />;
@@ -123,12 +159,56 @@ export default function Login() {
     setUnauthorizedDomain(null);
     setErrorMessage(null);
     try {
+      // Ensure persistence is set before starting auth flow
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch {
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+        } catch (e) {
+          console.warn("Persistence fallback notice:", e);
+        }
+      }
+
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, provider);
-      await bootstrapUser(result.user.uid, result.user.displayName, (result.user as any).phoneNumber || null, result.user.email);
-      toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');
-      navigate('/', { replace: true });
+
+      try {
+        const result = await signInWithPopup(auth, provider);
+        if (result && result.user) {
+          await bootstrapUser(
+            result.user.uid, 
+            result.user.displayName, 
+            (result.user as any).phoneNumber || null, 
+            result.user.email
+          );
+          toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');
+          navigate('/', { replace: true });
+          return;
+        }
+      } catch (popupErr: any) {
+        const pCode = popupErr?.code || '';
+        const pMsg = popupErr?.message || '';
+        console.warn("Popup authentication encounter:", pCode, pMsg);
+
+        // If popup was blocked, state was missing, or storage partitioned in WebView
+        if (
+          pCode === 'auth/missing-initial-state' ||
+          pCode === 'auth/popup-blocked' ||
+          pCode === 'auth/cancelled-popup-request' ||
+          pCode === 'auth/web-storage-unsupported'
+        ) {
+          console.info("Switching to signInWithRedirect for mobile/WebView compatibility...");
+          try {
+            await signInWithRedirect(auth, provider);
+            return;
+          } catch (redirectErr: any) {
+            throw redirectErr;
+          }
+        } else {
+          throw popupErr;
+        }
+      }
     } catch (error: any) {
       console.error("Google Auth Error:", error);
       const errCode = error?.code || '';
@@ -150,6 +230,9 @@ export default function Login() {
       } else if (errCode === 'auth/network-request-failed') {
         setErrorMessage('নেটওয়ার্ক সমস্যা। আপনার ইন্টারনেট সংযোগ চেক করুন।');
         toast.error('নেটওয়ার্ক সমস্যা!');
+      } else if (errCode === 'auth/missing-initial-state') {
+        setErrorMessage('মোবাইলের ব্রাউজার/অ্যাপ সেশন স্টেট সংরক্ষিত হয়নি। অনুগ্রহ করে নাম্বার/ইমেইল এবং পাসওয়ার্ড দিয়ে ১-ক্লিকে লগইন করুন।');
+        toast.error('সেশন স্টেট এরর। নাম্বার/পাসওয়ার্ড দিয়েও লগইন করতে পারেন।');
       } else {
         setErrorMessage(`গুগল লগইন ব্যর্থ হয়েছে (${errCode || 'ত্রুটি'}): ${errMsg}`);
         toast.error('গুগল লগইন ব্যর্থ হয়েছে।');
@@ -285,7 +368,12 @@ export default function Login() {
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 p-7 text-center relative">
           <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden">
-            <img src="/farm_app_icon_1779214389225.png" alt="Khamar Pro Logo" className="w-full h-full object-contain rounded-xl" />
+            <img 
+              src={appLogo} 
+              onError={(e) => { e.currentTarget.src = '/farm_app_icon_1779214389225.png'; }} 
+              alt="Khamar Pro Logo" 
+              className="w-full h-full object-contain rounded-xl" 
+            />
           </div>
           <h1 className="text-2xl font-black text-white tracking-wide">ডিজিটাল খামার প্রো</h1>
           <p className="text-emerald-100 text-xs mt-1 font-medium">পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা</p>

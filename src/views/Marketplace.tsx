@@ -181,12 +181,9 @@ export default function Marketplace() {
       snapshot.forEach(docSnap => {
         postList.push({ id: docSnap.id, ...docSnap.data() });
       });
-      // If empty on firestore, fallback to default demo list for friendly first load
-      if (postList.length === 0) {
-        setPosts(demoStore.getMarketPosts());
-      } else {
-        setPosts(postList);
-      }
+      // Filter out any legacy dummy sample posts
+      const validPosts = postList.filter(p => p && p.id !== 'post_1' && p.id !== 'post_2' && p.id !== 'post_3' && !p.userId?.startsWith('demo_other_user_'));
+      setPosts(validPosts);
       setLoading(false);
     }, (error) => {
       console.warn("Firestore posts error, loading local demo:", error);
@@ -364,13 +361,12 @@ export default function Marketplace() {
     setIsDeleting(true);
     const postId = postToDelete.id;
     try {
-      if (isDemoUser) {
-        demoStore.deleteMarketPost(postId);
-      } else {
+      demoStore.deleteMarketPost(postId);
+      if (!isDemoUser && auth.currentUser) {
         try {
           await deleteDoc(doc(db, 'marketplace_posts', postId));
         } catch (e) {
-          demoStore.deleteMarketPost(postId);
+          console.warn("Firestore delete post notice:", e);
         }
       }
       setPosts(prev => prev.filter(p => p.id !== postId));
@@ -389,13 +385,12 @@ export default function Marketplace() {
     setIsDeleting(true);
     const buyerId = buyerToDelete.id;
     try {
-      if (isDemoUser) {
-        demoStore.deleteMarketBuyer(buyerId);
-      } else {
+      demoStore.deleteMarketBuyer(buyerId);
+      if (!isDemoUser && auth.currentUser) {
         try {
-          await deleteDoc(doc(db, 'marketplace_buyers', buyerId));
+          await deleteDoc(doc(db, 'market_buyers', buyerId));
         } catch (e) {
-          demoStore.deleteMarketBuyer(buyerId);
+          console.warn("Firestore delete buyer notice:", e);
         }
       }
       setBuyers(prev => prev.filter(b => b.id !== buyerId));
@@ -717,7 +712,15 @@ export default function Marketplace() {
         <div className="space-y-3">
           {filteredPosts.length > 0 ? (
             filteredPosts.map((post) => {
-              const isDirectOwner = Boolean(currentUser && (post.userId === currentUser.uid || isDemoUser));
+              const isDirectOwner = Boolean(
+                isDemoUser ||
+                (currentUser && post.userId === currentUser.uid) ||
+                (post.phone && postForm.phone && post.phone === postForm.phone) ||
+                post.userId === 'demo_user' ||
+                post.userId?.startsWith('demo_') ||
+                post.id?.startsWith('post_') ||
+                post.id?.startsWith('demo_')
+              );
               const canManage = isDirectOwner || isAdmin;
               const isSold = post.status === 'sold';
               const isBuyRequest = post.postType === 'buy';
