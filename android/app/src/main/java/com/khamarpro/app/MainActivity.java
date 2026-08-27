@@ -13,10 +13,12 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
+import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(GoogleAuth.class);
         super.onCreate(savedInstanceState);
     }
 
@@ -75,10 +77,17 @@ public class MainActivity extends BridgeActivity {
 
                             popupWebView.setWebChromeClient(new WebChromeClient() {
                                 @Override
-                                public void onCloseWindow(WebView window) {
+                                public void onCloseWindow(final WebView window) {
                                     try {
                                         popupDialog.dismiss();
-                                        window.destroy();
+                                        window.postDelayed(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                try {
+                                                    window.destroy();
+                                                } catch (Exception ignored) {}
+                                            }
+                                        }, 1000);
                                     } catch (Exception ignored) {}
                                 }
                             });

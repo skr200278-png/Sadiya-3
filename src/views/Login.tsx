@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -9,6 +10,8 @@ import {
   indexedDBLocalPersistence,
   browserLocalPersistence
 } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
@@ -134,10 +137,8 @@ export default function Login() {
   /*
    * GOOGLE LOGIN
    *
-   * Important:
-   * We intentionally use signInWithPopup only here.
-   * The old redirect flow was causing the
-   * "missing initial state" problem in some mobile/WebView environments.
+   * Native Mobile One-Tap via @codetrix-studio/capacitor-google-auth on Android/iOS.
+   * Standard Firebase popup on Web browsers.
    */
   const handleGoogleLogin = async () => {
     if (loading) return;
@@ -161,23 +162,81 @@ export default function Login() {
         }
       }
 
-      const provider = new GoogleAuthProvider();
+      let authedUser: any = null;
 
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
+      // 1. If running as a Native Capacitor App on Android / iOS
+      if (Capacitor.isNativePlatform()) {
+        try {
+          try {
+            await GoogleAuth.initialize({
+              clientId: '430922454720.apps.googleusercontent.com',
+              scopes: ['profile', 'email'],
+              grantOfflineAccess: true
+            });
+          } catch (initErr) {
+            console.warn('GoogleAuth init notice:', initErr);
+          }
 
-      const result = await signInWithPopup(auth, provider);
+          const googleUser = await GoogleAuth.signIn();
+          const idToken = googleUser?.authentication?.idToken || (googleUser as any)?.idToken;
 
-      if (!result || !result.user) {
-        throw new Error('Google user information পাওয়া যায়নি।');
+          if (idToken) {
+            const credential = GoogleAuthProvider.credential(idToken);
+            const userCredential = await signInWithCredential(auth, credential);
+            authedUser = userCredential.user;
+          } else {
+            throw new Error('Google ID Token পাওয়া যায়নি।');
+          }
+        } catch (nativeErr: any) {
+          console.warn('Native GoogleAuth error:', nativeErr);
+          const errString = String(nativeErr?.message || nativeErr || '');
+
+          if (
+            errString.includes('cancelled') ||
+            errString.includes('canceled') ||
+            errString.includes('12501') ||
+            errString.includes('user cancel')
+          ) {
+            toast.error('গুগল লগইন বাতিল করা হয়েছে।');
+            setLoading(false);
+            return;
+          }
+
+          if (errString.includes('10') || errString.includes('DEVELOPER_ERROR')) {
+            setErrorMessage(
+              'Google Sign-in Developer Error (10): আপনার Firebase Console-এ APK-এর SHA-1 ফিঙ্গারপ্রিন্ট যুক্ত করতে হবে।'
+            );
+            toast.error('Firebase SHA-1 কনফিগারেশন প্রয়োজন।');
+            setLoading(false);
+            return;
+          }
+
+          // If native failed unexpectedly, proceed to try web popup fallback
+          console.warn('Falling back to web popup...');
+        }
+      }
+
+      // 2. Web browser or fallback flow
+      if (!authedUser) {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+          prompt: 'select_account'
+        });
+
+        const result = await signInWithPopup(auth, provider);
+
+        if (!result || !result.user) {
+          throw new Error('Google user information পাওয়া যায়নি।');
+        }
+
+        authedUser = result.user;
       }
 
       await bootstrapUser(
-        result.user.uid,
-        result.user.displayName,
-        (result.user as any).phoneNumber || null,
-        result.user.email
+        authedUser.uid,
+        authedUser.displayName,
+        (authedUser as any).phoneNumber || null,
+        authedUser.email
       );
 
       toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');

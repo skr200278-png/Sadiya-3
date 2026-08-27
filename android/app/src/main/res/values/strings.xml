@@ -4,4 +4,5 @@
     <string name="title_activity_main">KhamarPro</string>
     <string name="package_name">com.khamarpro.app</string>
     <string name="custom_url_scheme">com.khamarpro.app</string>
+    <string name="server_client_id">430922454720.apps.googleusercontent.com</string>
 </resources>
