@@ -46,11 +46,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [logoSrc, setLogoSrc] = useState<string>(appLogo);
 
   useEffect(() => {
-    // Process any incoming OAuth redirect results (for Android / mobile redirects)
-    getRedirectResult(auth).catch((err) => {
-      console.warn("Incoming redirect auth check:", err);
-    });
-
     let authUser: User | null = null;
     let authDetermined = false;
     const isMock = localStorage.getItem('is_demo_mock') === 'true';
