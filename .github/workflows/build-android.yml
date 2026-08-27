@@ -46,14 +46,33 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "Decoding release keystore from GitHub Secret..."
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
-            echo "Release keystore decoded successfully."
-          else
-            echo "::error::GitHub Secret 'RELEASE_KEYSTORE_BASE64' is missing or empty! Please add it in Repository Settings > Secrets > Actions."
+          set -e
+
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Release keystore secret is missing or empty."
             exit 1
           fi
+
+          echo "Decoding release keystore..."
+
+          # Remove whitespace/newlines that may have been introduced
+          # when the Base64 value was copied into GitHub Secrets.
+          CLEAN_BASE64="$(printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]')"
+
+          # Validate Base64 before writing the keystore.
+          printf '%s' "$CLEAN_BASE64" | base64 --decode >/tmp/release.keystore
+
+          # Confirm that the decoded file is a valid Java keystore.
+          keytool -list -keystore /tmp/release.keystore \
+            -storepass "$RELEASE_STORE_PASSWORD" >/dev/null
+
+          mkdir -p android/app
+          cp /tmp/release.keystore android/app/release.keystore
+
+          echo "Release keystore decoded and validated successfully."
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
 
       - name: Build Android App Bundle & APK
         working-directory: android
@@ -67,13 +86,19 @@ jobs:
       - name: Verify Signed Release APK
         run: |
           SIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
+
           if [ -f "$SIGNED_APK" ]; then
-            echo "Signed Release APK found at $SIGNED_APK. Verifying signature..."
-            ${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose --print-certs "$SIGNED_APK" || apksigner verify --verbose --print-certs "$SIGNED_APK"
+            echo "Signed Release APK found. Verifying signature..."
+
+            if [ -x "${ANDROID_HOME}/build-tools/35.0.0/apksigner" ]; then
+              "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$SIGNED_APK"
+            else
+              apksigner verify --verbose --print-certs "$SIGNED_APK"
+            fi
+
             echo "APK signature verification successful!"
           else
-            echo "ERROR: Signed APK not found at $SIGNED_APK!"
-            echo "Listing contents of APK release directory:"
+            echo "ERROR: Signed Release APK not found!"
             ls -la android/app/build/outputs/apk/release/ || true
             exit 1
           fi
@@ -81,10 +106,11 @@ jobs:
       - name: Verify Signed Release AAB
         run: |
           SIGNED_AAB="android/app/build/outputs/bundle/release/app-release.aab"
+
           if [ -f "$SIGNED_AAB" ]; then
-            echo "Release AAB verified at $SIGNED_AAB"
+            echo "Release AAB found successfully."
           else
-            echo "ERROR: Release AAB not found at $SIGNED_AAB!"
+            echo "ERROR: Release AAB not found!"
             exit 1
           fi
 
