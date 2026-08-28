@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { 
   FileText, 
   Plus, 
@@ -20,7 +21,9 @@ import {
   CheckCircle2, 
   Clock, 
   Wallet,
-  AlertCircle
+  AlertCircle,
+  Lock,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -33,6 +36,8 @@ export default function Dues() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
+  const { hasAccess, openSubscriptionModal } = useSystemConfig();
+  const canAccessDues = hasAccess('duesKhataFree');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -215,6 +220,14 @@ export default function Dues() {
     if (!currentUser) return;
     if (isSubmitting || submitLock.current) return;
     
+    if (!canAccessDues) {
+      openSubscriptionModal(
+        language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger & Accounts',
+        language === 'bn' ? 'বকেয়া খাতা ও দেনা-পাওনা খতিয়ান ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To use Dues ledger and accounts, please contact the admin for activation.'
+      );
+      return;
+    }
+
     if (Number(amount) <= 0) {
       return toast.error(language === 'bn' ? 'সঠিক টাকার পরিমাণ দিন' : 'Please enter valid amount');
     }
@@ -427,10 +440,56 @@ export default function Dues() {
     window.open(url, '_blank');
   };
 
+  const handleToggleForm = () => {
+    if (!canAccessDues && !showForm) {
+      openSubscriptionModal(
+        language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger & Accounts',
+        language === 'bn' ? 'বকেয়া খাতা ও দেনা-পাওনা খতিয়ান ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To use Dues ledger and accounts, please contact the admin for activation.'
+      );
+      return;
+    }
+    setShowForm(!showForm);
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">{t('common.loading')}</div>;
 
   return (
     <div className="space-y-4 pb-12">
+      {/* Premium Notice Banner if locked */}
+      {!canAccessDues && (
+        <div className="bg-gradient-to-r from-amber-600 via-rose-600 to-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+              <Lock size={20} className="text-amber-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  {language === 'bn' ? 'প্রিমিয়াম সুবিধা' : 'PREMIUM'}
+                </span>
+                <p className="text-xs sm:text-sm font-black">
+                  {language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger Premium'}
+                </p>
+              </div>
+              <p className="text-[10px] sm:text-xs text-rose-100 font-medium mt-0.5">
+                {language === 'bn' ? 'এই ফিচারটি আপনার অ্যাকাউন্টে সক্রিয় করতে অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Contact admin to activate this feature on your account.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openSubscriptionModal(
+              language === 'bn' ? 'বকেয়া খাতা (দেনা-পাওনা লেজার)' : 'Dues Ledger',
+              language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার সম্পূর্ণ ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact the admin to activate the Dues ledger.'
+            )}
+            className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shrink-0 shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+          >
+            <Sparkles size={14} />
+            <span>{language === 'bn' ? 'সক্রিয় করুন' : 'Activate'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Header Bar */}
       <div className="flex justify-between items-center bg-white p-3.5 sm:p-4 rounded-2xl shadow-xs border border-slate-100">
         <div className="flex items-center gap-2.5">
@@ -447,7 +506,7 @@ export default function Dues() {
           </div>
         </div>
         <button 
-          onClick={() => setShowForm(!showForm)}
+          onClick={handleToggleForm}
           className="flex items-center gap-1.5 bg-pink-600 hover:bg-pink-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all shadow-sm cursor-pointer"
         >
           <Plus size={18} />

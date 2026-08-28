@@ -7,6 +7,8 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { SystemConfigProvider } from './contexts/SystemConfigContext';
+import SubscriptionModal from './components/SubscriptionModal';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Login from './views/Login';
@@ -25,6 +27,7 @@ import Guidelines from './views/Guidelines';
 import PrivacyPolicy from './views/PrivacyPolicy';
 import Marketplace from './views/Marketplace';
 import DoctorConsultation from './views/DoctorConsultation';
+import StoreDirectory from './views/StoreDirectory';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAuth();
@@ -49,6 +52,8 @@ function AppRoutes() {
           <Route path="dues" element={<Dues />} />
           <Route path="marketplace" element={<Marketplace />} />
           <Route path="doctor" element={<DoctorConsultation />} />
+          <Route path="store" element={<StoreDirectory />} />
+          <Route path="shop" element={<StoreDirectory />} />
           <Route path="reports" element={<Reports />} />
           <Route path="profile" element={<Profile />} />
           <Route path="guidelines" element={<Guidelines />} />
@@ -62,9 +67,13 @@ export default function App() {
   return (
     <AuthProvider>
       <LanguageProvider>
-        <Toaster position="top-center" />
-        <AppRoutes />
+        <SystemConfigProvider>
+          <Toaster position="top-center" />
+          <SubscriptionModal />
+          <AppRoutes />
+        </SystemConfigProvider>
       </LanguageProvider>
     </AuthProvider>
   );
 }
+

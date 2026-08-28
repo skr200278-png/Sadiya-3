@@ -901,31 +901,60 @@ export default function Dashboard() {
           <ArrowRight size={14} className="text-teal-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
         </Link>
 
-        {/* Dedicated Marketplace / Buyer Network Link */}
-        <Link
-          to="/marketplace"
-          className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 hover:from-amber-500/20 hover:to-red-500/20 border-amber-200/60 transition-all group"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-              <Users size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-slate-850 truncate leading-tight">
-                  {language === 'bn' ? 'পাইকার ডিরেক্টরি ও জরুরি মুরগি বিক্রি' : 'Buyer Network & Emergency Sale'}
-                </span>
-                <span className="bg-red-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase shrink-0">
-                  NEW
-                </span>
+        {/* Row 3: 2-Column Balanced Hub: Marketplace & Agri-Vet Store Directory */}
+        <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
+          {/* Marketplace / Buyer Network Link */}
+          <Link
+            to="/marketplace"
+            className="flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 hover:from-amber-500/20 hover:to-red-500/20 border border-amber-200/60 transition-all group min-w-0"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <Users size={14} />
               </div>
-              <p className="text-[9px] text-slate-500 font-bold truncate">
-                {language === 'bn' ? 'সরাসরি পাইকারদের নম্বর ও বিক্রির বিজ্ঞাপন পোস্ট' : 'Find buyers & post quick sell alerts'}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'পাইকার ও বিক্রি' : 'Buyer Network'}
+                  </span>
+                  <span className="bg-red-600 text-white text-[6.5px] font-black px-1 py-0.2 rounded-full uppercase shrink-0">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                  {language === 'bn' ? 'পাইকার নম্বর ও বিজ্ঞাপন' : 'Find buyers & post ads'}
+                </p>
+              </div>
             </div>
-          </div>
-          <ArrowRight size={14} className="text-amber-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+            <ArrowRight size={12} className="text-amber-700 shrink-0 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+
+          {/* Store / Feed & Medicine Directory Link */}
+          <Link
+            to="/store"
+            className="flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 hover:from-emerald-500/20 hover:to-cyan-500/20 border border-emerald-200/60 transition-all group min-w-0"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <Store size={14} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'ফিড ও ঔষধ দোকান' : 'Store Directory'}
+                  </span>
+                  <span className="bg-emerald-600 text-white text-[6.5px] font-black px-1 py-0.2 rounded-full uppercase shrink-0">
+                    STORE
+                  </span>
+                </div>
+                <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                  {language === 'bn' ? '৬৪ জেলার দোকান নম্বর' : '64 districts stores'}
+                </p>
+              </div>
+            </div>
+            <ArrowRight size={12} className="text-emerald-700 shrink-0 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
       </div>
 
       {/* 4. Recent Activity Logs (Ultra-compact) */}

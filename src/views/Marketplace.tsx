@@ -42,17 +42,23 @@ import {
   Share2,
   UserCheck,
   HelpCircle,
-  Crown
+  Crown,
+  Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
+import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
+import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 
 export default function Marketplace() {
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
+  const { hasAccess, openSubscriptionModal } = useSystemConfig();
 
   const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState<'posts' | 'buyers'>('posts');
+
   const [posts, setPosts] = useState<DemoMarketPost[]>([]);
   const [buyers, setBuyers] = useState<DemoMarketBuyer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -466,6 +472,28 @@ export default function Marketplace() {
     }
   };
 
+  const handleOpenPostModal = () => {
+    if (!hasAccess('marketplacePostFree')) {
+      openSubscriptionModal(
+        language === 'bn' ? 'মার্কেটপ্লেসে ক্রয়-বিক্রয় বিজ্ঞাপন' : 'Marketplace Post Alert',
+        language === 'bn' ? 'বিজ্ঞাপন পোস্ট করার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাপস অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To post marketplace listings, please contact the admin for account activation.'
+      );
+      return;
+    }
+    setIsPostModalOpen(true);
+  };
+
+  const handleOpenBuyerModal = () => {
+    if (!hasAccess('marketplaceBuyerFree')) {
+      openSubscriptionModal(
+        language === 'bn' ? 'পাইকারি ক্রেতা ডিরেক্টরি রেজিস্ট্রেশন' : 'Wholesale Buyer Registration',
+        language === 'bn' ? 'পাইকারি ক্রেতা তালিকায় নাম যুক্ত করার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To register in wholesale buyers directory, please contact the admin.'
+      );
+      return;
+    }
+    setIsBuyerModalOpen(true);
+  };
+
   return (
     <div className="space-y-3 pb-8 animate-fadeIn select-none">
       
@@ -491,7 +519,7 @@ export default function Marketplace() {
           {/* Quick Action Trigger Buttons */}
           <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-emerald-700/50">
             <button
-              onClick={() => setIsPostModalOpen(true)}
+              onClick={handleOpenPostModal}
               className="py-2.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-2xl font-black text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
             >
               <Plus size={16} strokeWidth={2.5} />
@@ -499,7 +527,7 @@ export default function Marketplace() {
             </button>
 
             <button
-              onClick={() => setIsBuyerModalOpen(true)}
+              onClick={handleOpenBuyerModal}
               className="py-2.5 px-3 bg-white/15 hover:bg-white/25 text-white border border-white/30 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 backdrop-blur-xs"
             >
               <Users size={16} />
@@ -509,30 +537,12 @@ export default function Marketplace() {
         </div>
       </div>
 
-      {/* Master Admin Notice Banner if logged in as skabusufian452@gmail.com */}
-      {isAdmin && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-between gap-2 text-amber-900 shadow-2xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Crown size={16} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-black flex items-center gap-1">
-                <span>{language === 'bn' ? 'মাস্টার অ্যাডমিন কন্ট্রোল সক্রিয়' : 'Master Admin Controls Active'}</span>
-                <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-bold">Admin</span>
-              </p>
-              <p className="text-[10px] text-amber-800 truncate font-medium">
-                {language === 'bn' 
-                  ? 'আপনি বাজারের যেকোনো ক্রেতা-বিক্রেতার বিজ্ঞাপন সরাসরি ডিলিট ও বিক্রি স্ট্যাটাস পরিবর্তন করতে পারবেন।' 
-                  : 'You have master permission to delete or manage any marketplace listing.'}
-              </p>
-            </div>
-          </div>
-          <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-lg shrink-0 border border-amber-300">
-            {posts.length} {language === 'bn' ? 'টি পোস্ট' : 'posts'}
-          </span>
-        </div>
-      )}
+      {/* Prominent Disclaimer & Terms Banner regarding Credit / Arrears / Fraud non-liability */}
+      <MarketplaceDisclaimerBanner />
+
+      {/* Master Admin Controls Card if logged in as skabusufian452@gmail.com */}
+      {isAdmin && <AdminFeatureControlCard />}
+
 
       {/* 2. Dual Tab Selector (বিজ্ঞাপন বোর্ড vs পাইকারি ক্রেতা তালিকা) */}
       <div className="bg-white p-1 rounded-2xl shadow-xs border border-slate-200/80 flex gap-1">
@@ -963,7 +973,7 @@ export default function Marketplace() {
                     : 'Post a sell alert to connect with ready wholesale buyers in your area.')}
               </p>
               <button
-                onClick={() => setIsPostModalOpen(true)}
+                onClick={handleOpenPostModal}
                 className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Plus size={14} />
@@ -1156,7 +1166,7 @@ export default function Marketplace() {
                   : 'Are you a buyer? Register your shop to get direct supply from local farmers.'}
               </p>
               <button
-                onClick={() => setIsBuyerModalOpen(true)}
+                onClick={handleOpenBuyerModal}
                 className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Plus size={14} />

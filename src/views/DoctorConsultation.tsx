@@ -34,9 +34,13 @@ import {
   RefreshCw,
   Check,
   Eye,
-  EyeOff
+  EyeOff,
+  Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
+import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
+
 
 export interface DoctorProfile {
   id: string;
@@ -174,9 +178,11 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
 export default function DoctorConsultation() {
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
+  const { hasAccess, openSubscriptionModal } = useSystemConfig();
   
   // Master Admin check
   const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
+
 
   // Doctors state
   const [communityDoctors, setCommunityDoctors] = useState<DoctorProfile[]>([]);
@@ -609,6 +615,17 @@ export default function DoctorConsultation() {
     return matchesSpecialty && matchesDistrict && matchesSearch;
   });
 
+  const handleOpenDoctorPostModal = () => {
+    if (!hasAccess('doctorListingFree')) {
+      openSubscriptionModal(
+        language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল ও বিজ্ঞাপন' : 'Doctor Profile Listing',
+        language === 'bn' ? 'ডাক্তার তালিকায় আপনার প্রোফাইল ও বিজ্ঞাপন দেওয়ার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাপস অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To post doctor listings, please contact the admin for account activation.'
+      );
+      return;
+    }
+    setIsDoctorPostModalOpen(true);
+  };
+
   return (
     <div className="space-y-4 pb-12">
       {/* 1. Header Banner & Actions */}
@@ -636,7 +653,7 @@ export default function DoctorConsultation() {
         {/* Dual Primary Action Buttons: Doctor Register & Ask Doctor */}
         <div className="mt-3.5 pt-3 border-t border-white/15 grid grid-cols-1 sm:grid-cols-2 gap-2 relative z-10">
           <button
-            onClick={() => setIsDoctorPostModalOpen(true)}
+            onClick={handleOpenDoctorPostModal}
             className="flex items-center justify-between bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black p-2.5 rounded-2xl shadow-sm transition-all active:scale-98 cursor-pointer border border-emerald-400/40 group"
           >
             <div className="flex items-center gap-2">
@@ -671,30 +688,9 @@ export default function DoctorConsultation() {
         </div>
       </div>
 
-      {/* Master Admin Notice Banner if logged in as skabusufian452@gmail.com */}
-      {isAdmin && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-between gap-2 text-amber-900 shadow-2xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Crown size={16} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-black flex items-center gap-1">
-                <span>{language === 'bn' ? 'মাস্টার অ্যাডমিন কন্ট্রোল সক্রিয়' : 'Master Admin Controls Active'}</span>
-                <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-bold">Admin</span>
-              </p>
-              <p className="text-[10px] text-amber-800 truncate font-medium">
-                {language === 'bn' 
-                  ? 'আপনি সকল ডাক্তারের বিজ্ঞাপন সরাসরি ডিলিট, মেয়াদ (+৩০ দিন) বৃদ্ধি এবং অন/অফ করতে পারেন।' 
-                  : 'You have full permission to delete, extend 30 days, or toggle any doctor advertisement.'}
-              </p>
-            </div>
-          </div>
-          <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-lg shrink-0 border border-amber-300">
-            {allDoctors.length} {language === 'bn' ? 'বিজ্ঞাপন' : 'ads'}
-          </span>
-        </div>
-      )}
+      {/* Master Admin Controls Card if logged in as skabusufian452@gmail.com */}
+      {isAdmin && <AdminFeatureControlCard />}
+
 
       {/* 2. Filters & Search Box */}
       <div className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-150 space-y-2.5">

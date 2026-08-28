@@ -163,6 +163,28 @@ export interface DemoMarketBuyer {
   createdAt: string;
 }
 
+export interface DemoStoreListing {
+  id: string;
+  userId: string;
+  shopName: string;
+  ownerName: string;
+  phone: string;
+  whatsapp?: string;
+  district: string;
+  upazila?: string;
+  address: string;
+  categories: string[]; // ['poultry_feed', 'cattle_feed', 'medicine', 'vaccine', 'duck_feed', 'fish_feed', 'chicks_equip']
+  availableBrands?: string;
+  productsOffered?: string;
+  hasHomeDelivery: boolean;
+  openHours?: string;
+  imageUrl?: string;
+  isVerified?: boolean;
+  isFeatured?: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
 const STORAGE_PREFIX = 'demo_farm_';
 
 const initialMarketBuyers: DemoMarketBuyer[] = [
@@ -233,6 +255,8 @@ const initialMarketBuyers: DemoMarketBuyer[] = [
 ];
 
 const initialMarketPosts: DemoMarketPost[] = [];
+
+const initialStoreListings: DemoStoreListing[] = [];
 
 const initialBatches: DemoBatch[] = [
   // 🐔 ৪টি মুরগির ব্যাচ (Poultry Batches)
@@ -809,6 +833,40 @@ export const demoStore = {
     setItem('market_buyers', records);
   },
 
+  // Store & Shop Listings Directory
+  getStoreListings(): DemoStoreListing[] {
+    const raw = getItem<DemoStoreListing[]>('store_listings', initialStoreListings);
+    // Purge legacy hardcoded dummy stores if they exist in cache/localStorage
+    const filtered = (raw || []).filter(s => s && s.id !== 'store_1' && s.id !== 'store_2' && s.id !== 'store_3' && s.id !== 'store_4' && !s.userId?.startsWith('demo_store_'));
+    if (filtered.length !== (raw || []).length) {
+      setItem('store_listings', filtered);
+    }
+    return filtered;
+  },
+  saveStoreListing(store: Omit<DemoStoreListing, 'id' | 'createdAt'> & { id?: string }): DemoStoreListing {
+    const records = this.getStoreListings();
+    if (store.id) {
+      const idx = records.findIndex(r => r.id === store.id);
+      if (idx !== -1) {
+        records[idx] = { ...records[idx], ...store };
+        setItem('store_listings', records);
+        return records[idx];
+      }
+    }
+    const newRecord: DemoStoreListing = {
+      ...store,
+      id: 'store_' + Date.now(),
+      createdAt: new Date().toISOString()
+    };
+    records.unshift(newRecord);
+    setItem('store_listings', records);
+    return newRecord;
+  },
+  deleteStoreListing(id: string): void {
+    const records = this.getStoreListings().filter(r => r.id !== id);
+    setItem('store_listings', records);
+  },
+
   // Clear all demo/test data for production readiness
   clearAllData(): void {
     setItem('batches', []);
@@ -819,6 +877,8 @@ export const demoStore = {
     setItem('sale_records', []);
     setItem('due_records', []);
     setItem('market_posts', []);
+    setItem('market_buyers', []);
+    setItem('store_listings', []);
   },
 
   // Reset back to initial sample demo data
@@ -832,6 +892,7 @@ export const demoStore = {
     setItem('due_records', initialDues);
     setItem('market_posts', initialMarketPosts);
     setItem('market_buyers', initialMarketBuyers);
+    setItem('store_listings', initialStoreListings);
   }
 };
 

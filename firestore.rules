@@ -10,100 +10,121 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'skabusufian452@gmail.com' ||
+        request.auth.token.email == 'admin@digitalfarm.pro'
+      );
+    }
+
     // Users Collection
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     // Batches
     match /batches/{batchId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Feed Records
     match /feed_records/{recordId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Medicine Records
     match /medicine_records/{recordId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Expenses
     match /expenses/{expenseId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Mortality
     match /mortality/{recordId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Sales
     match /sales/{saleId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Weight Records
     match /weight_records/{recordId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Dues / Khata
     match /dues/{dueId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Chores / Reminders
     match /chores/{choreId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Marketplace Sell Posts
     match /marketplace_posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Market Buyers Directory
     match /market_buyers/{buyerId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Doctor Consultations / Prescription Requests
     match /consultations/{consultationId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     // Community Doctor Listings / Advertisements
     match /doctor_listings/{listingId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Agro & Vet Feed & Medicine Store Directory Listings
+    match /store_listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // System Settings & Feature Controls
+    match /system_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
+

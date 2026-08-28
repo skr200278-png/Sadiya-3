@@ -120,6 +120,31 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["userId", "personName", "type", "amount", "status", "createdAt"]
+    },
+    "StoreListing": {
+      "title": "StoreListing",
+      "description": "Agro and Vet Feed and Medicine Store Directory",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "shopName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "district": { "type": "string" },
+        "upazila": { "type": "string" },
+        "address": { "type": "string" },
+        "categories": { "type": "array" },
+        "availableBrands": { "type": "string" },
+        "productsOffered": { "type": "string" },
+        "hasHomeDelivery": { "type": "boolean" },
+        "openHours": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "shopName", "phone", "district", "address", "createdAt"]
     }
   },
   "firestore": {
@@ -154,6 +179,10 @@
     "dues/{dueId}": {
       "schema": { "$ref": "Due" },
       "description": "Tracking dues payable or receivable"
+    },
+    "store_listings/{listingId}": {
+      "schema": { "$ref": "StoreListing" },
+      "description": "Agro & Vet feed and medicine store listings"
     }
   }
 }

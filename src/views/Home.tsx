@@ -597,7 +597,36 @@ export default function Home() {
         </div>
       </Link>
 
-      {/* 7. Prominent Dashboard Switcher CTA */}
+      {/* 7. Agri-Vet Feed & Medicine Store Directory CTA */}
+      <Link 
+        to="/store" 
+        className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-950 text-white shadow-sm hover:from-emerald-900 hover:to-teal-900 transition-all group border border-emerald-500/30 cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/30 border border-emerald-300/40 flex items-center justify-center text-yellow-300 shrink-0 group-hover:scale-105 transition-transform shadow-inner">
+            <Store size={20} />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white">
+                {language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Agri-Vet Feed & Medicine Stores'}
+              </span>
+              <span className="bg-yellow-400 text-slate-950 text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                {language === 'bn' ? 'দোকান' : 'STORES'}
+              </span>
+            </div>
+            <p className="text-[9.5px] text-emerald-100/90 font-medium">
+              {language === 'bn' ? '৬৪ জেলার পোল্ট্রি-ক্যাটল ফিড ডিলার ও ভেটেরিনারি ঔষধালয়' : 'Find feed dealers & veterinary pharmacies in 64 districts'}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white/15 group-hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shrink-0 transition-colors">
+          <span>{language === 'bn' ? 'দোকান খুঁজুন' : 'Explore'}</span>
+          <ChevronRight size={14} />
+        </div>
+      </Link>
+
+      {/* 8. Prominent Dashboard Switcher CTA */}
       <Link 
         to="/dashboard" 
         className="w-full flex items-center justify-between p-3.5 bg-gradient-to-r from-emerald-600 to-green-600 rounded-2xl text-white shadow-sm border border-emerald-500/10 hover:from-emerald-700 hover:to-green-700 transition-all duration-200 cursor-pointer group"
