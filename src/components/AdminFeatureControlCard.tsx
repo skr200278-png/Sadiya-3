@@ -92,6 +92,21 @@ export default function AdminFeatureControlCard() {
       {isExpanded && (
         <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-4 animate-in fade-in duration-150">
           
+          {/* All-in-One Policy Overview Badge */}
+          <div className="bg-amber-100/90 border border-amber-300 rounded-xl p-2.5 flex items-start gap-2 text-xs text-amber-950 font-bold">
+            <Sparkles size={16} className="text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-extrabold text-amber-950">
+                {language === 'bn' ? '💡 ১৫০ টাকা অল-ইন-ওয়ান প্যাকেজ পলিসি:' : '💡 150 BDT All-in-One VIP Model:'}
+              </p>
+              <p className="text-[11px] text-amber-900 font-medium mt-0.5 leading-snug">
+                {language === 'bn' 
+                  ? 'কোনো ফিচার লক থাকলে ইউজাররা ১৫০০ টাকার বদলে মাত্র ১৫০ টাকার অফার ও বিস্তারিত সুবিধা দেখতে পাবেন। পেমেন্ট পাওয়ার পর নিচে তাঁর মোবাইল নম্বর (যেমন: 017xxxxxxxx) বা জিমেইল যুক্ত করলেই তাঁর জন্য সম্পূর্ণ অ্যাপ স্বয়ংক্রিয়ভাবে আনলক হয়ে যাবে।' 
+                  : 'Locked features show users a high-value 150 BDT all-inclusive offer. After receiving payment, add their mobile number (e.g. 017xxxxxxxx) or Gmail to instantly unlock all features for them.'}
+              </p>
+            </div>
+          </div>
+
           <div className="bg-white/80 rounded-xl p-3 border border-amber-200/80">
             <h4 className="text-xs font-black text-slate-800 mb-2 flex items-center gap-1.5">
               <Settings2 size={14} className="text-amber-600" />

@@ -8,9 +8,14 @@ import {
   Phone, 
   ShieldCheck, 
   CheckCircle2, 
-  Headphones, 
   Lock,
-  ExternalLink 
+  ExternalLink,
+  Crown,
+  FileSpreadsheet,
+  Stethoscope,
+  Store,
+  Users,
+  BookOpen
 } from 'lucide-react';
 
 export default function SubscriptionModal() {
@@ -19,113 +24,157 @@ export default function SubscriptionModal() {
 
   if (!subscriptionModal.isOpen) return null;
 
+  const currentFeature = subscriptionModal.featureTitle || (language === 'bn' ? 'প্রিমিয়াম সেবা' : 'Premium Feature');
+
   const defaultMsg = language === 'bn'
-    ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপের "${subscriptionModal.featureTitle}" ফিচারটি সক্রিয় করতে চাই। বিস্তারিত জানাবেন প্লিজ।`
-    : `Hello, I would like to activate the "${subscriptionModal.featureTitle}" feature in Digital Farm Pro. Please provide details.`;
+    ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপের "${currentFeature}" সহ সকল ফিচারের ১৫০ টাকার অল-ইন-ওয়ান সাবস্ক্রিপশন চালু করতে চাই। অনুগ্রহ করে পেমেন্ট ডিটেইলস বা অ্যাক্টিভেশন প্রসেস জানাবেন।`
+    : `Hello, I would like to activate the All-in-One VIP Subscription for "${currentFeature}" and all app features in Digital Farm Pro. Please guide me with payment and activation.`;
 
   const waUrl = `https://wa.me/${config.adminWhatsApp}?text=${encodeURIComponent(defaultMsg)}`;
   const telUrl = `tel:${config.adminPhone}`;
 
+  const allFeatures = [
+    {
+      icon: <Store size={14} className="text-emerald-600" />,
+      textBn: 'ফিড ও ভেটেরিনারি ঔষধ দোকান লিস্টিং ডিরেক্টরি',
+      textEn: 'Feed & Veterinary Store Directory Listing'
+    },
+    {
+      icon: <Stethoscope size={14} className="text-teal-600" />,
+      textBn: 'ডাক্তার ও প্রাণিসম্পদ বিশেষজ্ঞ প্রোফাইল ও পরামর্শ',
+      textEn: 'Doctor & Livestock Specialist Profiles & Care'
+    },
+    {
+      icon: <FileSpreadsheet size={14} className="text-blue-600" />,
+      textBn: 'খামারের সার্বিক লাভ-ক্ষতি ও এক্সেল/পিডিএফ রিপোর্ট',
+      textEn: 'Comprehensive Farm Profit/Loss & Excel/PDF Export'
+    },
+    {
+      icon: <BookOpen size={14} className="text-amber-600" />,
+      textBn: 'বকেয়া খাতা (দেনা-পাওনা লেজার ও খামারি খতিয়ান)',
+      textEn: 'Dues Ledger (Bokeya Khata & Farm Accounting)'
+    },
+    {
+      icon: <Users size={14} className="text-indigo-600" />,
+      textBn: 'পাইকারি মুরগি/ডিম ক্রেতা ডিরেক্টরি ও মার্কেট পোস্ট',
+      textEn: 'Wholesale Buyer Directory & Unlimited Market Ads'
+    }
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-150">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-200 flex flex-col max-h-[90vh]">
         
         {/* Header with gradient */}
-        <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-5 text-center relative text-white">
+        <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-900 p-5 text-center relative text-white shrink-0">
           <button 
+            type="button"
             onClick={closeSubscriptionModal}
-            className="absolute top-3 right-3 text-white/70 hover:text-white bg-black/20 hover:bg-black/40 rounded-full p-1.5 transition-colors cursor-pointer"
+            className="absolute top-3 right-3 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-1.5 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
 
-          <div className="w-14 h-14 bg-white/15 backdrop-blur-md rounded-2xl mx-auto flex items-center justify-center mb-2.5 shadow-md border border-white/20">
-            <Lock size={26} className="text-amber-300 animate-bounce" />
+          <div className="inline-flex items-center justify-center gap-1.5 bg-amber-400 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2.5 shadow-sm">
+            <Crown size={13} className="text-slate-950" />
+            <span>{language === 'bn' ? 'অল-ইন-ওয়ান ভিআইপি প্যাকেজ' : 'ALL-IN-ONE VIP ACCESS'}</span>
           </div>
 
-          <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1.5 inline-block shadow-2xs">
-            {language === 'bn' ? 'প্রিমিয়াম সেবা' : 'PREMIUM FEATURE'}
-          </span>
+          <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl mx-auto flex items-center justify-center mb-2 shadow-inner border border-white/20">
+            <Lock size={22} className="text-amber-300 animate-pulse" />
+          </div>
 
-          <h3 className="text-base font-black text-white leading-tight">
-            {subscriptionModal.featureTitle || (language === 'bn' ? 'ফিচার সক্রিয়করণ' : 'Feature Activation')}
+          <h3 className="text-base sm:text-lg font-black text-white leading-tight">
+            {currentFeature}
           </h3>
-          <p className="text-emerald-100/90 text-xs font-medium mt-1">
-            {subscriptionModal.featureDesc || (language === 'bn' ? config.subscriptionNoticeBn : config.subscriptionNoticeEn)}
+          <p className="text-emerald-200 text-xs font-bold mt-1">
+            {language === 'bn' 
+              ? 'আলাদা প্যাকেজ নয়—একবার সাবস্ক্রিপশন নিলেই অ্যাপের সবকিছু আনলক!' 
+              : 'One subscription unlocks every premium tool in the application!'}
           </p>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto">
           
-          {/* Key Advantages */}
-          <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100 space-y-2">
-            <h4 className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
-              <ShieldCheck size={15} className="text-emerald-600" />
-              <span>{language === 'bn' ? 'অ্যাডমিন সহায়তা ও সুবিধা' : 'Admin Support & Benefits'}</span>
-            </h4>
-            <ul className="text-[11px] font-bold text-slate-700 space-y-1.5 pl-1">
-              <li className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                <span>{language === 'bn' ? 'সরাসরি অ্যাডমিন কর্তৃক অ্যাকাউন্ট ভেরিফিকেশন' : 'Direct verification by App Admin'}</span>
-              </li>
-              <li className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                <span>{language === 'bn' ? 'সীমাহীন বিজ্ঞাপন ও খামারি নেটওয়ার্ক সুবিধা' : 'Unlimited posting & network reach'}</span>
-              </li>
-              <li className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                <span>{language === 'bn' ? '২৪/৭ সরাসরি ফোন ও হোয়াটসঅ্যাপ সাপোর্ট' : '24/7 Priority phone & WhatsApp support'}</span>
-              </li>
-            </ul>
+          {/* Price & Offer Highlight Card */}
+          <div className="bg-gradient-to-r from-amber-500/15 via-emerald-500/15 to-teal-500/15 border border-amber-300/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+            <div>
+              <p className="text-[10.5px] font-black text-amber-900 uppercase tracking-wide">
+                {language === 'bn' ? 'মাত্র একবারের ফি' : 'Special Subscription Fee'}
+              </p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <span className="text-2xl font-black text-slate-900 font-sans">৳১৫০</span>
+                <span className="text-[11px] font-bold text-slate-500 line-through">৳৫০০</span>
+                <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                  {language === 'bn' ? '৭০% ছাড়' : '70% OFF'}
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="inline-block bg-slate-900 text-amber-300 text-[10px] font-black px-2.5 py-1 rounded-xl shadow-2xs">
+                {language === 'bn' ? 'সব ফিচার আনলক' : 'All Access'}
+              </span>
+              <p className="text-[9.5px] text-slate-600 font-bold mt-1">
+                {language === 'bn' ? 'সহজ এককালীন অ্যাক্টিভেশন' : 'Instant 1-Click Activation'}
+              </p>
+            </div>
           </div>
 
-          <p className="text-center text-xs text-slate-600 font-bold leading-relaxed">
+          {/* All Included Features Checklist */}
+          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
+            <h4 className="text-xs font-black text-slate-900 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Sparkles size={14} className="text-amber-500" />
+                <span>{language === 'bn' ? 'এক সাবস্ক্রিপশনে যা যা পাবেন:' : 'Everything Included:'}</span>
+              </span>
+              <span className="text-[10px] text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                {language === 'bn' ? 'সব উন্মুক্ত' : 'Fully Unlocked'}
+              </span>
+            </h4>
+
+            <div className="space-y-1.5 pt-1">
+              {allFeatures.map((feat, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs font-bold text-slate-750 bg-white p-2 rounded-xl border border-slate-150 shadow-2xs">
+                  <div className="w-5 h-5 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    {feat.icon}
+                  </div>
+                  <span className="flex-1 text-[11px] leading-tight font-extrabold text-slate-850">
+                    {language === 'bn' ? feat.textBn : feat.textEn}
+                  </span>
+                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Notice to reach Admin */}
+          <p className="text-center text-xs text-slate-600 font-bold leading-snug px-1">
             {language === 'bn' 
-              ? 'ফিচারটি আনলক করতে নিচের যেকোনো মাধ্যমে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন:' 
-              : 'Contact the administrator via WhatsApp or Direct Call to activate this feature:'}
+              ? 'সাবস্ক্রিপশনটি চালু করতে নিচে ক্লিক করে সরাসরি অ্যাডমিনকে WhatsApp বা কল করুন:' 
+              : 'To activate your All-in-One VIP access immediately, contact the admin below:'}
           </p>
 
           {/* Contact Action Buttons */}
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
             {/* WhatsApp Contact */}
             <a 
               href={waUrl} 
               target="_blank" 
               rel="noreferrer" 
-              className="flex items-center gap-3 bg-green-50 p-3 rounded-2xl border border-green-200 hover:bg-green-100 hover:border-green-300 transition-all active:scale-98 shadow-xs group"
+              className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 rounded-xl font-black text-xs transition-all active:scale-98 shadow-xs cursor-pointer"
             >
-              <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-2.5 rounded-xl shadow-xs group-hover:scale-105 transition-transform">
-                <MessageCircle size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-extrabold text-green-950 text-xs">
-                  {language === 'bn' ? 'হোয়াটসঅ্যাপে মেসেজ দিন' : 'Message on WhatsApp'}
-                </p>
-                <p className="text-[10px] text-green-700 font-bold">
-                  {language === 'bn' ? 'দ্রুত অ্যাক্টিভেশন সাপোর্ট' : 'Instant activation reply'}
-                </p>
-              </div>
-              <ExternalLink size={16} className="text-green-600/70 shrink-0" />
+              <MessageCircle size={16} />
+              <span>{language === 'bn' ? 'WhatsApp মেসেজ' : 'WhatsApp Us'}</span>
             </a>
 
             {/* Direct Phone Call */}
             <a 
               href={telUrl} 
-              className="flex items-center gap-3 bg-blue-50 p-3 rounded-2xl border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-all active:scale-98 shadow-xs group"
+              className="flex items-center justify-center gap-2 bg-slate-850 hover:bg-slate-950 text-white p-2.5 rounded-xl font-black text-xs transition-all active:scale-98 shadow-xs cursor-pointer font-sans"
             >
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-2.5 rounded-xl shadow-xs group-hover:scale-105 transition-transform">
-                <Phone size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-extrabold text-blue-950 text-xs">
-                  {language === 'bn' ? 'সরাসরি কল করুন' : 'Call Administrator'}
-                </p>
-                <p className="text-[10px] text-blue-700 font-bold font-sans">
-                  {config.adminPhone} ({config.adminName})
-                </p>
-              </div>
-              <ExternalLink size={16} className="text-blue-600/70 shrink-0" />
+              <Phone size={15} className="text-amber-400" />
+              <span>{config.adminPhone}</span>
             </a>
           </div>
 
@@ -133,9 +182,9 @@ export default function SubscriptionModal() {
           <button
             type="button"
             onClick={closeSubscriptionModal}
-            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl transition-colors cursor-pointer"
+            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs rounded-xl transition-colors cursor-pointer text-center"
           >
-            {language === 'bn' ? 'পরে যোগাযোগ করব' : 'Maybe Later'}
+            {language === 'bn' ? 'পরে বিবেচনা করব' : 'Close'}
           </button>
         </div>
 
