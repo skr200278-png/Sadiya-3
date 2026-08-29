@@ -364,6 +364,17 @@ export default function Login() {
     setErrorMessage(null);
     setUnauthorizedDomain(null);
 
+    // Ensure session stays permanently saved so user doesn't need to re-login repeatedly
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch {
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch (e) {
+        console.warn('Auth persistence fallback note:', e);
+      }
+    }
+
     try {
       if (mode === 'register') {
         const result =
@@ -421,39 +432,55 @@ export default function Login() {
       if (errCode === 'auth/email-already-in-use') {
         setErrorMessage(
           isPhone
-            ? 'এই মোবাইল নাম্বার দিয়ে আগেই অ্যাকাউন্ট খোলা আছে। "লগইন" ট্যাবে গিয়ে পাসওয়ার্ড দিয়ে লগইন করুন।'
-            : 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা আছে। "লগইন" ট্যাবে গিয়ে পাসওয়ার্ড দিয়ে লগইন করুন।'
+            ? 'এই মোবাইল নম্বর দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার পাসওয়ার্ড দিয়ে প্রবেশ করুন।'
+            : 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার পাসওয়ার্ড দিয়ে প্রবেশ করুন।'
         );
 
         toast.error(
-          'অ্যাকাউন্টটি আগেই তৈরি করা আছে। লগইন করুন।'
+          'এই অ্যাকাউন্টে ইতিমধ্যে রেজিস্ট্রেশন করা আছে। দয়া করে লগইন করুন।'
         );
 
-      } else if (
-        errCode === 'auth/wrong-password' ||
-        errCode === 'auth/user-not-found' ||
-        errCode === 'auth/invalid-credential'
-      ) {
+      } else if (errCode === 'auth/user-not-found') {
         setErrorMessage(
-          'মোবাইল নাম্বার/ইমেইল অথবা পাসওয়ার্ড সঠিক নয়। দয়া করে সঠিক তথ্য দিন।'
+          'এই নম্বর বা ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে উপরে "নতুন রেজিস্ট্রেশন (Sign Up)" ট্যাবে ক্লিক করে একটি নতুন অ্যাকাউন্ট তৈরি করুন।'
         );
 
         toast.error(
-          'ভুল মোবাইল/ইমেইল বা পাসওয়ার্ড!'
+          'অ্যাকাউন্ট নেই! নতুন রেজিস্ট্রেশন করুন।'
+        );
+
+      } else if (errCode === 'auth/wrong-password') {
+        setErrorMessage(
+          'আপনার দেওয়া পাসওয়ার্ডটি সঠিক নয়। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা "পাসওয়ার্ড ভুলে গেছেন?" অপশন ব্যবহার করুন।'
+        );
+
+        toast.error(
+          'পাসওয়ার্ড ভুল হয়েছে! আবার চেষ্টা করুন।'
+        );
+
+      } else if (errCode === 'auth/invalid-credential') {
+        setErrorMessage(
+          mode === 'login'
+            ? 'আপনার নম্বর/ইমেইল অথবা পাসওয়ার্ডটি সঠিক নয়। যদি আপনার অ্যাকাউন্ট না থাকে, তবে উপরে "নতুন রেজিস্ট্রেশন (Sign Up)" ট্যাবে ক্লিক করে অ্যাকাউন্ট খুলুন।'
+            : 'প্রদত্ত তথ্য সঠিক নয়। দয়া করে সঠিক মোবাইল নম্বর বা ইমেইল দিয়ে আবার চেষ্টা করুন।'
+        );
+
+        toast.error(
+          'তথ্য সঠিক নয়! চেক করে দেখুন।'
         );
 
       } else if (errCode === 'auth/invalid-email') {
         setErrorMessage(
-          'মোবাইল নাম্বার অথবা ইমেইল ফরম্যাট সঠিক নয়।'
+          'সঠিক মোবাইল নম্বর (১১ ডিজিট) অথবা সঠিক ইমেইল অ্যাড্রেস লিখুন।'
         );
 
         toast.error(
-          'অকার্যকর নাম্বার বা ইমেইল!'
+          'নম্বর বা ইমেইল সঠিক নয়!'
         );
 
       } else if (errCode === 'auth/weak-password') {
         setErrorMessage(
-          'পাসওয়ার্ডটি খুব দুর্বল। অন্তত ৬ অক্ষরের বা সংখ্যার পাসওয়ার্ড দিন।'
+          'পাসওয়ার্ডটি খুব ছোট। আপনার অ্যাকাউন্ট সুরক্ষিত রাখতে কমপক্ষে ৬ অক্ষরের বা সংখ্যার পাসওয়ার্ড দিন।'
         );
 
         toast.error(
@@ -462,16 +489,16 @@ export default function Login() {
 
       } else if (errCode === 'auth/operation-not-allowed') {
         setErrorMessage(
-          'Firebase Console > Authentication > Sign-in method-এ Email/Password অথেনটিকেশন Enable করা নেই।'
+          'Firebase Console-এ ইমেইল/পাসওয়ার্ড লগইন সচল করা নেই। অ্যাডমিনের সাথে যোগাযোগ করুন।'
         );
 
         toast.error(
-          'লগইন ফায়ারবেজে চালু নেই।'
+          'লগইন পদ্ধতি চালু নেই।'
         );
 
       } else if (errCode === 'auth/network-request-failed') {
         setErrorMessage(
-          'ইন্টারনেট সংযোগে ত্রুটি। আবার চেষ্টা করুন।'
+          'ইন্টারনেট সংযোগে সমস্যা হয়েছে। দয়া করে আপনার ডাটা/ওয়াইফাই চেক করে আবার চেষ্টা করুন।'
         );
 
         toast.error(
@@ -480,7 +507,7 @@ export default function Login() {
 
       } else {
         setErrorMessage(
-          `সমস্যা হয়েছে (${errCode || 'Error'}): ${errMsg}`
+          `লগইন করা সম্ভব হয়নি (${errCode || 'Error'}): ${errMsg || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`
         );
 
         toast.error(

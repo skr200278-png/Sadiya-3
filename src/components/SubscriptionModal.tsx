@@ -25,10 +25,11 @@ export default function SubscriptionModal() {
   if (!subscriptionModal.isOpen) return null;
 
   const currentFeature = subscriptionModal.featureTitle || (language === 'bn' ? 'প্রিমিয়াম সেবা' : 'Premium Feature');
+  const price = config.subscriptionPrice || 150;
 
   const defaultMsg = language === 'bn'
-    ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপের "${currentFeature}" সহ সকল ফিচারের ১৫০ টাকার অল-ইন-ওয়ান সাবস্ক্রিপশন চালু করতে চাই। অনুগ্রহ করে পেমেন্ট ডিটেইলস বা অ্যাক্টিভেশন প্রসেস জানাবেন।`
-    : `Hello, I would like to activate the All-in-One VIP Subscription for "${currentFeature}" and all app features in Digital Farm Pro. Please guide me with payment and activation.`;
+    ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপের "${currentFeature}" সহ সকল ফিচারের ৳${price} টাকার অল-ইন-ওয়ান সাবস্ক্রিপশন চালু করতে চাই। অনুগ্রহ করে পেমেন্ট ডিটেইলস বা অ্যাক্টিভেশন প্রসেস জানাবেন।`
+    : `Hello, I would like to activate the All-in-One VIP Subscription for "${currentFeature}" and all app features in Digital Farm Pro (BDT ${price}). Please guide me with payment and activation.`;
 
   const waUrl = `https://wa.me/${config.adminWhatsApp}?text=${encodeURIComponent(defaultMsg)}`;
   const telUrl = `tel:${config.adminPhone}`;
@@ -104,8 +105,8 @@ export default function SubscriptionModal() {
                 {language === 'bn' ? 'মাত্র একবারের ফি' : 'Special Subscription Fee'}
               </p>
               <div className="flex items-baseline gap-1.5 mt-0.5">
-                <span className="text-2xl font-black text-slate-900 font-sans">৳১৫০</span>
-                <span className="text-[11px] font-bold text-slate-500 line-through">৳৫০০</span>
+                <span className="text-2xl font-black text-slate-900 font-sans">৳{price}</span>
+                <span className="text-[11px] font-bold text-slate-500 line-through">৳{price * 3}</span>
                 <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
                   {language === 'bn' ? '৭০% ছাড়' : '70% OFF'}
                 </span>

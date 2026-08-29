@@ -16,7 +16,9 @@ import {
   Save,
   Phone,
   MessageCircle,
-  Sparkles
+  Sparkles,
+  DollarSign,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,6 +28,8 @@ export default function AdminFeatureControlCard() {
   
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [newWhitelistInput, setNewWhitelistInput] = useState<string>('');
+  const [priceInput, setPriceInput] = useState<string>(String(config.subscriptionPrice || 150));
+  const [storePriceInput, setStorePriceInput] = useState<string>(String(config.storeListingPrice || 500));
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   if (!isAdmin) return null;
@@ -34,6 +38,30 @@ export default function AdminFeatureControlCard() {
     setIsSaving(true);
     const currentValue = Boolean(config[key]);
     await updateConfig({ [key]: !currentValue });
+    setIsSaving(false);
+  };
+
+  const handleSavePrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = parseInt(priceInput, 10);
+    if (isNaN(num) || num < 0) {
+      toast.error('সঠিক মূল্য লিখুন');
+      return;
+    }
+    setIsSaving(true);
+    await updateConfig({ subscriptionPrice: num });
+    setIsSaving(false);
+  };
+
+  const handleSaveStorePrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = parseInt(storePriceInput, 10);
+    if (isNaN(num) || num < 0) {
+      toast.error('দোকান লিস্টিংয়ের সঠিক মূল্য লিখুন');
+      return;
+    }
+    setIsSaving(true);
+    await updateConfig({ storeListingPrice: num });
     setIsSaving(false);
   };
 
@@ -92,17 +120,112 @@ export default function AdminFeatureControlCard() {
       {isExpanded && (
         <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-4 animate-in fade-in duration-150">
           
+          {/* Master Global App Lock (When user base grows) */}
+          <div className="bg-gradient-to-r from-red-600/10 via-amber-600/10 to-orange-600/10 border-2 border-red-400/80 rounded-xl p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-red-950">
+                    {language === 'bn' ? '🔒 সম্পূর্ণ অ্যাপ লক (সাবস্ক্রিপশন বাধ্যতামূলক)' : '🔒 Global App Lock (Subscription Required)'}
+                  </span>
+                  <span className="bg-red-600 text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded uppercase">
+                    PRO
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-700 font-bold leading-tight">
+                  {language === 'bn'
+                    ? 'এটি অন করলে শুধু ভিআইপি ইউজাররা অ্যাপ ব্যবহার করতে পারবেন। সাধারণ ইউজারদের সাবস্ক্রিপশন নিতে বলা হবে।'
+                    : 'When enabled, only whitelisted VIP users can use the app tools. Free users are prompted to subscribe.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggle('appLockRequired')}
+                disabled={isSaving}
+                className={`px-3 py-1.5 rounded-lg font-black text-xs flex items-center gap-1 shrink-0 cursor-pointer transition-all ${
+                  config.appLockRequired 
+                    ? 'bg-red-600 text-white shadow-sm' 
+                    : 'bg-emerald-600 text-white shadow-sm'
+                }`}
+              >
+                {config.appLockRequired ? <Lock size={12} /> : <Unlock size={12} />}
+                <span>
+                  {config.appLockRequired 
+                    ? (language === 'bn' ? 'সম্পূর্ণ অ্যাপ লক' : 'App Locked') 
+                    : (language === 'bn' ? 'অ্যাপ উন্মুক্ত' : 'App Open')}
+                </span>
+              </button>
+            </div>
+
+            {/* Configurable General User Subscription Price */}
+            <div className="mt-3 pt-2.5 border-t border-amber-300/60 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <DollarSign size={14} className="text-amber-700" />
+                <span className="text-xs font-bold text-amber-950">
+                  {language === 'bn' ? 'সাধারণ খামারি সাবস্ক্রিপশন (টাকা):' : 'General Farmer Sub (BDT):'}
+                </span>
+              </div>
+              <form onSubmit={handleSavePrice} className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-slate-700">৳</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  className="w-20 px-2 py-1 bg-white border border-amber-400 rounded-lg text-xs font-black text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-amber-500 text-center"
+                />
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-lg cursor-pointer flex items-center gap-1"
+                >
+                  <Save size={12} />
+                  <span>{language === 'bn' ? 'সেভ' : 'Save'}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Configurable Store / Dealer / Ad Listing Price */}
+            <div className="mt-2 pt-2 border-t border-amber-300/40 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <DollarSign size={14} className="text-emerald-700" />
+                <span className="text-xs font-bold text-emerald-950">
+                  {language === 'bn' ? 'দোকান/ডিলার বিজ্ঞাপন ও লিস্টিং ফি (টাকা):' : 'Store/Dealer Ad Listing Fee (BDT):'}
+                </span>
+              </div>
+              <form onSubmit={handleSaveStorePrice} className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-slate-700">৳</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={storePriceInput}
+                  onChange={(e) => setStorePriceInput(e.target.value)}
+                  className="w-20 px-2 py-1 bg-white border border-emerald-400 rounded-lg text-xs font-black text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 text-center"
+                />
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-lg cursor-pointer flex items-center gap-1"
+                >
+                  <Save size={12} />
+                  <span>{language === 'bn' ? 'সেভ' : 'Save'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
           {/* All-in-One Policy Overview Badge */}
           <div className="bg-amber-100/90 border border-amber-300 rounded-xl p-2.5 flex items-start gap-2 text-xs text-amber-950 font-bold">
             <Sparkles size={16} className="text-amber-700 shrink-0 mt-0.5" />
             <div>
               <p className="font-extrabold text-amber-950">
-                {language === 'bn' ? '💡 ১৫০ টাকা অল-ইন-ওয়ান প্যাকেজ পলিসি:' : '💡 150 BDT All-in-One VIP Model:'}
+                {language === 'bn' ? `💡 ৳${config.subscriptionPrice || 150} অল-ইন-ওয়ান প্যাকেজ পলিসি:` : `💡 BDT ${config.subscriptionPrice || 150} All-in-One VIP Model:`}
               </p>
               <p className="text-[11px] text-amber-900 font-medium mt-0.5 leading-snug">
                 {language === 'bn' 
-                  ? 'কোনো ফিচার লক থাকলে ইউজাররা ১৫০০ টাকার বদলে মাত্র ১৫০ টাকার অফার ও বিস্তারিত সুবিধা দেখতে পাবেন। পেমেন্ট পাওয়ার পর নিচে তাঁর মোবাইল নম্বর (যেমন: 017xxxxxxxx) বা জিমেইল যুক্ত করলেই তাঁর জন্য সম্পূর্ণ অ্যাপ স্বয়ংক্রিয়ভাবে আনলক হয়ে যাবে।' 
-                  : 'Locked features show users a high-value 150 BDT all-inclusive offer. After receiving payment, add their mobile number (e.g. 017xxxxxxxx) or Gmail to instantly unlock all features for them.'}
+                  ? `কোনো ফিচার লক থাকলে ইউজাররা নির্ধারিত ৳${config.subscriptionPrice || 150} টাকার অল-ইন-ওয়ান অফার দেখতে পাবেন। পেমেন্ট পাওয়ার পর নিচে তাঁর মোবাইল নম্বর (যেমন: 017xxxxxxxx) বা জিমেইল যুক্ত করলেই সম্পূর্ণ অ্যাপ আনলক হয়ে যাবে।` 
+                  : `Locked features show users the configured BDT ${config.subscriptionPrice || 150} all-inclusive offer. After receiving payment, add their mobile number (e.g. 017xxxxxxxx) or Gmail to instantly unlock all features.`}
               </p>
             </div>
           </div>
@@ -110,7 +233,7 @@ export default function AdminFeatureControlCard() {
           <div className="bg-white/80 rounded-xl p-3 border border-amber-200/80">
             <h4 className="text-xs font-black text-slate-800 mb-2 flex items-center gap-1.5">
               <Settings2 size={14} className="text-amber-600" />
-              <span>{language === 'bn' ? 'ফিচার অ্যাক্সেস সুইচ (ফ্রি / লক)' : 'Feature Access Switches'}</span>
+              <span>{language === 'bn' ? 'নির্দিষ্ট ফিচার অ্যাক্সেস সুইচ (ফ্রি / লক)' : 'Feature Access Switches'}</span>
             </h4>
 
             <div className="space-y-2 text-xs">

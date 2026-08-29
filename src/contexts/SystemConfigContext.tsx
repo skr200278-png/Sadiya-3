@@ -5,6 +5,9 @@ import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
 
 export interface FeatureControls {
+  appLockRequired?: boolean; // When true, entire app requires subscription
+  subscriptionPrice?: number; // Configurable general user subscription price in BDT
+  storeListingPrice?: number; // Configurable store/dealer listing & promo price in BDT
   marketplacePostFree: boolean;
   marketplaceBuyerFree: boolean;
   doctorListingFree: boolean;
@@ -25,6 +28,9 @@ export interface FeatureControls {
 }
 
 const DEFAULT_CONFIG: FeatureControls = {
+  appLockRequired: false,
+  subscriptionPrice: 150,
+  storeListingPrice: 500,
   marketplacePostFree: true,
   marketplaceBuyerFree: true,
   doctorListingFree: true,
@@ -221,11 +227,16 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     // 1. Admin always has full access
     if (isAdmin) return true;
 
-    // 2. If feature is marked as free, all users have access
+    // 2. If Master Global App Lock is ON, all non-whitelisted users are required to have subscription
+    if (config.appLockRequired) {
+      return isWhitelisted;
+    }
+
+    // 3. If individual feature is marked as free, all users have access
     const isFeatureFree = config[feature];
     if (isFeatureFree !== false) return true;
 
-    // 3. If feature is locked, check if current user is whitelisted
+    // 4. If feature is locked, check if current user is whitelisted
     if (isWhitelisted) return true;
 
     return false;

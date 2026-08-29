@@ -4,11 +4,12 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope } from 'lucide-react';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
 import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
+import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 
 export default function Profile() {
   const { currentUser, logout, isDemoUser } = useAuth();
@@ -192,6 +193,9 @@ export default function Profile() {
             : (currentUser?.email || (phone ? `মোবাইল: ${phone}` : ''))}
         </p>
       </div>
+
+      {/* Admin Feature Controls & App Lock */}
+      <AdminFeatureControlCard />
 
       <form onSubmit={handleSave} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h3 className="font-bold text-gray-800 border-b pb-2">{t('profile.title')}</h3>

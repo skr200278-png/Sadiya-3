@@ -27,7 +27,10 @@ import {
   ChevronRight,
   Send,
   HelpCircle,
-  ShieldAlert
+  ShieldAlert,
+  Crown,
+  Star,
+  Award
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -101,6 +104,7 @@ export default function StoreDirectory() {
   const [openHours, setOpenHours] = useState('সকাল ৮টা - রাত ৯টা');
   const [notes, setNotes] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [isFeatured, setIsFeatured] = useState(false);
 
   // Permission check
   const canPostStore = hasAccess('storeListingFree') || isMasterAdmin;
@@ -165,6 +169,7 @@ export default function StoreDirectory() {
       setOpenHours(storeToEdit.openHours || 'সকাল ৮টা - রাত ৯টা');
       setNotes(storeToEdit.notes || '');
       setImageUrl(storeToEdit.imageUrl || '');
+      setIsFeatured(Boolean(storeToEdit.isFeatured));
     } else {
       setEditingStoreId(null);
       setShopName('');
@@ -181,6 +186,7 @@ export default function StoreDirectory() {
       setOpenHours('সকাল ৮টা - রাত ৯টা');
       setNotes('');
       setImageUrl('');
+      setIsFeatured(false);
     }
     setIsFormOpen(true);
   };
@@ -255,7 +261,7 @@ export default function StoreDirectory() {
         notes: notes.trim(),
         imageUrl: imageUrl || '',
         isVerified: true,
-        isFeatured: false
+        isFeatured: isMasterAdmin ? isFeatured : (editingStoreId ? Boolean(stores.find(s => s.id === editingStoreId)?.isFeatured) : false)
       };
 
       if (isDemoUser) {
@@ -291,6 +297,34 @@ export default function StoreDirectory() {
     } finally {
       setIsSubmitting(false);
       submitLock.current = false;
+    }
+  };
+
+  // Toggle Featured status (Master Admin only)
+  const handleToggleFeatured = async (store: DemoStoreListing) => {
+    if (!isMasterAdmin) return;
+    const newStatus = !store.isFeatured;
+    
+    try {
+      if (isDemoUser) {
+        demoStore.saveStoreListing({ ...store, isFeatured: newStatus });
+      } else {
+        await offlineSafeDocWrite(
+          updateDoc(doc(db, 'store_listings', store.id), {
+            isFeatured: newStatus,
+            updatedAt: new Date().toISOString()
+          })
+        );
+      }
+      setStores(prev => prev.map(s => s.id === store.id ? { ...s, isFeatured: newStatus } : s));
+      toast.success(
+        newStatus 
+          ? (language === 'bn' ? 'দোকানটি ভিআইপি ফিচার্ড করা হয়েছে (উপরে শো করবে)' : 'Store promoted to VIP Top') 
+          : (language === 'bn' ? 'ভিআইপি স্ট্যাটাস বাতিল করা হয়েছে' : 'Store demoted to standard')
+      );
+    } catch (err) {
+      console.error('Error toggling featured store:', err);
+      toast.error(language === 'bn' ? 'আপডেট করা যায়নি' : 'Failed to update VIP status');
     }
   };
 
@@ -332,7 +366,7 @@ export default function StoreDirectory() {
     }
   };
 
-  // Filtered list
+  // Filtered & Prioritized list: Featured VIP Stores are always at the TOP!
   const filteredStores = stores.filter(store => {
     const matchesDistrict = selectedDistrict === 'all' || store.district === selectedDistrict;
     const matchesCategory = selectedCategory === 'all' || (store.categories && store.categories.includes(selectedCategory));
@@ -350,6 +384,11 @@ export default function StoreDirectory() {
       (store.phone && store.phone.includes(queryStr));
 
     return matchesDistrict && matchesCategory && matchesDelivery && matchesSearch;
+  }).sort((a, b) => {
+    // Top priority to VIP/Featured stores
+    if (a.isFeatured && !b.isFeatured) return -1;
+    if (!a.isFeatured && b.isFeatured) return 1;
+    return 0;
   });
 
   const popularDistricts = ['গাজীপুর', 'ময়মনসিংহ', 'ঢাকা', 'বগুড়া', 'কুমিল্লা', 'টাঙ্গাইল', 'যশোর', 'রাজশাহী'];
@@ -660,12 +699,28 @@ export default function StoreDirectory() {
             return (
               <div 
                 key={store.id}
-                className="bg-white rounded-2xl p-4 border border-slate-150 shadow-xs hover:border-emerald-200 transition-all space-y-3 relative group"
+                className={`rounded-2xl p-4 transition-all space-y-3 relative group ${
+                  store.isFeatured
+                    ? 'bg-gradient-to-b from-amber-50/70 via-white to-white border-2 border-amber-400 shadow-md shadow-amber-500/10 ring-2 ring-amber-400/20'
+                    : 'bg-white border border-slate-150 shadow-xs hover:border-emerald-200'
+                }`}
               >
+                {/* VIP Featured Badge on top edge */}
+                {store.isFeatured && (
+                  <div className="absolute -top-3 left-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs border border-amber-300">
+                    <Crown size={12} className="text-slate-950 fill-slate-950" />
+                    <span>{language === 'bn' ? 'টপ বিজ্ঞাপন (ভিআইপি ডিলার)' : 'Featured Dealer Ad'}</span>
+                  </div>
+                )}
+
                 {/* Top Row: Shop Name & Verified Badge */}
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 pt-1">
                   <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs font-black">
+                    <div className={`w-11 h-11 rounded-xl text-white flex items-center justify-center shrink-0 shadow-2xs font-black ${
+                      store.isFeatured
+                        ? 'bg-gradient-to-br from-amber-500 to-teal-800'
+                        : 'bg-gradient-to-br from-emerald-600 to-teal-700'
+                    }`}>
                       <Store size={22} />
                     </div>
                     <div className="min-w-0">
@@ -680,8 +735,9 @@ export default function StoreDirectory() {
                           </span>
                         )}
                         {store.isFeatured && (
-                          <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
-                            VIP
+                          <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.2 rounded-full uppercase flex items-center gap-0.5 shadow-2xs">
+                            <Crown size={10} className="fill-slate-950" />
+                            <span>TOP VIP</span>
                           </span>
                         )}
                       </div>
@@ -695,27 +751,45 @@ export default function StoreDirectory() {
                   </div>
 
                   {/* Actions for owner / admin */}
-                  {isOwner && (
-                    <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isMasterAdmin && (
                       <button
                         type="button"
-                        onClick={() => handleOpenForm(store)}
-                        className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer border border-slate-200"
-                        title={language === 'bn' ? 'সম্পাদনা' : 'Edit'}
+                        onClick={() => handleToggleFeatured(store)}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer border flex items-center gap-1 text-[10px] font-black ${
+                          store.isFeatured 
+                            ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs' 
+                            : 'bg-slate-100 hover:bg-amber-100 text-slate-700 border-slate-200'
+                        }`}
+                        title={language === 'bn' ? (store.isFeatured ? 'ভিআইপি টপ থেকে সরান' : 'ভিআইপি টপ লিস্টে তুলুন') : (store.isFeatured ? 'Remove VIP Top' : 'Promote to VIP Top')}
                       >
-                        <Edit3 size={14} />
+                        <Crown size={13} className={store.isFeatured ? 'text-slate-950 fill-slate-950' : 'text-amber-600'} />
+                        <span className="hidden sm:inline">{store.isFeatured ? 'VIP Top' : 'Set VIP'}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteStore(store.id)}
-                        className="flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg transition-colors cursor-pointer text-[10.5px] font-black"
-                        title={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
-                      >
-                        <Trash2 size={13} />
-                        <span>{language === 'bn' ? 'মুছুন' : 'Delete'}</span>
-                      </button>
-                    </div>
-                  )}
+                    )}
+
+                    {isOwner && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenForm(store)}
+                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer border border-slate-200"
+                          title={language === 'bn' ? 'সম্পাদনা' : 'Edit'}
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStore(store.id)}
+                          className="flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg transition-colors cursor-pointer text-[10.5px] font-black"
+                          title={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+                        >
+                          <Trash2 size={13} />
+                          <span>{language === 'bn' ? 'মুছুন' : 'Delete'}</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Location & Delivery Badge */}
@@ -1084,6 +1158,29 @@ export default function StoreDirectory() {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                 />
               </div>
+
+              {/* Master Admin VIP Featured Toggle */}
+              {isMasterAdmin && (
+                <div className="bg-amber-50 p-3 rounded-xl border border-amber-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Crown size={18} className="text-amber-700" />
+                    <div>
+                      <p className="font-black text-amber-950 text-xs">
+                        {language === 'bn' ? 'টপ ভিআইপি বিজ্ঞাপন হিসেবে পিন করবেন?' : 'Pin as Top VIP Featured Ad?'}
+                      </p>
+                      <p className="text-[10px] text-amber-800 font-medium">
+                        {language === 'bn' ? 'এই দোকানটি তালিকার সবার উপরে গোল্ডেন বর্ডারে প্রদর্শিত হবে' : 'This store will be pinned at the very top with VIP badge'}
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isFeatured}
+                    onChange={(e) => setIsFeatured(e.target.checked)}
+                    className="w-5 h-5 accent-amber-600 rounded cursor-pointer"
+                  />
+                </div>
+              )}
 
               {/* Submit Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2.5">
