@@ -145,6 +145,90 @@
         "createdAt": { "type": "string" }
       },
       "required": ["userId", "shopName", "phone", "district", "address", "createdAt"]
+    },
+    "SubscriptionPlan": {
+      "title": "SubscriptionPlan",
+      "description": "Admin configured subscription plan or ad tier",
+      "type": "object",
+      "properties": {
+        "nameBn": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "type": { "type": "string", "enum": ["farmer_premium", "business_ad"] },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "durationLabelBn": { "type": "string" },
+        "durationLabelEn": { "type": "string" },
+        "featuresBn": { "type": "array" },
+        "featuresEn": { "type": "array" },
+        "isPopular": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["nameBn", "type", "price", "durationDays", "isActive", "createdAt"]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Manual payment submission by user awaiting admin review",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "planId": { "type": "string" },
+        "planTitle": { "type": "string" },
+        "planType": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "senderPhone": { "type": "string" },
+        "trxId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "processedAt": { "type": "string" }
+      },
+      "required": ["userId", "planId", "amount", "paymentMethod", "senderPhone", "trxId", "status", "createdAt"]
+    },
+    "UserSubscription": {
+      "title": "UserSubscription",
+      "description": "User active VIP subscription record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userIdentifier": { "type": "string" },
+        "planId": { "type": "string" },
+        "planType": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expired", "revoked"] },
+        "isLifetime": { "type": "boolean" },
+        "startDate": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "trxId": { "type": "string" },
+        "grantedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "status", "startDate", "createdAt"]
+    },
+    "SponsorPartner": {
+      "title": "SponsorPartner",
+      "description": "Sponsored feed, medicine, and business ad banner",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "category": { "type": "string" },
+        "tagline": { "type": "string" },
+        "taglineEn": { "type": "string" },
+        "badge": { "type": "string" },
+        "badgeEn": { "type": "string" },
+        "hotline": { "type": "string" },
+        "benefits": { "type": "array" },
+        "popularProducts": { "type": "array" },
+        "accentColor": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "category", "hotline", "createdAt"]
     }
   },
   "firestore": {
@@ -183,6 +267,22 @@
     "store_listings/{listingId}": {
       "schema": { "$ref": "StoreListing" },
       "description": "Agro & Vet feed and medicine store listings"
+    },
+    "subscription_plans/{planId}": {
+      "schema": { "$ref": "SubscriptionPlan" },
+      "description": "Subscription plans and ad tiers"
+    },
+    "payment_requests/{requestId}": {
+      "schema": { "$ref": "PaymentRequest" },
+      "description": "User payment submission records"
+    },
+    "subscriptions/{userId}": {
+      "schema": { "$ref": "UserSubscription" },
+      "description": "Active user subscription document"
+    },
+    "sponsors/{sponsorId}": {
+      "schema": { "$ref": "SponsorPartner" },
+      "description": "Sponsored company ad banners"
     }
   }
 }

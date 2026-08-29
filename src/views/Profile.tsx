@@ -4,7 +4,8 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown } from 'lucide-react';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -14,6 +15,7 @@ import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 export default function Profile() {
   const { currentUser, logout, isDemoUser } = useAuth();
   const { language: currentLanguage, setLanguage: setGlobalLanguage, t } = useLanguage();
+  const { isPremium, isAdmin, userSubscription, openSubscriptionModal, config } = useSystemConfig();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,12 +188,86 @@ export default function Profile() {
              <User size={40} />
           )}
         </div>
-        <h3 className="font-bold text-lg text-gray-800">{name || (currentLanguage === 'en' ? 'Name not set' : 'নাম সেট করা নেই')}</h3>
+        <h3 className="font-bold text-lg text-gray-800 flex items-center gap-1.5">
+          {name || (currentLanguage === 'en' ? 'Name not set' : 'নাম সেট করা নেই')}
+          {isPremium && (
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+              <Crown size={11} className="text-amber-600" /> VIP
+            </span>
+          )}
+        </h3>
         <p className="text-sm text-gray-500">
           {currentUser?.email?.includes('@digitalfarm.app') 
             ? (phone ? `মোবাইল: ${phone}` : 'মোবাইল অ্যাকাউন্ট') 
             : (currentUser?.email || (phone ? `মোবাইল: ${phone}` : ''))}
         </p>
+      </div>
+
+      {/* VIP Membership / Plan Status Card for All Users */}
+      <div className={`p-4 rounded-2xl shadow-sm border transition-all ${
+        isPremium
+          ? 'bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-slate-900/5 border-amber-300'
+          : 'bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white border-slate-700'
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
+              isPremium ? 'bg-amber-400 text-slate-950 shadow-xs' : 'bg-white/10 text-amber-300'
+            }`}>
+              <Crown size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className={`text-sm font-black ${isPremium ? 'text-amber-900' : 'text-amber-300'}`}>
+                  {isPremium 
+                    ? (currentLanguage === 'bn' ? '💎 ভিআইপি প্রো মেম্বারশিপ সক্রিয়' : '💎 VIP PRO Membership Active')
+                    : (currentLanguage === 'bn' ? '🚀 খামার প্রো প্রিমিয়াম প্যাকেজ' : '🚀 Khamar Pro Premium Packages')}
+                </h4>
+                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                  isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-400 text-slate-950'
+                }`}>
+                  {isPremium ? (currentLanguage === 'bn' ? 'আনলকড' : 'UNLOCKED') : (currentLanguage === 'bn' ? 'প্রো সুবিধা' : 'PRO')}
+                </span>
+              </div>
+              <p className={`text-xs mt-0.5 ${isPremium ? 'text-gray-600' : 'text-slate-300'}`}>
+                {isPremium 
+                  ? (userSubscription?.isLifetime || userSubscription?.expiresAt === 'lifetime'
+                      ? (currentLanguage === 'bn' ? 'আজীবন আনলিমিটেড লাইসেন্স সক্রিয়' : 'Lifetime unlimited license active')
+                      : (currentLanguage === 'bn' 
+                          ? `মেয়াদ: ${userSubscription?.expiresAt ? new Date(userSubscription.expiresAt).toLocaleDateString('bn-BD') : 'সক্রিয়'}`
+                          : `Expires: ${userSubscription?.expiresAt ? new Date(userSubscription.expiresAt).toLocaleDateString() : 'Active'}`))
+                  : (currentLanguage === 'bn' 
+                      ? 'বিজ্ঞাপন পোস্ট, বকেয়া খাতা, এক্সেল রিপোর্ট ও ভিআইপি খামার ব্যবস্থাপনা' 
+                      : 'Ad posting, dues khata, excel export & VIP farm management')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-slate-700/40 flex items-center justify-between gap-2">
+          <span className={`text-[11px] font-semibold ${isPremium ? 'text-amber-900' : 'text-slate-400'}`}>
+            {config.monetizationEnabled !== false 
+              ? (currentLanguage === 'bn' ? 'প্যাকেজ ও স্পনসর বিজ্ঞাপন অপশন' : 'Plans & advertisement options')
+              : (currentLanguage === 'bn' ? 'সকল প্রো ফিচার বর্তমানে ফ্রি' : 'All PRO features currently free')}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Khamar Pro Premium')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
+              isPremium 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white' 
+                : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+            }`}
+          >
+            <Sparkles size={13} />
+            <span>
+              {isPremium 
+                ? (currentLanguage === 'bn' ? 'প্যাকেজ বিবরণী' : 'Plan Details') 
+                : (currentLanguage === 'bn' ? '💎 প্রিমিয়াম আপগ্রেড' : '💎 Upgrade Pro')}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Admin Feature Controls & App Lock */}

@@ -246,71 +246,58 @@ export default function Login() {
       });
 
     } catch (error: any) {
-      console.error('Google Auth Error:', error);
-
       const errCode = error?.code || '';
       const errMsg = error?.message || '';
 
-      if (errCode === 'auth/popup-closed-by-user') {
-        setErrorMessage(
-          'Google Login উইন্ডো বন্ধ হয়ে গেছে। আবার Google দিয়ে লগইন করুন।'
-        );
-
-        toast.error('Google Login উইন্ডো বন্ধ হয়েছে।');
-
-      } else if (errCode === 'auth/popup-blocked') {
-        setErrorMessage(
-          'ব্রাউজার Google Login popup ব্লক করেছে। ব্রাউজারে popup অনুমতি দিয়ে আবার চেষ্টা করুন।'
-        );
-
-        toast.error('Google popup ব্লক করা হয়েছে।');
-
-      } else if (
-        errCode === 'auth/unauthorized-domain' ||
-        errMsg.includes('auth/unauthorized-domain')
-      ) {
-        setUnauthorizedDomain(window.location.hostname);
-
-        setErrorMessage(
-          `এই ডোমেইন Firebase Authentication-এ অনুমোদিত নয়: ${window.location.hostname}`
-        );
-
-        toast.error('Firebase domain অনুমোদিত নয়।');
-
-      } else if (errCode === 'auth/operation-not-allowed') {
-        setErrorMessage(
-          'Firebase Console → Authentication → Sign-in method থেকে Google Sign-in Enable করুন।'
-        );
-
-        toast.error('Google Sign-in Enable করা নেই।');
-
-      } else if (errCode === 'auth/network-request-failed') {
-        setErrorMessage(
-          'ইন্টারনেট সংযোগে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
-        );
-
-        toast.error('নেটওয়ার্ক সমস্যা।');
-
-      } else if (errCode === 'auth/cancelled-popup-request') {
-        setErrorMessage(
-          'একটি Google Login request ইতিমধ্যে চলছে। কয়েক সেকেন্ড অপেক্ষা করে আবার চেষ্টা করুন।'
-        );
-
-        toast.error('Google Login request চলছে।');
-
-      } else if (errCode === 'auth/web-storage-unsupported') {
-        setErrorMessage(
-          'এই ব্রাউজারে Firebase authentication storage কাজ করছে না। সাধারণ Chrome browser-এ আবার চেষ্টা করুন।'
-        );
-
-        toast.error('Browser storage সমস্যা।');
-
+      // Gracefully handle normal user actions like closing the popup or cancelling
+      if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
+        console.info('Google sign-in popup dismissed or cancelled by user.');
+        toast(language === 'bn' ? 'গুগল সাইন-ইন উইন্ডো বন্ধ করা হয়েছে।' : 'Google login was cancelled.', {
+          icon: 'ℹ️'
+        });
+        setErrorMessage(null);
       } else {
-        setErrorMessage(
-          `Google Login ব্যর্থ হয়েছে (${errCode || 'Error'}): ${errMsg}`
-        );
+        console.error('Google Auth Error:', error);
 
-        toast.error('Google Login করা যায়নি।');
+        if (errCode === 'auth/popup-blocked') {
+          setErrorMessage(
+            language === 'bn' 
+              ? 'ব্রাউজার Google Login popup ব্লক করেছে। ব্রাউজারে popup অনুমতি দিয়ে আবার চেষ্টা করুন।'
+              : 'Popup was blocked by browser. Please allow popups and try again.'
+          );
+          toast.error(language === 'bn' ? 'Google popup ব্লক করা হয়েছে।' : 'Popup blocked');
+        } else if (
+          errCode === 'auth/unauthorized-domain' ||
+          errMsg.includes('auth/unauthorized-domain')
+        ) {
+          setUnauthorizedDomain(window.location.hostname);
+          setErrorMessage(
+            `এই ডোমেইন Firebase Authentication-এ অনুমোদিত নয়: ${window.location.hostname}`
+          );
+          toast.error('Firebase domain অনুমোদিত নয়।');
+        } else if (errCode === 'auth/operation-not-allowed') {
+          setErrorMessage(
+            'Firebase Console → Authentication → Sign-in method থেকে Google Sign-in Enable করুন।'
+          );
+          toast.error('Google Sign-in Enable করা নেই।');
+        } else if (errCode === 'auth/network-request-failed') {
+          setErrorMessage(
+            language === 'bn' ? 'ইন্টারনেট সংযোগে সমস্যা হয়েছে। আবার চেষ্টা করুন।' : 'Network error. Please check your connection.'
+          );
+          toast.error(language === 'bn' ? 'নেটওয়ার্ক সমস্যা।' : 'Network error');
+        } else if (errCode === 'auth/web-storage-unsupported') {
+          setErrorMessage(
+            language === 'bn' 
+              ? 'এই ব্রাউজারে Firebase authentication storage কাজ করছে না। সাধারণ Chrome browser-এ আবার চেষ্টা করুন।'
+              : 'Web storage unsupported in this browser.'
+          );
+          toast.error('Browser storage সমস্যা।');
+        } else {
+          setErrorMessage(
+            `Google Login ব্যর্থ হয়েছে (${errCode || 'Error'}): ${errMsg}`
+          );
+          toast.error(language === 'bn' ? 'Google Login করা যায়নি।' : 'Google Login failed');
+        }
       }
 
     } finally {

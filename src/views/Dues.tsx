@@ -453,43 +453,47 @@ export default function Dues() {
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">{t('common.loading')}</div>;
 
+  if (!canAccessDues) {
+    return (
+      <div className="space-y-4 pb-12 animate-in fade-in">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-amber-200 text-center space-y-4 my-2">
+          <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+            <Lock size={32} />
+          </div>
+          <div>
+            <span className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase mb-2 inline-block shadow-2xs">
+              {language === 'bn' ? '👑 ভিআইপি প্রিমিয়াম ফিচার' : '👑 VIP Feature'}
+            </span>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
+              {language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার লক' : 'Dues Ledger is Locked'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1.5 leading-relaxed max-w-md mx-auto">
+              {language === 'bn' 
+                ? 'খরিদ্দার অনুযায়ী বাকি-বকেয়া হিসাব, পেমেন্ট আদায় খতিয়ান ও হোয়াটসঅ্যাপ তাগাদা মেসেজ পাঠানোর সুবিধাটি বর্তমানে লক করা রয়েছে। এটি সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' 
+                : 'Customer dues ledger, payment records, and automated WhatsApp reminders are locked. Please contact the admin to activate this feature.'}
+            </p>
+          </div>
+
+          <div className="max-w-xs mx-auto space-y-2.5 pt-2">
+            <button
+              type="button"
+              onClick={() => openSubscriptionModal(
+                language === 'bn' ? 'বকেয়া খাতা (দেনা-পাওনা লেজার)' : 'Dues Ledger',
+                language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার সম্পূর্ণ ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact the admin to activate the Dues ledger.'
+              )}
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-98"
+            >
+              <Sparkles size={16} className="text-amber-300" />
+              <span>{language === 'bn' ? 'সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন' : 'Contact Admin to Unlock'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-12">
-      {/* Premium Notice Banner if locked */}
-      {!canAccessDues && (
-        <div className="bg-gradient-to-r from-amber-600 via-rose-600 to-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
-              <Lock size={20} className="text-amber-300" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {language === 'bn' ? 'প্রিমিয়াম সুবিধা' : 'PREMIUM'}
-                </span>
-                <p className="text-xs sm:text-sm font-black">
-                  {language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger Premium'}
-                </p>
-              </div>
-              <p className="text-[10px] sm:text-xs text-rose-100 font-medium mt-0.5">
-                {language === 'bn' ? 'এই ফিচারটি আপনার অ্যাকাউন্টে সক্রিয় করতে অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Contact admin to activate this feature on your account.'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => openSubscriptionModal(
-              language === 'bn' ? 'বকেয়া খাতা (দেনা-পাওনা লেজার)' : 'Dues Ledger',
-              language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার সম্পূর্ণ ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact the admin to activate the Dues ledger.'
-            )}
-            className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shrink-0 shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
-          >
-            <Sparkles size={14} />
-            <span>{language === 'bn' ? 'সক্রিয় করুন' : 'Activate'}</span>
-          </button>
-        </div>
-      )}
-
       {/* Header Bar */}
       <div className="flex justify-between items-center bg-white p-3.5 sm:p-4 rounded-2xl shadow-xs border border-slate-100">
         <div className="flex items-center gap-2.5">

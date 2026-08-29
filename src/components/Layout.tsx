@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Package, ClipboardList, Wallet, FileText, Menu, AlertTriangle, ShieldPlus, LayoutGrid, Mic, Sparkles } from 'lucide-react';
+import { Home, Package, ClipboardList, Wallet, FileText, Menu, AlertTriangle, ShieldPlus, LayoutGrid, Mic, Sparkles, Lock, MessageCircle, Phone, Crown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { demoStore } from '../utils/demoStore';
@@ -12,6 +13,7 @@ import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 export default function Layout() {
   const { currentUser, isDemoUser, logout } = useAuth();
   const { t, language } = useLanguage();
+  const { config, isPremium, isAdmin, openSubscriptionModal } = useSystemConfig();
   const location = useLocation();
   const [profileData, setProfileData] = useState<any>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
@@ -39,6 +41,16 @@ export default function Layout() {
   }, [currentUser, isDemoUser]);
 
   if (!currentUser) return <Outlet />;
+
+  const isAppLocked = config.monetizationEnabled !== false && config.appLockRequired === true && !isPremium && !isAdmin && location.pathname !== '/profile';
+
+  const cleanAdminWa = (config.adminWhatsApp || '01410991934').replace(/[^0-9]/g, '');
+  const finalWaNumber = cleanAdminWa.startsWith('88') ? cleanAdminWa : `88${cleanAdminWa}`;
+  const appLockWaUrl = `https://wa.me/${finalWaNumber}?text=${encodeURIComponent(
+    language === 'bn'
+      ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপটি ব্যবহার করার জন্য অ্যাকাউন্টটি অ্যাক্টিভেট করতে চাই।`
+      : `Hello, I want to activate my Khamar Pro account.`
+  )}`;
 
   const navItems = [
     { name: t('menu.home'), path: '/', icon: Home },
