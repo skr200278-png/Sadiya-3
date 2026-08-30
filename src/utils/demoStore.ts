@@ -131,6 +131,7 @@ export interface DemoMarketPost {
   farmName: string;
   phone: string;
   whatsapp?: string;
+  country?: string;
   district: string;
   upazila?: string;
   locationDetails: string;
@@ -153,6 +154,7 @@ export interface DemoMarketBuyer {
   businessName: string; // আড়ত বা দোকানের নাম
   phone: string;
   whatsapp?: string;
+  country?: string;
   district: string;
   upazila?: string;
   buyingTypes: string[]; // ['broiler', 'sonali', 'layer', 'deshi']
@@ -170,6 +172,7 @@ export interface DemoStoreListing {
   ownerName: string;
   phone: string;
   whatsapp?: string;
+  country?: string;
   district: string;
   upazila?: string;
   address: string;

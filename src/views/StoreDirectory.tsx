@@ -30,30 +30,27 @@ import {
   ShieldAlert,
   Crown,
   Star,
-  Award
+  Award,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { db, offlineSafeDocWrite, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
+import { db, offlineSafeDocWrite } from '../firebase';
 import { demoStore, DemoStoreListing } from '../utils/demoStore';
+import { 
+  COUNTRY_LIST, 
+  detectUserCountry, 
+  getCountryDisplayName, 
+  getDistrictDisplayName, 
+  normalizeCountryCode,
+  ALL_64_DISTRICTS,
+  BANGLADESH_DISTRICT_NAMES_BN,
+  BANGLADESH_DISTRICT_NAMES_EN
+} from '../utils/bangladeshDistricts';
 import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
 import toast from 'react-hot-toast';
-
-export const BD_DISTRICTS = [
-  'ঢাকা', 'গাজীপুর', 'ময়মনসিংহ', 'টাঙ্গাইল', 'বগুড়া', 'কুমিল্লা', 'চট্টগ্রাম',
-  'রাজশাহী', 'রংপুর', 'খুলনা', 'যশোর', 'সিলেট', 'বরিশাল', 'দিনাজপুর', 
-  'কিশোরগঞ্জ', 'জামালপুর', 'নেত্রকোণা', 'শেরপুর', 'সিরাজগঞ্জ', 'পাবনা', 
-  'নওগাঁ', 'নাটোর', 'চাঁপাইনবাবগঞ্জ', 'জয়পুরহাট', 'কুড়িগ্রাম', 'গাইবান্ধা', 
-  'নীলফামারী', 'লালমনিরহাট', 'ঠাকুরগাঁও', 'পঞ্চগড়', 'ঝিনাইদহ', 'কুষ্টিয়া', 
-  'চুয়াডাঙ্গা', 'মেহেরপুর', 'সাতক্ষীরা', 'বাগেরহাট', 'মাগুরা', 'নড়াইল', 
-  'পটুয়াখালী', 'ভোলা', 'পিরোজপুর', 'বরগুনা', 'ঝালকাঠি', 'কক্সবাজার', 
-  'ফেনী', 'ব্রাহ্মণবাড়িয়া', 'নোয়াখালী', 'চাঁদপুর', 'লক্ষ্মীপুর', 'মৌলভীবাজার', 
-  'হবিগঞ্জ', 'সুনামগঞ্জ', 'ফরিদপুর', 'গোপালগঞ্জ', 'মাদারীপুর', 'শরীয়তপুর', 
-  'রাজবাড়ী', 'মানিকগঞ্জ', 'মুন্সীগঞ্জ', 'নারায়ণগঞ্জ', 'নরসিংদী', 'রাঙ্গামাটি', 
-  'খাগড়াছড়ি', 'বান্দরবান'
-];
 
 export const CATEGORY_OPTIONS = [
   { id: 'poultry_feed', labelBn: 'পোল্ট্রি ফিড (ব্রয়লার/লেয়ার/সোনালী)', labelEn: 'Poultry Feed', icon: Wheat, color: 'text-amber-600 bg-amber-50 border-amber-200' },
@@ -79,6 +76,13 @@ export default function StoreDirectory() {
   const [stores, setStores] = useState<DemoStoreListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Auto-detect user's country for instant localized view
+  const [detectedCountry] = useState(() => detectUserCountry());
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    const detected = detectUserCountry();
+    return detected.code || 'BD';
+  });
   const [selectedDistrict, setSelectedDistrict] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [deliveryOnlyFilter, setDeliveryOnlyFilter] = useState(false);
@@ -90,6 +94,7 @@ export default function StoreDirectory() {
   const submitLock = useRef(false);
 
   // Form Fields
+  const [country, setCountry] = useState<string>(() => detectedCountry.code || 'BD');
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -101,7 +106,7 @@ export default function StoreDirectory() {
   const [availableBrands, setAvailableBrands] = useState('');
   const [productsOffered, setProductsOffered] = useState('');
   const [hasHomeDelivery, setHasHomeDelivery] = useState(true);
-  const [openHours, setOpenHours] = useState('সকাল ৮টা - রাত ৯টা');
+  const [openHours, setOpenHours] = useState('');
   const [notes, setNotes] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
@@ -122,7 +127,7 @@ export default function StoreDirectory() {
 
     // Live Firestore sync
     try {
-      const q = query(collection(db, 'store_listings'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'store_listings'), orderBy('createdAt', 'desc'), limit(60));
       const unsub = onSnapshot(q, (snapshot) => {
         const list: DemoStoreListing[] = [];
         snapshot.forEach((d) => {
@@ -155,6 +160,7 @@ export default function StoreDirectory() {
 
     if (storeToEdit) {
       setEditingStoreId(storeToEdit.id);
+      setCountry(storeToEdit.country || 'BD');
       setShopName(storeToEdit.shopName || '');
       setOwnerName(storeToEdit.ownerName || '');
       setPhone(storeToEdit.phone || '');
@@ -166,12 +172,13 @@ export default function StoreDirectory() {
       setAvailableBrands(storeToEdit.availableBrands || '');
       setProductsOffered(storeToEdit.productsOffered || '');
       setHasHomeDelivery(storeToEdit.hasHomeDelivery !== false);
-      setOpenHours(storeToEdit.openHours || 'সকাল ৮টা - রাত ৯টা');
+      setOpenHours(storeToEdit.openHours || (language === 'bn' ? 'সকাল ৮টা - রাত ৯টা' : '8:00 AM - 9:00 PM'));
       setNotes(storeToEdit.notes || '');
       setImageUrl(storeToEdit.imageUrl || '');
       setIsFeatured(Boolean(storeToEdit.isFeatured));
     } else {
       setEditingStoreId(null);
+      setCountry(detectedCountry.code || 'BD');
       setShopName('');
       setOwnerName('');
       setPhone(currentUser?.phoneNumber || '');
@@ -180,10 +187,10 @@ export default function StoreDirectory() {
       setUpazila('');
       setAddress('');
       setCategories(['poultry_feed', 'medicine']);
-      setAvailableBrands('সিপি, নারিশ, স্কয়ার, এসিআই, রেনেটা');
-      setProductsOffered('ব্রয়লার ও সোনালী ফিড, ভিটামিন, কৃমিনাশক, ভ্যাকসিন');
+      setAvailableBrands(language === 'bn' ? 'সিপি, নারিশ, স্কয়ার, এসিআই, রেনেটা' : 'CP, Nourish, Square, ACI, Renata');
+      setProductsOffered(language === 'bn' ? 'ব্রয়লার ও সোনালী ফিড, ভিটামিন, কৃমিনাশক, ভ্যাকসিন' : 'Broiler & Sonali feed, vitamins, vaccines, antibiotics');
       setHasHomeDelivery(true);
-      setOpenHours('সকাল ৮টা - রাত ৯টা');
+      setOpenHours(language === 'bn' ? 'সকাল ৮টা - রাত ৯টা' : '8:00 AM - 9:00 PM');
       setNotes('');
       setImageUrl('');
       setIsFeatured(false);
@@ -246,6 +253,7 @@ export default function StoreDirectory() {
     try {
       const storePayload = {
         userId: currentUser.uid,
+        country: country || 'BD',
         shopName: shopName.trim(),
         ownerName: ownerName.trim() || shopName.trim(),
         phone: phone.trim(),
@@ -353,7 +361,9 @@ export default function StoreDirectory() {
 
   // Share Store via WhatsApp / Web Share
   const handleShareStore = (store: DemoStoreListing) => {
-    const text = `🏪 *${store.shopName}*\n📍 এলাকা: ${store.address}, ${store.upazila ? store.upazila + ', ' : ''}${store.district}\n📞 মোবাইল: ${store.phone}\n🌾 ব্র্যান্ডসমূহ: ${store.availableBrands || 'পোল্ট্রি ও ক্যাটল ফিড'}\n🚚 হোম ডেলিভারি: ${store.hasHomeDelivery ? 'হ্যাঁ, খামারে পৌঁছানো হয়' : 'দোকান থেকে সংগ্রহ'}\n\nডিজিটাল খামার প্রো থেকে সংগৃহীত।`;
+    const locDistrict = getDistrictDisplayName(store.district, language);
+    const locCountry = store.country ? getCountryDisplayName(store.country, language) : '';
+    const text = `🏪 *${store.shopName}*\n📍 ${language === 'bn' ? 'এলাকা' : 'Location'}: ${store.address}, ${store.upazila ? store.upazila + ', ' : ''}${locDistrict}${locCountry ? ` (${locCountry})` : ''}\n📞 ${language === 'bn' ? 'মোবাইল' : 'Mobile'}: ${store.phone}\n🌾 ${language === 'bn' ? 'ব্র্যান্ডসমূহ' : 'Brands'}: ${store.availableBrands || (language === 'bn' ? 'পোল্ট্রি ও ক্যাটল ফিড' : 'Feed & Medicine')}\n🚚 ${language === 'bn' ? 'হোম ডেলিভারি' : 'Delivery'}: ${store.hasHomeDelivery ? (language === 'bn' ? 'হ্যাঁ, খামারে পৌঁছানো হয়' : 'Yes, Farm delivery available') : (language === 'bn' ? 'দোকান থেকে সংগ্রহ' : 'In-store collection')}\n\n${language === 'bn' ? 'ডিজিটাল খামার প্রো থেকে সংগৃহীত।' : 'Shared from Digital Farm Pro.'}`;
     
     if (navigator.share) {
       navigator.share({
@@ -368,22 +378,44 @@ export default function StoreDirectory() {
 
   // Filtered & Prioritized list: Featured VIP Stores are always at the TOP!
   const filteredStores = stores.filter(store => {
-    const matchesDistrict = selectedDistrict === 'all' || store.district === selectedDistrict;
-    const matchesCategory = selectedCategory === 'all' || (store.categories && store.categories.includes(selectedCategory));
-    const matchesDelivery = !deliveryOnlyFilter || store.hasHomeDelivery;
-    
-    const queryStr = searchQuery.toLowerCase().trim();
-    const matchesSearch = !queryStr || 
-      store.shopName.toLowerCase().includes(queryStr) ||
-      (store.ownerName && store.ownerName.toLowerCase().includes(queryStr)) ||
-      (store.district && store.district.toLowerCase().includes(queryStr)) ||
-      (store.upazila && store.upazila.toLowerCase().includes(queryStr)) ||
-      (store.address && store.address.toLowerCase().includes(queryStr)) ||
-      (store.availableBrands && store.availableBrands.toLowerCase().includes(queryStr)) ||
-      (store.productsOffered && store.productsOffered.toLowerCase().includes(queryStr)) ||
-      (store.phone && store.phone.includes(queryStr));
+    // Match country
+    if (selectedCountry !== 'all') {
+      const storeCode = normalizeCountryCode(store.country || 'BD');
+      const selectedCode = normalizeCountryCode(selectedCountry);
+      if (storeCode !== selectedCode) return false;
+    }
 
-    return matchesDistrict && matchesCategory && matchesDelivery && matchesSearch;
+    // Match district
+    if (selectedDistrict !== 'all') {
+      const storeDistBn = getDistrictDisplayName(store.district, 'bn');
+      const filterDistBn = getDistrictDisplayName(selectedDistrict, 'bn');
+      if (storeDistBn !== filterDistBn && store.district !== selectedDistrict) return false;
+    }
+
+    // Match category
+    if (selectedCategory !== 'all') {
+      if (!store.categories || !store.categories.includes(selectedCategory)) return false;
+    }
+
+    // Match delivery
+    if (deliveryOnlyFilter && !store.hasHomeDelivery) return false;
+    
+    // Match search
+    const queryStr = searchQuery.toLowerCase().trim();
+    if (queryStr) {
+      const matchSearch = 
+        store.shopName.toLowerCase().includes(queryStr) ||
+        (store.ownerName && store.ownerName.toLowerCase().includes(queryStr)) ||
+        (store.district && store.district.toLowerCase().includes(queryStr)) ||
+        (store.upazila && store.upazila.toLowerCase().includes(queryStr)) ||
+        (store.address && store.address.toLowerCase().includes(queryStr)) ||
+        (store.availableBrands && store.availableBrands.toLowerCase().includes(queryStr)) ||
+        (store.productsOffered && store.productsOffered.toLowerCase().includes(queryStr)) ||
+        (store.phone && store.phone.includes(queryStr));
+      if (!matchSearch) return false;
+    }
+
+    return true;
   }).sort((a, b) => {
     // Top priority to VIP/Featured stores
     if (a.isFeatured && !b.isFeatured) return -1;
@@ -391,7 +423,11 @@ export default function StoreDirectory() {
     return 0;
   });
 
-  const popularDistricts = ['গাজীপুর', 'ময়মনসিংহ', 'ঢাকা', 'বগুড়া', 'কুমিল্লা', 'টাঙ্গাইল', 'যশোর', 'রাজশাহী'];
+  const popularDistricts = language === 'bn'
+    ? ['গাজীপুর', 'ময়মনসিংহ', 'ঢাকা', 'বগুড়া', 'কুমিল্লা', 'টাঙ্গাইল', 'যশোর', 'রাজশাহী']
+    : ['Gazipur', 'Mymensingh', 'Dhaka', 'Bogura', 'Cumilla', 'Tangail', 'Jashore', 'Rajshahi'];
+
+  const isBDSelected = selectedCountry === 'all' || normalizeCountryCode(selectedCountry) === 'BD';
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-8 animate-in fade-in duration-200">
@@ -414,7 +450,7 @@ export default function StoreDirectory() {
                   </span>
                 </div>
                 <p className="text-[11px] text-teal-100 font-medium">
-                  {language === 'bn' ? '৬৪ জেলার পোল্ট্রি-ক্যাটল ফিড ডিলার ও ভেটেরিনারি ঔষধালয়' : 'Find Feed Dealers & Vet Medicine Pharmacies in 64 Districts'}
+                  {language === 'bn' ? '৬৪ জেলার পোল্ট্রি-ক্যাটল ফিড ডিলার ও ভেটেরিনারি ঔষধালয়' : 'Find Feed Dealers & Vet Medicine Pharmacies Worldwide'}
                 </p>
               </div>
             </div>
@@ -436,8 +472,8 @@ export default function StoreDirectory() {
               <span className="text-sm font-black font-sans text-yellow-300">{stores.length}+</span>
             </div>
             <div className="bg-white/10 p-2 rounded-xl text-center backdrop-blur-2xs border border-white/10">
-              <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'জেলা কাভারেজ' : 'Districts'}</span>
-              <span className="text-sm font-black font-sans text-white">৬৪ জেলা</span>
+              <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'কাভারেজ' : 'Coverage'}</span>
+              <span className="text-sm font-black font-sans text-white">{language === 'bn' ? '৬৪ জেলা / বিশ্বব্যাপী' : '64 Districts / Global'}</span>
             </div>
             <div className="bg-white/10 p-2 rounded-xl text-center backdrop-blur-2xs border border-white/10">
               <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'হোম ডেলিভারি' : 'Delivery'}</span>
@@ -482,8 +518,8 @@ export default function StoreDirectory() {
       {/* Prominent Fraud & Advance Money Disclaimer Notice */}
       <MarketplaceDisclaimerBanner />
 
-      {/* 3. Search & District Filter Controls */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-xs space-y-3">
+      {/* 3. Search & Country/District Filter Controls */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-150 shadow-xs space-y-3">
         {/* Search Bar */}
         <div className="relative">
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -504,28 +540,63 @@ export default function StoreDirectory() {
           )}
         </div>
 
-        {/* District Filter Dropdown & Delivery Toggle */}
+        {/* Location Dropdowns: Country & District/City */}
         <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
+          {/* Country Dropdown */}
           <div className="relative">
-            <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+            <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
             <select
-              value={selectedDistrict}
-              onChange={(e) => setSelectedDistrict(e.target.value)}
+              value={selectedCountry}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCountry(val);
+                if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
+                  setSelectedDistrict('all');
+                }
+              }}
               className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
             >
-              <option value="all">{language === 'bn' ? '📍 সকল জেলা (বাংলাদেশ)' : '📍 All Districts'}</option>
-              {BD_DISTRICTS.map((dist) => (
-                <option key={dist} value={dist}>
-                  {dist} {language === 'bn' ? 'জেলা' : 'District'}
+              <option value="all">🌍 {language === 'bn' ? 'সকল দেশ (All Countries)' : '🌍 All Countries'}</option>
+              {COUNTRY_LIST.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {language === 'bn' ? c.nameBn : c.nameEn}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* District Dropdown (For Bangladesh or All) */}
+          {isBDSelected ? (
+            <div className="relative">
+              <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+              <select
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                <option value="all">{language === 'bn' ? '📍 সকল জেলা (বাংলাদেশ)' : '📍 All Districts (Bangladesh)'}</option>
+                {ALL_64_DISTRICTS.map((d) => (
+                  <option key={d.nameBn} value={d.nameBn}>
+                    {language === 'bn' ? `${d.nameBn} জেলা` : `${d.nameEn} District`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="relative flex items-center">
+              <span className="text-xs font-bold text-slate-600 px-3 py-2 bg-slate-100 rounded-xl w-full border border-slate-200">
+                🌐 {getCountryDisplayName(selectedCountry, language)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Home Delivery Filter & Quick Reset */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setDeliveryOnlyFilter(!deliveryOnlyFilter)}
-            className={`py-2 px-3 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`flex-1 py-2 px-3 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               deliveryOnlyFilter 
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs' 
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -536,37 +607,43 @@ export default function StoreDirectory() {
           </button>
         </div>
 
-        {/* Popular District Quick Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-          <span className="text-[10px] font-black text-slate-400 shrink-0">
-            {language === 'bn' ? 'জনপ্রিয় জেলা:' : 'Popular:'}
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedDistrict('all')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
-              selectedDistrict === 'all' 
-                ? 'bg-emerald-700 text-white shadow-2xs' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {language === 'bn' ? 'সব' : 'All'}
-          </button>
-          {popularDistricts.map((dist) => (
+        {/* Popular District Quick Chips (if Bangladesh) */}
+        {isBDSelected && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+            <span className="text-[10px] font-black text-slate-400 shrink-0">
+              {language === 'bn' ? 'জনপ্রিয় জেলা:' : 'Popular:'}
+            </span>
             <button
-              key={dist}
               type="button"
-              onClick={() => setSelectedDistrict(dist)}
+              onClick={() => setSelectedDistrict('all')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
-                selectedDistrict === dist 
+                selectedDistrict === 'all' 
                   ? 'bg-emerald-700 text-white shadow-2xs' 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {dist}
+              {language === 'bn' ? 'সব' : 'All'}
             </button>
-          ))}
-        </div>
+            {popularDistricts.map((dist) => {
+              const distBn = getDistrictDisplayName(dist, 'bn');
+              const isSel = selectedDistrict === dist || selectedDistrict === distBn;
+              return (
+                <button
+                  key={dist}
+                  type="button"
+                  onClick={() => setSelectedDistrict(distBn)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
+                    isSel 
+                      ? 'bg-emerald-700 text-white shadow-2xs' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {dist}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Category Pills Filter */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-slate-100 pt-2.5">
@@ -613,16 +690,17 @@ export default function StoreDirectory() {
               {filteredStores.length}
             </span>
           </h3>
-          {(selectedDistrict !== 'all' || selectedCategory !== 'all' || deliveryOnlyFilter || searchQuery) && (
+          {(selectedCountry !== 'all' || selectedDistrict !== 'all' || selectedCategory !== 'all' || deliveryOnlyFilter || searchQuery) && (
             <button
               type="button"
               onClick={() => {
+                setSelectedCountry('all');
                 setSelectedDistrict('all');
                 setSelectedCategory('all');
                 setDeliveryOnlyFilter(false);
                 setSearchQuery('');
               }}
-              className="text-[11px] text-rose-600 font-extrabold hover:underline"
+              className="text-[11px] text-rose-600 font-extrabold hover:underline cursor-pointer"
             >
               {language === 'bn' ? 'ফিল্টার রিসেট করুন' : 'Reset Filters'}
             </button>
@@ -695,6 +773,8 @@ export default function StoreDirectory() {
         ) : (
           filteredStores.map((store) => {
             const isOwner = currentUser?.uid === store.userId || isMasterAdmin;
+            const displayDist = getDistrictDisplayName(store.district, language);
+            const displayCountry = store.country ? getCountryDisplayName(store.country, language) : '';
 
             return (
               <div 
@@ -738,6 +818,12 @@ export default function StoreDirectory() {
                           <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.2 rounded-full uppercase flex items-center gap-0.5 shadow-2xs">
                             <Crown size={10} className="fill-slate-950" />
                             <span>TOP VIP</span>
+                          </span>
+                        )}
+                        {store.country && normalizeCountryCode(store.country) !== 'BD' && (
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+                            <Globe size={10} />
+                            <span>{displayCountry}</span>
                           </span>
                         )}
                       </div>
@@ -797,7 +883,7 @@ export default function StoreDirectory() {
                   <div className="flex items-center gap-1.5 text-slate-700 min-w-0 font-bold">
                     <MapPin size={14} className="text-rose-500 shrink-0" />
                     <span className="truncate">
-                      {store.address}, {store.upazila ? `${store.upazila}, ` : ''}{store.district}
+                      {store.address}, {store.upazila ? `${store.upazila}, ` : ''}{displayDist}{store.country && normalizeCountryCode(store.country) !== 'BD' ? `, ${displayCountry}` : ''}
                     </span>
                   </div>
 
@@ -866,17 +952,17 @@ export default function StoreDirectory() {
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
                   <a
                     href={`tel:${store.phone}`}
-                    className="col-span-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center"
+                    className="col-span-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center cursor-pointer"
                   >
                     <Phone size={14} />
                     <span>{language === 'bn' ? 'কল করুন' : 'Call'}</span>
                   </a>
 
                   <a
-                    href={`https://wa.me/${(store.whatsapp || store.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি ডিজিটাল খামার প্রো অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।`)}`}
+                    href={`https://wa.me/${(store.whatsapp || store.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(language === 'bn' ? `আসসালামু আলাইকুম, আমি ডিজিটাল খামার প্রো অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।` : `Hello, I am contacting you regarding your store "${store.shopName}" listed on Digital Farm Pro.`)}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="col-span-1 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center"
+                    className="col-span-1 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center cursor-pointer"
                   >
                     <MessageSquare size={14} />
                     <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ' : 'WhatsApp'}</span>
@@ -925,7 +1011,7 @@ export default function StoreDirectory() {
                       : (language === 'bn' ? 'নতুন দোকান বা ডিলারশিপ যোগ করুন' : 'List New Agri-Vet Store')}
                   </h3>
                   <p className="text-[10px] text-emerald-100">
-                    {language === 'bn' ? 'আপনার দোকানটি ৬৪ জেলার খামারিদের কাছে প্রদর্শন করুন' : 'Showcase your store to thousands of farmers'}
+                    {language === 'bn' ? 'আপনার দোকানটি হাজারো খামারির কাছে প্রদর্শন করুন' : 'Showcase your store to thousands of farmers'}
                   </p>
                 </div>
               </div>
@@ -941,6 +1027,32 @@ export default function StoreDirectory() {
             {/* Modal Form Content */}
             <form onSubmit={handleSaveStore} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 flex-1 text-xs">
               
+              {/* Country Selection */}
+              <div>
+                <label className="block font-black text-slate-800 mb-1">
+                  {language === 'bn' ? 'দেশ নির্বাচন করুন *' : 'Select Country *'}
+                </label>
+                <select
+                  value={country}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    setCountry(c);
+                    if (normalizeCountryCode(c) !== 'BD') {
+                      setDistrict('');
+                    } else {
+                      setDistrict('গাজীপুর');
+                    }
+                  }}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  {COUNTRY_LIST.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {language === 'bn' ? c.nameBn : c.nameEn} ({c.dialCode || ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Shop Name & Owner Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -983,7 +1095,7 @@ export default function StoreDirectory() {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="017xxxxxxxx"
+                    placeholder={language === 'bn' ? 'মোবাইল নম্বর লিখুন' : 'e.g. 017xxxxxxxx'}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -996,7 +1108,7 @@ export default function StoreDirectory() {
                     type="tel"
                     value={whatsapp}
                     onChange={(e) => setWhatsapp(e.target.value)}
-                    placeholder="017xxxxxxxx"
+                    placeholder={language === 'bn' ? 'হোয়াটসঅ্যাপ নম্বর লিখুন' : 'e.g. +88017xxxxxxxx'}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -1006,28 +1118,43 @@ export default function StoreDirectory() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-black text-slate-800 mb-1">
-                    {language === 'bn' ? 'জেলা *' : 'District *'}
+                    {normalizeCountryCode(country) === 'BD' 
+                      ? (language === 'bn' ? 'জেলা *' : 'District *')
+                      : (language === 'bn' ? 'রাজ্য / প্রদেশ / শহর *' : 'State / Province / City *')}
                   </label>
-                  <select
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                  >
-                    {BD_DISTRICTS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                  {normalizeCountryCode(country) === 'BD' ? (
+                    <select
+                      value={district}
+                      onChange={(e) => setDistrict(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    >
+                      {ALL_64_DISTRICTS.map((d) => (
+                        <option key={d.nameBn} value={d.nameBn}>
+                          {language === 'bn' ? d.nameBn : d.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={district}
+                      onChange={(e) => setDistrict(e.target.value)}
+                      placeholder={language === 'bn' ? 'যেমন: কলকাতা, পশ্চিমবঙ্গ / রিয়াদ' : 'e.g. Kolkata, West Bengal / Riyadh / Texas'}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  )}
                 </div>
 
                 <div>
                   <label className="block font-black text-slate-800 mb-1">
-                    {language === 'bn' ? 'উপজেলা / থানা' : 'Upazila / Thana'}
+                    {language === 'bn' ? 'উপজেলা / এলাকা / পোস্টাল' : 'Upazila / Area / Postal'}
                   </label>
                   <input
                     type="text"
                     value={upazila}
                     onChange={(e) => setUpazila(e.target.value)}
-                    placeholder={language === 'bn' ? 'যেমন: জয়দেবপুর / ভালুকা' : 'e.g. Joydebpur'}
+                    placeholder={language === 'bn' ? 'যেমন: জয়দেবপুর / ভালুকা' : 'e.g. Downtown / Suburb'}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -1043,7 +1170,7 @@ export default function StoreDirectory() {
                   required
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder={language === 'bn' ? 'যেমন: চৌরাস্তা বাজার মেইন রোড, জামে মসজিদ সংলগ্ন' : 'e.g. Chowrasta Bazar Main Road'}
+                  placeholder={language === 'bn' ? 'যেমন: চৌরাস্তা বাজার মেইন রোড, জামে মসজিদ সংলগ্ন' : 'e.g. Chowrasta Bazar Main Road, Near Market'}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -1104,7 +1231,7 @@ export default function StoreDirectory() {
                     type="text"
                     value={openHours}
                     onChange={(e) => setOpenHours(e.target.value)}
-                    placeholder={language === 'bn' ? 'সকাল ৮টা - রাত ৯টা (প্রতিদিন)' : '8:00 AM - 9:00 PM'}
+                    placeholder={language === 'bn' ? 'সকাল ৮টা - রাত ৯টা (প্রতিদিন)' : '8:00 AM - 9:00 PM (Daily)'}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>

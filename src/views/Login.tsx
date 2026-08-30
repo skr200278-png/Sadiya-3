@@ -31,13 +31,14 @@ import {
   Smartphone,
   HelpCircle,
   KeyRound,
-  X
+  X,
+  Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const { currentUser } = useAuth();
-  const { language } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
@@ -599,7 +600,33 @@ export default function Login() {
 
         <div className="bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 p-7 text-center relative">
 
-          <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden">
+          {/* Language Switcher Pill */}
+          <div className="absolute top-3.5 right-3.5 flex items-center bg-black/25 backdrop-blur-md rounded-full p-0.5 border border-white/20 shadow-sm z-10">
+            <button
+              type="button"
+              onClick={() => setLanguage('bn')}
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black transition-all cursor-pointer ${
+                language === 'bn'
+                  ? 'bg-white text-emerald-900 shadow-sm'
+                  : 'text-emerald-100 hover:text-white'
+              }`}
+            >
+              বাংলা
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage('en')}
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black transition-all cursor-pointer ${
+                language === 'en'
+                  ? 'bg-white text-emerald-900 shadow-sm'
+                  : 'text-emerald-100 hover:text-white'
+              }`}
+            >
+              English
+            </button>
+          </div>
+
+          <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden mt-1">
 
             <img
               src={appLogo}
@@ -614,11 +641,13 @@ export default function Login() {
           </div>
 
           <h1 className="text-2xl font-black text-white tracking-wide">
-            ডিজিটাল খামার প্রো
+            {language === 'bn' ? 'ডিজিটাল খামার প্রো' : 'Digital Khamar Pro'}
           </h1>
 
           <p className="text-emerald-100 text-xs mt-1 font-medium">
-            পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা
+            {language === 'bn' 
+              ? 'পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা' 
+              : 'Smart Farm Management for Poultry, Cattle & Fish'}
           </p>
 
           {isInIframe && (
@@ -626,11 +655,11 @@ export default function Login() {
               type="button"
               onClick={openInNewTab}
               className="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-[11px] font-semibold py-1.5 px-3 rounded-full backdrop-blur-sm transition-all cursor-pointer"
-              title="নতুন ব্রাউজার ট্যাবে খুলুন"
+              title={language === 'bn' ? "নতুন ব্রাউজার ট্যাবে খুলুন" : "Open in new tab"}
             >
               <ExternalLink size={13} />
               <span>
-                পপ-আপ সমস্যায় নতুন ট্যাবে খুলুন
+                {language === 'bn' ? 'পপ-আপ সমস্যায় নতুন ট্যাবে খুলুন' : 'Open in new tab for popup'}
               </span>
             </button>
           )}
@@ -653,7 +682,7 @@ export default function Login() {
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              লগইন (Sign In)
+              {language === 'bn' ? 'লগইন (Sign In)' : 'Sign In'}
             </button>
 
             <button
@@ -668,7 +697,7 @@ export default function Login() {
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              নতুন রেজিস্ট্রেশন (Sign Up)
+              {language === 'bn' ? 'নতুন রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}
             </button>
 
           </div>
@@ -686,7 +715,7 @@ export default function Login() {
                 <div className="space-y-1">
 
                   <p className="font-bold text-red-950">
-                    লগইন সমস্যা:
+                    {language === 'bn' ? 'লগইন সমস্যা:' : 'Authentication Error:'}
                   </p>
 
                   <p className="leading-relaxed">
@@ -721,8 +750,8 @@ export default function Login() {
 
             <span>
               {loading
-                ? 'অপেক্ষা করুন...'
-                : 'গুগল (Google) দিয়ে ১-ক্লিকে প্রবেশ'}
+                ? (language === 'bn' ? 'অপেক্ষা করুন...' : 'Please wait...')
+                : (language === 'bn' ? 'গুগল (Google) দিয়ে ১-ক্লিকে প্রবেশ' : 'Sign in with Google (1-Click)')}
             </span>
 
           </button>
@@ -732,7 +761,7 @@ export default function Login() {
             <div className="flex-grow border-t border-gray-200" />
 
             <span className="flex-shrink-0 mx-3 text-gray-400 text-xs font-semibold uppercase tracking-wider">
-              অথবা নাম্বার / ইমেইল দিয়ে
+              {language === 'bn' ? 'অথবা নাম্বার / ইমেইল দিয়ে' : 'Or with Phone / Email'}
             </span>
 
             <div className="flex-grow border-t border-gray-200" />
@@ -748,7 +777,7 @@ export default function Login() {
               <div>
 
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  আপনার পুরো নাম
+                  {language === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
                 </label>
 
                 <div className="relative">
@@ -759,7 +788,7 @@ export default function Login() {
 
                   <input
                     type="text"
-                    placeholder="যেমন: মোঃ রফিকুল ইসলাম"
+                    placeholder={language === 'bn' ? "যেমন: মোঃ রফিকুল ইসলাম" : "e.g. John Doe"}
                     value={name}
                     onChange={(e) =>
                       setName(e.target.value)
@@ -776,7 +805,7 @@ export default function Login() {
             <div>
 
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                মোবাইল নাম্বার অথবা ইমেইল
+                {language === 'bn' ? 'মোবাইল নাম্বার অথবা ইমেইল' : 'Mobile Number or Email'}
               </label>
 
               <div className="relative">
@@ -791,7 +820,7 @@ export default function Login() {
 
                 <input
                   type="text"
-                  placeholder="যেমন: 017XXXXXXXX অথবা your@gmail.com"
+                  placeholder={language === 'bn' ? "যেমন: 017XXXXXXXX অথবা your@gmail.com" : "e.g. 017XXXXXXXX or your@email.com"}
                   value={identifier}
                   onChange={(e) =>
                     setIdentifier(e.target.value)
@@ -803,7 +832,9 @@ export default function Login() {
               </div>
 
               <p className="text-[11px] text-gray-400 mt-1 pl-1">
-                সহজেই ১১ ডিজিটের মোবাইল নাম্বার অথবা ইমেইল দিয়ে কাজ করুন।
+                {language === 'bn' 
+                  ? 'সহজেই মোবাইল নাম্বার অথবা ইমেইল দিয়ে কাজ করুন।' 
+                  : 'Use your phone number or email address.'}
               </p>
 
             </div>
@@ -813,7 +844,7 @@ export default function Login() {
               <div className="flex items-center justify-between mb-1.5">
 
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                  পাসওয়ার্ড
+                  {language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
                 </label>
 
                 {mode === 'login' && (
@@ -827,7 +858,7 @@ export default function Login() {
                     }}
                     className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                   >
-                    পাসওয়ার্ড ভুলে গেছেন?
+                    {language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
                   </button>
                 )}
 
@@ -845,7 +876,7 @@ export default function Login() {
                       ? 'text'
                       : 'password'
                   }
-                  placeholder="কমপক্ষে ৬ অক্ষরের বা সংখ্যার পাসওয়ার্ড"
+                  placeholder={language === 'bn' ? "কমপক্ষে ৬ অক্ষরের বা সংখ্যার পাসওয়ার্ড" : "At least 6 characters"}
                   value={password}
                   onChange={(e) =>
                     setPassword(e.target.value)
@@ -862,8 +893,8 @@ export default function Login() {
                   className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                   title={
                     showPassword
-                      ? 'পাসওয়ার্ড লুকান'
-                      : 'পাসওয়ার্ড দেখুন'
+                      ? (language === 'bn' ? 'পাসওয়ার্ড লুকান' : 'Hide password')
+                      : (language === 'bn' ? 'পাসওয়ার্ড দেখুন' : 'Show password')
                   }
                 >
                   {showPassword
@@ -884,17 +915,17 @@ export default function Login() {
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  অপেক্ষা করুন...
+                  {language === 'bn' ? 'অপেক্ষা করুন...' : 'Please wait...'}
                 </span>
               ) : mode === 'register' ? (
                 <span className="inline-flex items-center gap-2">
                   <CheckCircle2 size={18} />
-                  নতুন অ্যাকাউন্ট তৈরি করুন
+                  {language === 'bn' ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'Create New Account'}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">
                   <ShieldCheck size={18} />
-                  লগইন করে খামারে প্রবেশ করুন
+                  {language === 'bn' ? 'লগইন করে খামারে প্রবেশ করুন' : 'Sign In to Farm'}
                 </span>
               )}
 
@@ -908,16 +939,16 @@ export default function Login() {
 
           <p className="text-xs text-gray-500">
 
-            লগইন করার মাধ্যমে আপনি আমাদের{' '}
+            {language === 'bn' ? 'লগইন করার মাধ্যমে আপনি আমাদের ' : 'By signing in, you agree to our '}
 
             <Link
               to="/privacy-policy"
               className="text-emerald-700 font-semibold hover:underline"
             >
-              গোপনীয়তা নীতি (Privacy Policy)
+              {language === 'bn' ? 'গোপনীয়তা নীতি (Privacy Policy)' : 'Privacy Policy'}
             </Link>
 
-            {' '}মেনে নিচ্ছেন।
+            {language === 'bn' ? ' মেনে নিচ্ছেন।' : '.'}
 
           </p>
 
@@ -946,11 +977,13 @@ export default function Login() {
               </div>
 
               <h3 className="text-lg font-black text-gray-800">
-                পাসওয়ার্ড রিসেট ও রিকভারি
+                {language === 'bn' ? 'পাসওয়ার্ড রিসেট ও রিকভারি' : 'Password Reset & Recovery'}
               </h3>
 
               <p className="text-xs text-gray-500 mt-0.5">
-                আপনার খামার অ্যাকাউন্টের মোবাইল নাম্বার বা ইমেইল দিন
+                {language === 'bn' 
+                  ? 'আপনার খামার অ্যাকাউন্টের মোবাইল নাম্বার বা ইমেইল দিন' 
+                  : 'Enter your farm account mobile number or email'}
               </p>
 
             </div>
@@ -1001,7 +1034,7 @@ export default function Login() {
               <div>
 
                 <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                  মোবাইল নাম্বার অথবা ইমেইল
+                  {language === 'bn' ? 'মোবাইল নাম্বার অথবা ইমেইল' : 'Mobile Number or Email'}
                 </label>
 
                 <div className="relative">
@@ -1016,7 +1049,7 @@ export default function Login() {
 
                   <input
                     type="text"
-                    placeholder="যেমন: 017XXXXXXXX অথবা your@gmail.com"
+                    placeholder={language === 'bn' ? "যেমন: 017XXXXXXXX অথবা your@gmail.com" : "e.g. 017XXXXXXXX or your@email.com"}
                     value={resetIdentifier}
                     onChange={(e) =>
                       setResetIdentifier(
@@ -1040,16 +1073,16 @@ export default function Login() {
                     className="text-emerald-600"
                   />
 
-                  পাসওয়ার্ড রিসেট নিয়মাবলী:
+                  {language === 'bn' ? 'পাসওয়ার্ড রিসেট নিয়মাবলী:' : 'Password Reset Guide:'}
 
                 </p>
 
                 <p>
-                  • <strong>ইমেইল দিলে:</strong> পাসওয়ার্ড বদলানোর সরাসরি লিংক আপনার ইমেইলে চলে যাবে।
+                  • <strong>{language === 'bn' ? 'ইমেইল দিলে:' : 'With Email:'}</strong> {language === 'bn' ? 'পাসওয়ার্ড বদলানোর সরাসরি লিংক আপনার ইমেইলে চলে যাবে।' : 'A direct password reset link will be sent to your email inbox.'}
                 </p>
 
                 <p>
-                  • <strong>মোবাইল নাম্বার দিলে:</strong> তাৎক্ষণিক সহায়তার জন্য হেল্পলাইনে যোগাযোগ করতে পারেন।
+                  • <strong>{language === 'bn' ? 'মোবাইল নাম্বার দিলে:' : 'With Phone:'}</strong> {language === 'bn' ? 'তাৎক্ষণিক সহায়তার জন্য হেল্পলাইনে যোগাযোগ করতে পারেন।' : 'Contact farm helpline for instant mobile account verification.'}
                 </p>
 
               </div>
@@ -1063,7 +1096,7 @@ export default function Login() {
                   }
                   className="flex-1 py-3 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all cursor-pointer"
                 >
-                  ফিরে যান
+                  {language === 'bn' ? 'ফিরে যান' : 'Cancel'}
                 </button>
 
                 <button
@@ -1072,8 +1105,8 @@ export default function Login() {
                   className="flex-1 py-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all shadow-md shadow-emerald-700/20 disabled:opacity-50 cursor-pointer"
                 >
                   {resetLoading
-                    ? 'অপেক্ষা করুন...'
-                    : 'রিসেট অনুরোধ পাঠান'}
+                    ? (language === 'bn' ? 'অপেক্ষা করুন...' : 'Please wait...')
+                    : (language === 'bn' ? 'রিসেট অনুরোধ পাঠান' : 'Send Reset Link')}
                 </button>
 
               </div>

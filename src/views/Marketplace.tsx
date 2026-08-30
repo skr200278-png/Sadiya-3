@@ -7,7 +7,8 @@ import {
   updateDoc, 
   deleteDoc, 
   doc, 
-  onSnapshot 
+  onSnapshot,
+  limit
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +18,16 @@ import {
   BANGLADESH_DIVISIONS, 
   ALL_64_DISTRICTS, 
   BANGLADESH_DISTRICT_NAMES_BN, 
-  DISTRICT_FILTER_OPTIONS_BN 
+  BANGLADESH_DISTRICT_NAMES_EN,
+  DISTRICT_FILTER_OPTIONS_BN,
+  DISTRICT_FILTER_OPTIONS_EN,
+  COUNTRY_LIST,
+  COUNTRY_FILTER_OPTIONS_BN,
+  COUNTRY_FILTER_OPTIONS_EN,
+  detectUserCountry,
+  getCountryDisplayName,
+  getDistrictDisplayName,
+  normalizeCountryCode
 } from '../utils/bangladeshDistricts';
 import { 
   Store, 
@@ -43,7 +53,8 @@ import {
   UserCheck,
   HelpCircle,
   Crown,
-  Lock
+  Lock,
+  Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -64,6 +75,10 @@ export default function Marketplace() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filter & Search
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    const detected = detectUserCountry();
+    return detected.code || 'BD';
+  });
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [postTypeFilter, setPostTypeFilter] = useState<'all' | 'sell' | 'buy'>('all');
@@ -80,12 +95,12 @@ export default function Marketplace() {
 
   // Helper for generating clean WhatsApp link
   const formatWhatsAppUrl = (whatsappNum?: string, phoneNum?: string, message: string = '') => {
-    const num = (whatsappNum || phoneNum || '').replace(/[^0-9]/g, '');
-    if (!num) return '#';
-    let formatted = num;
+    const raw = (whatsappNum || phoneNum || '').replace(/[^0-9]/g, '');
+    if (!raw) return '#';
+    let formatted = raw;
     if (formatted.startsWith('880')) {
-      // already starts with 880
-    } else if (formatted.startsWith('0')) {
+      // already standard BD
+    } else if (formatted.startsWith('0') && formatted.length === 11) {
       formatted = '88' + formatted;
     } else if (formatted.length === 10 && formatted.startsWith('1')) {
       formatted = '880' + formatted;
@@ -108,6 +123,7 @@ export default function Marketplace() {
     phone: '',
     whatsapp: '',
     whatsappSameAsPhone: true,
+    country: 'বাংলাদেশ',
     district: 'গাজীপুর',
     upazila: '',
     locationDetails: '',
@@ -127,6 +143,7 @@ export default function Marketplace() {
     phone: '',
     whatsapp: '',
     whatsappSameAsPhone: true,
+    country: 'বাংলাদেশ',
     district: 'গাজীপুর',
     upazila: '',
     address: '',
@@ -180,8 +197,8 @@ export default function Marketplace() {
       return () => unsub();
     }
 
-    // Firestore Realtime Listener for Posts
-    const qPosts = query(collection(db, 'marketplace_posts'), orderBy('createdAt', 'desc'));
+    // Firestore Realtime Listener for Posts with read limit optimization
+    const qPosts = query(collection(db, 'marketplace_posts'), orderBy('createdAt', 'desc'), limit(60));
     const unsubPosts = onSnapshot(qPosts, (snapshot) => {
       const postList: any[] = [];
       snapshot.forEach(docSnap => {
@@ -197,8 +214,8 @@ export default function Marketplace() {
       setLoading(false);
     });
 
-    // Firestore Realtime Listener for Buyers
-    const qBuyers = query(collection(db, 'market_buyers'), orderBy('createdAt', 'desc'));
+    // Firestore Realtime Listener for Buyers with read limit optimization
+    const qBuyers = query(collection(db, 'market_buyers'), orderBy('createdAt', 'desc'), limit(60));
     const unsubBuyers = onSnapshot(qBuyers, (snapshot) => {
       const buyerList: any[] = [];
       snapshot.forEach(docSnap => {
@@ -240,6 +257,7 @@ export default function Marketplace() {
       farmName: postForm.farmName || (postForm.postType === 'buy' ? (language === 'bn' ? 'ক্রেতা / প্রতিষ্ঠান' : 'Buyer Shop') : (language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm')),
       phone: postForm.phone,
       whatsapp: finalWhatsApp,
+      country: postForm.country || 'বাংলাদেশ',
       district: postForm.district,
       upazila: postForm.upazila,
       locationDetails: postForm.locationDetails || postForm.district,
@@ -302,6 +320,7 @@ export default function Marketplace() {
       businessName: buyerForm.businessName,
       phone: buyerForm.phone,
       whatsapp: finalWhatsApp,
+      country: buyerForm.country || 'বাংলাদেশ',
       district: buyerForm.district,
       upazila: buyerForm.upazila,
       address: buyerForm.address || buyerForm.district,
@@ -420,9 +439,6 @@ export default function Marketplace() {
     return language === 'bn' ? `${Math.floor(diff / 86400)} দিন আগে` : `${Math.floor(diff / 86400)}d ago`;
   };
 
-  // Districts List for filtering (all 64 districts)
-  const districts = DISTRICT_FILTER_OPTIONS_BN;
-
   // Filtered Posts
   const filteredPosts = posts.filter(post => {
     if (onlyMyPosts) {
@@ -434,11 +450,20 @@ export default function Marketplace() {
       const type = post.postType || 'sell';
       if (type !== postTypeFilter) return false;
     }
-    if (selectedDistrict !== 'all' && selectedDistrict !== 'সকল জেলা' && post.district !== selectedDistrict) return false;
+    if (selectedCountry !== 'all') {
+      const postCountryCode = normalizeCountryCode(post.country || 'BD');
+      const selectedCountryCode = normalizeCountryCode(selectedCountry);
+      if (postCountryCode !== selectedCountryCode) return false;
+    }
+    if (selectedDistrict !== 'all') {
+      const postDistBn = getDistrictDisplayName(post.district, 'bn');
+      const selDistBn = getDistrictDisplayName(selectedDistrict, 'bn');
+      if (postDistBn !== selDistBn && post.district !== selectedDistrict) return false;
+    }
     if (selectedTypeFilter !== 'all' && post.poultryType !== selectedTypeFilter) return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      const matchLoc = (post.district || '').toLowerCase().includes(q) || (post.locationDetails || '').toLowerCase().includes(q) || (post.upazila || '').toLowerCase().includes(q);
+      const matchLoc = (post.district || '').toLowerCase().includes(q) || (post.locationDetails || '').toLowerCase().includes(q) || (post.upazila || '').toLowerCase().includes(q) || (post.country || '').toLowerCase().includes(q);
       const matchFarmer = (post.farmerName || '').toLowerCase().includes(q) || (post.farmName || '').toLowerCase().includes(q) || (post.phone || '').includes(q);
       if (!matchLoc && !matchFarmer) return false;
     }
@@ -451,12 +476,21 @@ export default function Marketplace() {
       const isMine = (currentUser && buyer.userId === currentUser.uid) || isDemoUser || buyer.userId === 'demo_user' || (buyerForm.phone && buyer.phone === buyerForm.phone);
       if (!isMine) return false;
     }
-    if (selectedDistrict !== 'all' && selectedDistrict !== 'সকল জেলা' && buyer.district !== selectedDistrict) return false;
+    if (selectedCountry !== 'all') {
+      const buyerCountryCode = normalizeCountryCode(buyer.country || 'BD');
+      const selectedCountryCode = normalizeCountryCode(selectedCountry);
+      if (buyerCountryCode !== selectedCountryCode) return false;
+    }
+    if (selectedDistrict !== 'all') {
+      const buyerDistBn = getDistrictDisplayName(buyer.district, 'bn');
+      const selDistBn = getDistrictDisplayName(selectedDistrict, 'bn');
+      if (buyerDistBn !== selDistBn && buyer.district !== selectedDistrict) return false;
+    }
     if (selectedTypeFilter !== 'all' && !buyer.buyingTypes.includes(selectedTypeFilter)) return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       const matchName = (buyer.buyerName || '').toLowerCase().includes(q) || (buyer.businessName || '').toLowerCase().includes(q) || (buyer.phone || '').includes(q);
-      const matchLoc = (buyer.district || '').toLowerCase().includes(q) || (buyer.address || '').toLowerCase().includes(q);
+      const matchLoc = (buyer.district || '').toLowerCase().includes(q) || (buyer.address || '').toLowerCase().includes(q) || (buyer.country || '').toLowerCase().includes(q);
       if (!matchName && !matchLoc) return false;
     }
     return true;
@@ -581,41 +615,70 @@ export default function Marketplace() {
         </button>
       </div>
 
-      {/* 3. Search & District Filter Bar */}
-      <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-150 space-y-2">
-        <div className="flex gap-2">
+      {/* 3. Search & Country/District Filter Bar */}
+      <div className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-xs border border-slate-150 space-y-2">
+        <div className="flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2">
           {/* Search Input */}
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative flex-1 min-w-[130px]">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={language === 'bn' ? 'এলাকা, জেলা বা নাম খুঁজুন...' : 'Search location, district or name...'}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              placeholder={language === 'bn' ? 'এলাকা, দেশ বা নাম...' : 'Search location, country or name...'}
+              className="w-full pl-7 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
             />
             {searchTerm && (
               <button 
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={12} />
               </button>
             )}
           </div>
 
-          {/* District Dropdown */}
-          <select
-            value={selectedDistrict}
-            onChange={(e) => setSelectedDistrict(e.target.value)}
-            className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-hidden cursor-pointer"
-          >
-            {districts.map((d, i) => (
-              <option key={i} value={d === 'সকল জেলা' ? 'all' : d}>
-                {d}
-              </option>
-            ))}
-          </select>
+          {/* Country Dropdown */}
+          <div className="relative flex items-center shrink-0">
+            <select
+              value={selectedCountry}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCountry(val);
+                if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
+                  setSelectedDistrict('all');
+                }
+              }}
+              className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-hidden cursor-pointer max-w-[120px] sm:max-w-[140px] truncate"
+              title={language === 'bn' ? 'দেশ নির্বাচন করুন' : 'Select Country'}
+            >
+              <option value="all">🌍 {language === 'bn' ? 'সকল দেশ' : 'All Countries'}</option>
+              {COUNTRY_LIST.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {language === 'bn' ? c.nameBn : c.nameEn}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* District Dropdown (Visible for Bangladesh or All) */}
+          {(selectedCountry === 'all' || normalizeCountryCode(selectedCountry) === 'BD') && (
+            <div className="relative flex items-center shrink-0">
+              <select
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-hidden cursor-pointer max-w-[110px] sm:max-w-[130px] truncate"
+                title={language === 'bn' ? 'জেলা নির্বাচন করুন' : 'Select District'}
+              >
+                <option value="all">{language === 'bn' ? 'সকল জেলা' : 'All Districts'}</option>
+                {ALL_64_DISTRICTS.map((d) => (
+                  <option key={d.nameBn} value={d.nameBn}>
+                    {language === 'bn' ? d.nameBn : d.nameEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Quick Tags Filter */}
@@ -855,19 +918,22 @@ export default function Marketplace() {
                     <div>
                       <div className="flex items-center gap-1 text-[11px] font-black text-slate-850">
                         <MapPin size={12} className="text-red-500 shrink-0" />
-                        <span>{post.district} {post.upazila ? `(${post.upazila})` : ''}</span>
+                        <span>
+                          {getDistrictDisplayName(post.district, language)} {post.upazila ? `(${post.upazila})` : ''}
+                          {post.country && normalizeCountryCode(post.country) !== 'BD' ? `, ${getCountryDisplayName(post.country, language)}` : ''}
+                        </span>
                         <span className="text-slate-300">•</span>
-                        <span className="text-slate-600 font-bold truncate">{post.farmName || (isBuyRequest ? 'ক্রেতা' : 'খামার')}</span>
+                        <span className="text-slate-600 font-bold truncate">{post.farmName || (isBuyRequest ? (language === 'bn' ? 'ক্রেতা' : 'Buyer') : (language === 'bn' ? 'খামার' : 'Farm'))}</span>
                       </div>
                       <p className="text-[9px] text-slate-500 font-medium pl-4 mt-0.5">
-                        {post.locationDetails} ({isBuyRequest ? 'বিজ্ঞাপনদাতা' : 'খামারি'}: {post.farmerName})
+                        {post.locationDetails} ({isBuyRequest ? (language === 'bn' ? 'বিজ্ঞাপনদাতা' : 'Advertiser') : (language === 'bn' ? 'খামারি' : 'Farmer')}: {post.farmerName})
                       </p>
                     </div>
 
                     {/* Action Call & WhatsApp Buttons */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       <a
-                        href={`tel:${post.phone}`}
+                        href={formatTelUrl(post.phone)}
                         className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
                       >
                         <Phone size={13} />
@@ -875,7 +941,11 @@ export default function Marketplace() {
                       </a>
 
                       <a
-                        href={`https://wa.me/88${whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${getPoultryTypeName(post.poultryType)}, ${post.birdCount} পিস, ${post.district})। বিস্তারিত কথা বলতে চাই।`)}`}
+                        href={formatWhatsAppUrl(
+                          post.whatsapp,
+                          post.phone,
+                          `আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${getPoultryTypeName(post.poultryType)}, ${post.birdCount} পিস, ${post.district}${post.country && post.country !== 'বাংলাদেশ' ? `, ${post.country}` : ''})। বিস্তারিত কথা বলতে চাই।`
+                        )}
                         target="_blank"
                         rel="noreferrer"
                         className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
@@ -1081,12 +1151,15 @@ export default function Marketplace() {
                   <div className="bg-slate-50/90 rounded-2xl p-2.5 border border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <p className="text-[10px] text-slate-600 font-medium flex items-center gap-1">
                       <MapPin size={11} className="text-slate-400 shrink-0" />
-                      <span>{buyer.address}</span>
+                      <span>
+                        {buyer.address || getDistrictDisplayName(buyer.district, language)}
+                        {buyer.country && normalizeCountryCode(buyer.country) !== 'BD' ? `, ${getCountryDisplayName(buyer.country, language)}` : ''}
+                      </span>
                     </p>
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <a
-                        href={`tel:${buyer.phone}`}
+                        href={formatTelUrl(buyer.phone)}
                         className="py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
                       >
                         <Phone size={13} />
@@ -1095,7 +1168,11 @@ export default function Marketplace() {
 
                       {buyer.whatsapp && (
                         <a
-                          href={`https://wa.me/88${buyer.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি খামারি। আপনার আড়তে মুরগি বিক্রির বিষয়ে কথা বলতে চাচ্ছি।`)}`}
+                          href={formatWhatsAppUrl(
+                            buyer.whatsapp,
+                            buyer.phone,
+                            `আসসালামু আলাইকুম, আমি খামারি। আপনার আড়তে মুরগি বিক্রির বিষয়ে কথা বলতে চাচ্ছি (${buyer.district}${buyer.country && buyer.country !== 'বাংলাদেশ' ? `, ${buyer.country}` : ''})।`
+                          )}
                           target="_blank"
                           rel="noreferrer"
                           className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
@@ -1409,36 +1486,72 @@ export default function Marketplace() {
                 </div>
               </div>
 
-              {/* District & Location Details with 64 Districts Grouped by Division */}
+              {/* Country Selection */}
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1 font-bold">
+                  {language === 'bn' ? 'দেশ নির্বাচন করুন *' : 'Select Country *'}
+                </label>
+                <select
+                  value={postForm.country || 'BD'}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    setPostForm({ ...postForm, country: c, district: normalizeCountryCode(c) === 'BD' ? 'গাজীপুর' : '' });
+                  }}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  {COUNTRY_LIST.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {language === 'bn' ? c.nameBn : c.nameEn} ({c.dialCode || ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* District & Location Details */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? 'জেলা * (৬৪ জেলা)' : 'District * (64 Districts)'}
+                  <label className="text-[10px] text-slate-500 block mb-1 font-bold">
+                    {normalizeCountryCode(postForm.country) === 'BD'
+                      ? (language === 'bn' ? 'জেলা * (৬৪ জেলা)' : 'District * (64 Districts)')
+                      : (language === 'bn' ? 'শহর / জেলা / রাজ্য *' : 'City / State / District *')}
                   </label>
-                  <select
-                    value={postForm.district}
-                    onChange={(e) => setPostForm({ ...postForm, district: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
-                  >
-                    {BANGLADESH_DIVISIONS.map((div) => (
-                      <optgroup key={div.en} label={`${div.bn} বিভাগ`}>
-                        {ALL_64_DISTRICTS.filter(d => d.divisionBn === div.bn).map(d => (
-                          <option key={d.nameBn} value={d.nameBn}>{d.nameBn}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  {normalizeCountryCode(postForm.country) === 'BD' ? (
+                    <select
+                      value={postForm.district}
+                      onChange={(e) => setPostForm({ ...postForm, district: e.target.value })}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                    >
+                      {BANGLADESH_DIVISIONS.map((div) => (
+                        <optgroup key={div.en} label={language === 'bn' ? `${div.bn} বিভাগ` : `${div.en} Division`}>
+                          {ALL_64_DISTRICTS.filter(d => d.divisionBn === div.bn).map(d => (
+                            <option key={d.nameBn} value={d.nameBn}>
+                              {language === 'bn' ? d.nameBn : d.nameEn}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      type="text"
+                      required
+                      value={postForm.district}
+                      onChange={(e) => setPostForm({ ...postForm, district: e.target.value })}
+                      placeholder={language === 'bn' ? 'যেমন: কলকাতা / রিয়াদ / দুবাই' : 'e.g. Kolkata / Riyadh / Dubai'}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
+                    />
+                  )}
                 </div>
 
                 <div>
                   <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? 'উপজেলা / খামারের নাম' : 'Upazila / Farm Name'}
+                    {language === 'bn' ? 'উপজেলা / এলাকা / খামারের নাম' : 'Area / Upazila / Farm Name'}
                   </label>
                   <input 
                     type="text"
                     value={postForm.upazila}
                     onChange={(e) => setPostForm({ ...postForm, upazila: e.target.value })}
-                    placeholder="শ্রীপুর / সবুজ খামার"
+                    placeholder={language === 'bn' ? 'শ্রীপুর / সবুজ খামার' : 'Area / Farm'}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
                   />
                 </div>
@@ -1576,25 +1689,61 @@ export default function Marketplace() {
                 </div>
               </div>
 
+              {/* Country Selection */}
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1 font-bold">
+                  {language === 'bn' ? 'দেশ নির্বাচন করুন *' : 'Select Country *'}
+                </label>
+                <select
+                  value={buyerForm.country || 'BD'}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    setBuyerForm({ ...buyerForm, country: c, district: normalizeCountryCode(c) === 'BD' ? 'গাজীপুর' : '' });
+                  }}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  {COUNTRY_LIST.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {language === 'bn' ? c.nameBn : c.nameEn} ({c.dialCode || ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* District & Location */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? 'জেলা * (৬৪ জেলা)' : 'District * (64 Districts)'}
+                  <label className="text-[10px] text-slate-500 block mb-1 font-bold">
+                    {normalizeCountryCode(buyerForm.country) === 'BD'
+                      ? (language === 'bn' ? 'জেলা * (৬৪ জেলা)' : 'District * (64 Districts)')
+                      : (language === 'bn' ? 'শহর / জেলা / রাজ্য *' : 'City / State / District *')}
                   </label>
-                  <select
-                    value={buyerForm.district}
-                    onChange={(e) => setBuyerForm({ ...buyerForm, district: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
-                  >
-                    {BANGLADESH_DIVISIONS.map((div) => (
-                      <optgroup key={div.en} label={`${div.bn} বিভাগ`}>
-                        {ALL_64_DISTRICTS.filter(d => d.divisionBn === div.bn).map(d => (
-                          <option key={d.nameBn} value={d.nameBn}>{d.nameBn}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  {normalizeCountryCode(buyerForm.country) === 'BD' ? (
+                    <select
+                      value={buyerForm.district}
+                      onChange={(e) => setBuyerForm({ ...buyerForm, district: e.target.value })}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                    >
+                      {BANGLADESH_DIVISIONS.map((div) => (
+                        <optgroup key={div.en} label={language === 'bn' ? `${div.bn} বিভাগ` : `${div.en} Division`}>
+                          {ALL_64_DISTRICTS.filter(d => d.divisionBn === div.bn).map(d => (
+                            <option key={d.nameBn} value={d.nameBn}>
+                              {language === 'bn' ? d.nameBn : d.nameEn}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      type="text"
+                      required
+                      value={buyerForm.district}
+                      onChange={(e) => setBuyerForm({ ...buyerForm, district: e.target.value })}
+                      placeholder={language === 'bn' ? 'যেমন: কলকাতা / রিয়াদ / দুবাই' : 'e.g. Kolkata / Riyadh / Dubai'}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -1605,7 +1754,7 @@ export default function Marketplace() {
                     type="text"
                     value={buyerForm.address}
                     onChange={(e) => setBuyerForm({ ...buyerForm, address: e.target.value })}
-                    placeholder="জয়দেবপুর বাজার, গাজীপুর"
+                    placeholder={language === 'bn' ? 'জয়দেবপুর বাজার, গাজীপুর' : 'Market Address'}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
                   />
                 </div>
