@@ -42,6 +42,8 @@ export interface FeatureControls {
   storeListingFree: boolean;
   quickActionsFree: boolean;
   reportsExportFree: boolean;
+  salesRecordsFree?: boolean; // Sales Record & Invoices
+  farmAnalyticsFree?: boolean; // Farm Analytics & Profit Analysis
   whitelistedUsers: string[]; // uids, emails or phone numbers
   paymentNumbers: PaymentNumbersConfig;
   adminWhatsApp: string;
@@ -264,6 +266,8 @@ const DEFAULT_CONFIG: FeatureControls = {
   storeListingFree: true,
   quickActionsFree: true,
   reportsExportFree: true,
+  salesRecordsFree: true,
+  farmAnalyticsFree: true,
   whitelistedUsers: [],
   paymentNumbers: {
     bkash: '01410991934',

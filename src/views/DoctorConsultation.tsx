@@ -3,7 +3,16 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { db, offlineSafeDocWrite, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, orderBy, onSnapshot } from 'firebase/firestore';
-import { ALL_64_DISTRICTS } from '../utils/bangladeshDistricts';
+import { 
+  ALL_64_DISTRICTS, 
+  COUNTRY_LIST, 
+  detectUserCountry, 
+  getCountryDisplayName, 
+  getDistrictDisplayName, 
+  normalizeCountryCode,
+  findCountryInfo,
+  CountryInfo 
+} from '../utils/bangladeshDistricts';
 import { 
   Stethoscope, 
   Phone, 
@@ -35,7 +44,8 @@ import {
   Check,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -55,6 +65,9 @@ export interface DoctorProfile {
   specialtyLabelEn?: string;
   instituteBn: string;
   instituteEn?: string;
+  country?: string; // Country code (BD, IN, SA, AE, OM, QA, KW, MY, SG, US, GB, CA, OTHER)
+  countryNameBn?: string;
+  countryNameEn?: string;
   district?: string;
   experienceYears: number;
   phone: string;
@@ -83,6 +96,9 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     specialtyLabelBn: 'পোল্ট্রি ও পাখি বিশেষজ্ঞ (ব্রয়লার, লেয়ার, সোনালী)',
     specialtyLabelEn: 'Poultry & Avian Specialist',
     instituteBn: 'বাংলাদেশ কৃষি বিশ্ববিদ্যালয় (বাকৃবি), ময়মনসিংহ',
+    country: 'BD',
+    countryNameBn: 'বাংলাদেশ',
+    countryNameEn: 'Bangladesh',
     district: 'ময়মনসিংহ',
     experienceYears: 11,
     phone: '+8801711000000',
@@ -103,6 +119,9 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     specialtyLabelBn: 'ডেইরি ও গবাদি পশু সার্জন (গরু, বাছুর, ছাগল)',
     specialtyLabelEn: 'Dairy & Livestock Vet Surgeon',
     instituteBn: 'চট্টগ্রাম ভেটেরিনারি ও এনিমেল সাইন্সেস বিশ্ববিদ্যালয়',
+    country: 'BD',
+    countryNameBn: 'বাংলাদেশ',
+    countryNameEn: 'Bangladesh',
     district: 'চট্টগ্রাম',
     experienceYears: 9,
     phone: '+8801812000000',
@@ -123,6 +142,9 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     specialtyLabelBn: 'মাছের রোগ ও পুকুর ব্যবস্থাপনা বিশেষজ্ঞ',
     specialtyLabelEn: 'Fisheries & Aqua Health Specialist',
     instituteBn: 'মৎস্য অনুষদ, বাংলাদেশ কৃষি বিশ্ববিদ্যালয়',
+    country: 'BD',
+    countryNameBn: 'বাংলাদেশ',
+    countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 13,
     phone: '+8801913000000',
@@ -143,6 +165,9 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     specialtyLabelBn: 'পাখির সংক্রামক রোগ ও ভ্যাকসিন কনসালট্যান্ট',
     specialtyLabelEn: 'Avian Infectious Disease & Vaccine Expert',
     instituteBn: 'পোল্ট্রি রিসার্চ অ্যান্ড ডায়াগনস্টিক ল্যাব',
+    country: 'BD',
+    countryNameBn: 'বাংলাদেশ',
+    countryNameEn: 'Bangladesh',
     district: 'গাজীপুর',
     experienceYears: 8,
     phone: '+8801714000000',
@@ -163,6 +188,9 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     specialtyLabelBn: 'ষাঁড় মোটাতাজাকরণ ও গাভীর দুধ উৎপাদন বিশেষজ্ঞ',
     specialtyLabelEn: 'Beef Fattening & Dairy Nutrition Specialist',
     instituteBn: 'প্রাণিসম্পদ গবেষণা ইনস্টিটিউট (BLRI), সাভার',
+    country: 'BD',
+    countryNameBn: 'বাংলাদেশ',
+    countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 14,
     phone: '+8801615000000',
@@ -172,6 +200,75 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
     isOnline: true,
     avatarIcon: '👨‍⚕️'
+  },
+  {
+    id: 'doc_6',
+    nameBn: 'ডাঃ রাজেশ শর্মা',
+    nameEn: 'Dr. Rajesh Sharma',
+    degreeBn: 'BVSc & AH, MVSc (Livestock Production)',
+    degreeEn: 'BVSc & AH, MVSc (Livestock Production)',
+    specialty: 'cattle',
+    specialtyLabelBn: 'ডেইরি ও গবাদি পশু স্বাস্থ্য বিশেষজ্ঞ',
+    specialtyLabelEn: 'Dairy & Ruminant Health Consultant',
+    instituteBn: 'West Bengal University of Animal & Fishery Sciences, Kolkata',
+    country: 'IN',
+    countryNameBn: 'ভারত',
+    countryNameEn: 'India',
+    district: 'Kolkata',
+    experienceYears: 10,
+    phone: '+919830000000',
+    whatsapp: '919830000000',
+    visitingHoursBn: 'সকাল ১০:০০ - বিকাল ৫:০০ (IST)',
+    rating: 4.9,
+    consultationFeeBn: '₹150 / অনলাইন কনসাল্টেশন',
+    isOnline: true,
+    avatarIcon: '👨‍⚕️'
+  },
+  {
+    id: 'doc_7',
+    nameBn: 'ডাঃ তারিক আল-মানসুর',
+    nameEn: 'Dr. Tariq Al-Mansoor',
+    degreeBn: 'DVM, Specialist in Livestock & Avian Diseases',
+    degreeEn: 'DVM, Specialist in Livestock & Avian Diseases',
+    specialty: 'poultry',
+    specialtyLabelBn: 'পোল্ট্রি ও খামার রোগ বিশেষজ্ঞ',
+    specialtyLabelEn: 'Poultry & Livestock Disease Specialist',
+    instituteBn: 'Riyadh Veterinary Medical Center, Saudi Arabia',
+    country: 'SA',
+    countryNameBn: 'সৌদি আরব',
+    countryNameEn: 'Saudi Arabia',
+    district: 'Riyadh',
+    experienceYears: 12,
+    phone: '+966500000000',
+    whatsapp: '966500000000',
+    visitingHoursBn: 'বিকাল ৪:০০ - রাত ১০:০০ (AST)',
+    rating: 5.0,
+    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ / 50 SAR',
+    isOnline: true,
+    avatarIcon: '👨‍⚕️'
+  },
+  {
+    id: 'doc_8',
+    nameBn: 'ডাঃ আহমাদ ফায়েজ',
+    nameEn: 'Dr. Ahmad Faiz',
+    degreeBn: 'DVM, MS in Aquaculture & Fish Health',
+    degreeEn: 'DVM, MS in Aquaculture & Fish Health',
+    specialty: 'fish',
+    specialtyLabelBn: 'মাছের রোগ ও একুয়াকালচার বিশেষজ্ঞ',
+    specialtyLabelEn: 'Aquatic Animal Health Consultant',
+    instituteBn: 'Universiti Putra Malaysia (UPM), Selangor',
+    country: 'MY',
+    countryNameBn: 'মালয়েশিয়া',
+    countryNameEn: 'Malaysia',
+    district: 'Kuala Lumpur',
+    experienceYears: 9,
+    phone: '+60120000000',
+    whatsapp: '60120000000',
+    visitingHoursBn: 'সকাল ৯:০০ - সন্ধ্যা ৬:০০ (MYT)',
+    rating: 4.8,
+    consultationFeeBn: 'RM 20 / অনলাইন পরামর্শ',
+    isOnline: true,
+    avatarIcon: '👨‍🔬'
   }
 ];
 
@@ -183,10 +280,21 @@ export default function DoctorConsultation() {
   // Master Admin check
   const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
 
+  // Auto-detect user country
+  const detectedUserCountry = detectUserCountry();
 
   // Doctors state
   const [communityDoctors, setCommunityDoctors] = useState<DoctorProfile[]>([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState<'all' | 'my_ads' | 'poultry' | 'cattle' | 'fish'>('all');
+  
+  // Country & District Filter States
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('khamar_selected_country');
+      if (saved) return saved;
+    } catch {}
+    return detectedUserCountry.code || 'BD';
+  });
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -223,13 +331,24 @@ export default function DoctorConsultation() {
     specialty: 'poultry' as 'poultry' | 'cattle' | 'fish' | 'all',
     specialtyLabelBn: '',
     instituteBn: '',
+    country: selectedCountry === 'all' ? 'BD' : (selectedCountry || 'BD'),
     district: 'ঢাকা',
+    cityOrState: '',
     experienceYears: '3',
     phone: '',
     whatsapp: '',
     visitingHoursBn: 'সকাল ৯:০০ - রাত ৯:০০',
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ'
   });
+
+  // Save selected country to localStorage for consistent user experience
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountry(countryCode);
+    setSelectedDistrict('all');
+    try {
+      localStorage.setItem('khamar_selected_country', countryCode);
+    } catch {}
+  };
 
   // Doctor Profile to Delete
   const [docToDelete, setDocToDelete] = useState<DoctorProfile | null>(null);
@@ -371,22 +490,35 @@ export default function DoctorConsultation() {
     const now = new Date();
     const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+    const countryInfo = findCountryInfo(doctorForm.country) || COUNTRY_LIST[0];
+    const finalDistrict = doctorForm.country === 'BD' 
+      ? doctorForm.district 
+      : (doctorForm.cityOrState.trim() || doctorForm.district || countryInfo.nameEn);
+
     const newDocData: Omit<DoctorProfile, 'id'> = {
       userId: currentUser?.uid || 'demo_user',
       userEmail: currentUser?.email || '',
       nameBn: doctorForm.nameBn.trim(),
       nameEn: doctorForm.nameBn.trim(),
       degreeBn: doctorForm.degreeBn.trim() || 'ডিভিএম / প্রাণিসম্পদ বিশেষজ্ঞ',
+      degreeEn: doctorForm.degreeBn.trim(),
       specialty: doctorForm.specialty,
       specialtyLabelBn: doctorForm.specialtyLabelBn.trim() || specialtyLabels[doctorForm.specialty],
-      instituteBn: doctorForm.instituteBn.trim() || 'ভেটেরিনারি প্র্যাকটিশনার / চেম্বার',
-      district: doctorForm.district,
+      specialtyLabelEn: specialtyLabels[doctorForm.specialty],
+      instituteBn: doctorForm.instituteBn.trim() || (language === 'bn' ? 'ভেটেরিনারি প্র্যাকটিশনার / চেম্বার' : 'Veterinary Practitioner / Chamber'),
+      instituteEn: doctorForm.instituteBn.trim() || 'Veterinary Practitioner / Chamber',
+      country: doctorForm.country || 'BD',
+      countryNameBn: countryInfo.nameBn,
+      countryNameEn: countryInfo.nameEn,
+      district: finalDistrict,
       experienceYears: Number(doctorForm.experienceYears) || 3,
       phone: doctorForm.phone.trim(),
       whatsapp: (doctorForm.whatsapp.trim() || doctorForm.phone.trim()).replace(/[^0-9]/g, ''),
-      visitingHoursBn: doctorForm.visitingHoursBn.trim() || 'সকাল ৯:০০ - রাত ৯:০০',
+      visitingHoursBn: doctorForm.visitingHoursBn.trim() || (language === 'bn' ? 'সকাল ৯:০০ - রাত ৯:০০' : '9:00 AM - 9:00 PM'),
+      visitingHoursEn: doctorForm.visitingHoursBn.trim() || '9:00 AM - 9:00 PM',
       rating: 5.0,
-      consultationFeeBn: doctorForm.consultationFeeBn.trim() || 'বিনামূল্যে প্রাথমিক পরামর্শ',
+      consultationFeeBn: doctorForm.consultationFeeBn.trim() || (language === 'bn' ? 'বিনামূল্যে প্রাথমিক পরামর্শ' : 'Free consultation'),
+      consultationFeeEn: doctorForm.consultationFeeBn.trim() || 'Free consultation',
       isOnline: true,
       avatarIcon: doctorForm.specialty === 'fish' ? '👨‍🔬' : '👨‍⚕️',
       isCommunity: true,
@@ -419,7 +551,9 @@ export default function DoctorConsultation() {
         specialty: 'poultry',
         specialtyLabelBn: '',
         instituteBn: '',
+        country: selectedCountry === 'all' ? 'BD' : (selectedCountry || 'BD'),
         district: 'ঢাকা',
+        cityOrState: '',
         experienceYears: '3',
         phone: '',
         whatsapp: '',
@@ -603,16 +737,40 @@ export default function DoctorConsultation() {
       return false;
     }
 
+    // Specialty filter
     const matchesSpecialty = selectedSpecialty === 'all' || doc.specialty === selectedSpecialty || doc.specialty === 'all';
-    const matchesDistrict = selectedDistrict === 'all' || !doc.district || doc.district.toLowerCase().includes(selectedDistrict.toLowerCase());
+
+    // Country filter
+    if (selectedCountry !== 'all') {
+      const docCountry = normalizeCountryCode(doc.country || 'BD');
+      if (docCountry !== selectedCountry) {
+        return false;
+      }
+    }
+
+    // District filter
+    if (selectedDistrict !== 'all') {
+      const matchesDistrict = doc.district && (
+        doc.district.toLowerCase().includes(selectedDistrict.toLowerCase()) ||
+        (selectedDistrict === 'ঢাকা' && doc.district.toLowerCase().includes('dhaka')) ||
+        (selectedDistrict === 'চট্টগ্রাম' && doc.district.toLowerCase().includes('chittagong'))
+      );
+      if (!matchesDistrict) return false;
+    }
+
+    // Search text filter
     const matchesSearch = searchQuery === '' || 
       doc.nameBn.toLowerCase().includes(searchQuery.toLowerCase()) || 
       (doc.nameEn && doc.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
       doc.specialtyLabelBn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.specialtyLabelEn && doc.specialtyLabelEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
       doc.instituteBn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (doc.district && doc.district.toLowerCase().includes(searchQuery.toLowerCase()));
+      (doc.instituteEn && doc.instituteEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (doc.district && doc.district.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (doc.countryNameBn && doc.countryNameBn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (doc.countryNameEn && doc.countryNameEn.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return matchesSpecialty && matchesDistrict && matchesSearch;
+    return matchesSpecialty && matchesSearch;
   });
 
   const handleOpenDoctorPostModal = () => {
@@ -764,33 +922,62 @@ export default function DoctorConsultation() {
           </button>
         </div>
 
-        {/* Search & District Filter */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+        {/* Search, Country & District Filter */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+          {/* Search input */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder={language === 'bn' ? 'ডাক্তারের নাম, এলাকা বা ডিগ্রি দিয়ে খুঁজুন...' : 'Search doctor by name, area or degree...'}
+              placeholder={language === 'bn' ? 'ডাক্তারের নাম, ডিগ্রি বা এলাকা খুঁজুন...' : 'Search doctor by name, degree, area...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
           </div>
 
+          {/* Country Selector */}
           <div className="relative">
-            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <select
-              value={selectedDistrict}
-              onChange={(e) => setSelectedDistrict(e.target.value)}
+              value={selectedCountry}
+              onChange={(e) => handleCountryChange(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
             >
-              <option value="all">📍 {language === 'bn' ? 'সকল জেলা (সারাদেশ)' : 'All Districts (All BD)'}</option>
-              {ALL_64_DISTRICTS.map((d) => (
-                <option key={d.nameBn} value={d.nameBn}>
-                  📍 {d.nameBn} ({d.nameEn})
+              <option value="all">🌐 {language === 'bn' ? 'সকল দেশ (সারাবিশ্ব)' : 'All Countries (Global)'}</option>
+              {COUNTRY_LIST.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.flag} {getCountryDisplayName(c.code, language)}
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* District Selector */}
+          <div className="relative">
+            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            {selectedCountry === 'BD' || selectedCountry === 'all' ? (
+              <select
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+              >
+                <option value="all">📍 {language === 'bn' ? 'সকল জেলা (সারাদেশ)' : 'All Districts'}</option>
+                {ALL_64_DISTRICTS.map((d) => (
+                  <option key={d.nameBn} value={d.nameBn}>
+                    📍 {language === 'bn' ? d.nameBn : d.nameEn}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={language === 'bn' ? 'শহর / প্রদেশ / স্টেট দিয়ে ফিল্টার...' : 'Filter by city / state...'}
+                value={selectedDistrict === 'all' ? '' : selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value || 'all')}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -956,10 +1143,18 @@ export default function DoctorConsultation() {
 
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9.5px] text-slate-500 font-semibold mt-1">
                       <span>🏛️ {doctor.instituteBn}</span>
+                      {doctor.country && (
+                        <>
+                          <span>•</span>
+                          <span className="text-teal-700 font-bold bg-teal-50 px-1.5 py-0.2 rounded border border-teal-100">
+                            {findCountryInfo(doctor.country)?.flag || '🌐'} {getCountryDisplayName(doctor.country, language)}
+                          </span>
+                        </>
+                      )}
                       {doctor.district && (
                         <>
                           <span>•</span>
-                          <span className="text-slate-700 font-bold">📍 {doctor.district}</span>
+                          <span className="text-slate-700 font-bold">📍 {getDistrictDisplayName(doctor.district, language)}</span>
                         </>
                       )}
                       <span>•</span>
@@ -1177,6 +1372,56 @@ export default function DoctorConsultation() {
                 </div>
               </div>
 
+              {/* Country and District/State Selection */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {language === 'bn' ? 'দেশ নির্বাচন *' : 'Country *'}
+                  </label>
+                  <select
+                    value={doctorForm.country}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, country: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    {COUNTRY_LIST.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {getCountryDisplayName(c.code, language)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {doctorForm.country === 'BD' 
+                      ? (language === 'bn' ? 'জেলা নির্বাচন *' : 'District *') 
+                      : (language === 'bn' ? 'শহর / স্টেট *' : 'City / State *')}
+                  </label>
+                  {doctorForm.country === 'BD' ? (
+                    <select
+                      value={doctorForm.district}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, district: e.target.value })}
+                      className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      {ALL_64_DISTRICTS.map((d) => (
+                        <option key={d.nameBn} value={d.nameBn}>
+                          📍 {language === 'bn' ? d.nameBn : d.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder={language === 'bn' ? 'যেমন: রিয়াদ, দুবাই, কলকাতা' : 'e.g. Riyadh, Dubai, Kolkata'}
+                      value={doctorForm.cityOrState}
+                      onChange={(e) => setDoctorForm({ ...doctorForm, cityOrState: e.target.value })}
+                      className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1193,25 +1438,6 @@ export default function DoctorConsultation() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {language === 'bn' ? 'জেলা নির্বাচন *' : 'District *'}
-                  </label>
-                  <select
-                    value={doctorForm.district}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, district: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {ALL_64_DISTRICTS.map((d) => (
-                      <option key={d.nameBn} value={d.nameBn}>
-                        📍 {d.nameBn}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     {language === 'bn' ? 'অভিজ্ঞতা (বছর)' : 'Experience (Yrs)'}
                   </label>
                   <input
@@ -1222,19 +1448,19 @@ export default function DoctorConsultation() {
                     className="w-full border border-slate-200 rounded-xl p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {language === 'bn' ? 'পরামর্শ ফি' : 'Consultation Fee'}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={language === 'bn' ? 'যেমন: বিনামূল্যে / ৳১০০' : 'e.g. Free / ৳100'}
-                    value={doctorForm.consultationFeeBn}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, consultationFeeBn: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {language === 'bn' ? 'পরামর্শ ফি' : 'Consultation Fee'}
+                </label>
+                <input
+                  type="text"
+                  placeholder={language === 'bn' ? 'যেমন: বিনামূল্যে / ৳১০০ / 50 SAR' : 'e.g. Free / ৳100 / $20'}
+                  value={doctorForm.consultationFeeBn}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, consultationFeeBn: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">

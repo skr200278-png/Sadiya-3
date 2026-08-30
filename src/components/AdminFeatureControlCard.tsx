@@ -591,6 +591,56 @@ export default function AdminFeatureControlCard() {
                       <span>{config.storeListingFree !== false ? (language === 'bn' ? 'ফ্রি' : 'Free') : (language === 'bn' ? 'লকড' : 'Locked')}</span>
                     </button>
                   </div>
+
+                  {/* 7. Sales Records & Cash Invoices */}
+                  <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
+                    <div>
+                      <p className="font-extrabold text-slate-850">
+                        {language === 'bn' ? '৭. বিক্রয় রেকর্ড ও ক্যাশমেমো চালান' : '7. Sales Records & Cash Invoices'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-bold">
+                        {config.salesRecordsFree !== false ? (language === 'bn' ? 'সবার জন্য ফ্রি' : 'Free for all') : (language === 'bn' ? 'লকড (সাবস্ক্রিপশন প্রয়োজন)' : 'Locked / Subscription')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggle('salesRecordsFree')}
+                      disabled={isSaving}
+                      className={`px-3 py-1.5 rounded-lg font-black text-xs flex items-center gap-1 cursor-pointer transition-all ${
+                        config.salesRecordsFree !== false 
+                          ? 'bg-emerald-600 text-white shadow-2xs' 
+                          : 'bg-red-600 text-white shadow-2xs'
+                      }`}
+                    >
+                      {config.salesRecordsFree !== false ? <Unlock size={12} /> : <Lock size={12} />}
+                      <span>{config.salesRecordsFree !== false ? (language === 'bn' ? 'ফ্রি' : 'Free') : (language === 'bn' ? 'লকড' : 'Locked')}</span>
+                    </button>
+                  </div>
+
+                  {/* 8. Farm Analytics & Profit Analysis */}
+                  <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
+                    <div>
+                      <p className="font-extrabold text-slate-850">
+                        {language === 'bn' ? '৮. ফার্ম এনালাইসিস ও লাভ-ক্ষতি রিপোর্ট' : '8. Farm Analytics & Profit Analysis'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-bold">
+                        {config.farmAnalyticsFree !== false ? (language === 'bn' ? 'সবার জন্য ফ্রি' : 'Free for all') : (language === 'bn' ? 'লকড (সাবস্ক্রিপশন প্রয়োজন)' : 'Locked / Subscription')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggle('farmAnalyticsFree')}
+                      disabled={isSaving}
+                      className={`px-3 py-1.5 rounded-lg font-black text-xs flex items-center gap-1 cursor-pointer transition-all ${
+                        config.farmAnalyticsFree !== false 
+                          ? 'bg-emerald-600 text-white shadow-2xs' 
+                          : 'bg-red-600 text-white shadow-2xs'
+                      }`}
+                    >
+                      {config.farmAnalyticsFree !== false ? <Unlock size={12} /> : <Lock size={12} />}
+                      <span>{config.farmAnalyticsFree !== false ? (language === 'bn' ? 'ফ্রি' : 'Free') : (language === 'bn' ? 'লকড' : 'Locked')}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

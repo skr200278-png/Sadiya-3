@@ -9,23 +9,24 @@ export interface CountryInfo {
   code: string;
   nameBn: string;
   nameEn: string;
+  flag?: string;
   dialCode?: string;
 }
 
 export const COUNTRY_LIST: CountryInfo[] = [
-  { code: 'BD', nameBn: 'বাংলাদেশ', nameEn: 'Bangladesh', dialCode: '+880' },
-  { code: 'IN', nameBn: 'ভারত', nameEn: 'India', dialCode: '+91' },
-  { code: 'SA', nameBn: 'সৌদি আরব', nameEn: 'Saudi Arabia', dialCode: '+966' },
-  { code: 'AE', nameBn: 'সংযুক্ত আরব আমিরাত (UAE)', nameEn: 'United Arab Emirates (UAE)', dialCode: '+971' },
-  { code: 'OM', nameBn: 'ওমান', nameEn: 'Oman', dialCode: '+968' },
-  { code: 'QA', nameBn: 'কাতার', nameEn: 'Qatar', dialCode: '+974' },
-  { code: 'KW', nameBn: 'কুয়েত', nameEn: 'Kuwait', dialCode: '+965' },
-  { code: 'MY', nameBn: 'মালয়েশিয়া', nameEn: 'Malaysia', dialCode: '+60' },
-  { code: 'SG', nameBn: 'সিঙ্গাপুর', nameEn: 'Singapore', dialCode: '+65' },
-  { code: 'US', nameBn: 'যুক্তরাষ্ট্র (USA)', nameEn: 'United States (USA)', dialCode: '+1' },
-  { code: 'GB', nameBn: 'যুক্তরাজ্য (UK)', nameEn: 'United Kingdom (UK)', dialCode: '+44' },
-  { code: 'CA', nameBn: 'কানাডা', nameEn: 'Canada', dialCode: '+1' },
-  { code: 'OTHER', nameBn: 'অন্যান্য দেশ (Other Country)', nameEn: 'Other Country', dialCode: '' },
+  { code: 'BD', nameBn: 'বাংলাদেশ', nameEn: 'Bangladesh', flag: '🇧🇩', dialCode: '+880' },
+  { code: 'IN', nameBn: 'ভারত', nameEn: 'India', flag: '🇮🇳', dialCode: '+91' },
+  { code: 'SA', nameBn: 'সৌদি আরব', nameEn: 'Saudi Arabia', flag: '🇸🇦', dialCode: '+966' },
+  { code: 'AE', nameBn: 'সংযুক্ত আরব আমিরাত (UAE)', nameEn: 'United Arab Emirates (UAE)', flag: '🇦🇪', dialCode: '+971' },
+  { code: 'OM', nameBn: 'ওমান', nameEn: 'Oman', flag: '🇴🇲', dialCode: '+968' },
+  { code: 'QA', nameBn: 'কাতার', nameEn: 'Qatar', flag: '🇶🇦', dialCode: '+974' },
+  { code: 'KW', nameBn: 'কুয়েত', nameEn: 'Kuwait', flag: '🇰🇼', dialCode: '+965' },
+  { code: 'MY', nameBn: 'মালয়েশিয়া', nameEn: 'Malaysia', flag: '🇲🇾', dialCode: '+60' },
+  { code: 'SG', nameBn: 'সিঙ্গাপুর', nameEn: 'Singapore', flag: '🇸🇬', dialCode: '+65' },
+  { code: 'US', nameBn: 'যুক্তরাষ্ট্র (USA)', nameEn: 'United States (USA)', flag: '🇺🇸', dialCode: '+1' },
+  { code: 'GB', nameBn: 'যুক্তরাজ্য (UK)', nameEn: 'United Kingdom (UK)', flag: '🇬🇧', dialCode: '+44' },
+  { code: 'CA', nameBn: 'কানাডা', nameEn: 'Canada', flag: '🇨🇦', dialCode: '+1' },
+  { code: 'OTHER', nameBn: 'অন্যান্য দেশ (Other Country)', nameEn: 'Other Country', flag: '🌐', dialCode: '' },
 ];
 
 export const COUNTRY_FILTER_OPTIONS_BN = ['সকল দেশ', ...COUNTRY_LIST.map(c => c.nameBn)];
