@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, deleteDoc } from 'firebase/firestore';
-import { sendPasswordResetEmail, deleteUser } from 'firebase/auth';
+import { sendPasswordResetEmail, deleteUser, updatePassword } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle } from 'lucide-react';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -30,6 +30,11 @@ export default function Profile() {
   const [showAbout, setShowAbout] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showPinVisibility, setShowPinVisibility] = useState(false);
+  const [isSavingPin, setIsSavingPin] = useState(false);
 
   useEffect(() => {
     setLanguage(currentLanguage);
@@ -214,25 +219,71 @@ export default function Profile() {
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!currentUser?.email) {
-      toast.error(language === 'bn' ? 'আপনার অ্যাকাউন্টে ইমেইল যুক্ত নেই।' : 'No email associated with this account.');
+  const handleOpenPinModal = () => {
+    setNewPin('');
+    setConfirmPin('');
+    setShowPinModal(true);
+  };
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPin = newPin.trim();
+    const cleanConfirm = confirmPin.trim();
+
+    if (!cleanPin) {
+      toast.error(language === 'bn' ? 'নতুন ৪-সংখ্যার পিন বা পাসওয়ার্ড লিখুন।' : 'Please enter your new PIN or password.');
       return;
     }
-    if (currentUser.email.includes('@digitalfarm.app')) {
-      toast(language === 'bn' ? 'মোবাইল নম্বর অ্যাকাউন্ট হলে পাসওয়ার্ড রিসেটের জন্য হেল্পলাইনে যোগাযোগ করুন।' : 'For phone-based accounts, please contact support to reset password.', { icon: '📞' });
-      setShowDeveloperSupport(true);
+
+    if (cleanPin.length < 4) {
+      toast.error(language === 'bn' ? 'পিন কমপক্ষে ৪ সংখ্যার হতে হবে।' : 'PIN must be at least 4 characters.');
+      return;
+    }
+
+    if (cleanPin !== cleanConfirm) {
+      toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন দিন।' : 'PINs do not match.');
+      return;
+    }
+
+    if (isDemo) {
+      toast.success(language === 'bn' ? 'ডেমো মোডে পিন সফলভাবে পরিবর্তন হয়েছে!' : 'PIN updated in Demo Mode!');
+      setShowPinModal(false);
       return;
     }
 
     try {
-      setIsResettingPassword(true);
-      await sendPasswordResetEmail(auth, currentUser.email);
-      toast.success(language === 'bn' ? `পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে (${currentUser.email}) পাঠানো হয়েছে!` : 'Password reset link sent to your email!');
+      setIsSavingPin(true);
+      const effectivePassword = cleanPin.length < 6 ? `df_pin_${cleanPin}` : cleanPin;
+
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, effectivePassword);
+      }
+
+      // Also save encrypted / hint if user profile doc exists
+      if (currentUser?.uid) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await setDoc(userRef, { 
+          hasCustomPin: true,
+          pinUpdatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      toast.success(language === 'bn' ? '✅ আপনার নতুন পিন/পাসওয়ার্ড সফলভাবে সংরক্ষণ করা হয়েছে!' : 'PIN/Password updated successfully!');
+      setShowPinModal(false);
     } catch (err: any) {
-      toast.error(err.message || 'Error sending password reset email');
+      console.error('Update PIN error:', err);
+      const code = err?.code || '';
+      if (code === 'auth/requires-recent-login') {
+        toast.error(
+          language === 'bn'
+            ? 'নিরাপত্তার স্বার্থে অ্যাপ থেকে একবার লগআউট করে পুনরায় লগইন করে পিন পরিবর্তন করুন।'
+            : 'Please log out and log in again to change your PIN securely.'
+        );
+      } else {
+        toast.error(err.message || (language === 'bn' ? 'পিন পরিবর্তন করা যায়নি।' : 'Failed to update PIN.'));
+      }
     } finally {
-      setIsResettingPassword(false);
+      setIsSavingPin(false);
     }
   };
 
@@ -428,18 +479,17 @@ export default function Profile() {
         </button>
 
         <button 
-          disabled={isResettingPassword}
           className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer text-left" 
-          onClick={handlePasswordReset}
+          onClick={handleOpenPinModal}
         >
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
               <KeyRound size={18} />
             </div>
             <div className="text-left">
-              <p className="font-semibold text-gray-800 text-sm">{language === 'bn' ? 'পাসওয়ার্ড রিসেট / পরিবর্তন' : 'Reset / Change Password'}</p>
+              <p className="font-semibold text-gray-800 text-sm">{language === 'bn' ? 'পাসওয়ার্ড / ৪-ডিজিটের পিন পরিবর্তন' : 'Change Password / 4-Digit PIN'}</p>
               <p className="text-xs text-gray-500">
-                {isResettingPassword ? (language === 'bn' ? 'পাঠানো হচ্ছে...' : 'Sending...') : (language === 'bn' ? 'ইমেইলে রিসেট লিংক পাঠান' : 'Send reset link to email')}
+                {language === 'bn' ? 'আপনার অ্যাকাউন্টের পিন বা পাসওয়ার্ড পরিবর্তন করুন' : 'Update your account login PIN or password'}
               </p>
             </div>
           </div>
@@ -651,6 +701,108 @@ export default function Profile() {
             <button onClick={() => setShowAbout(false)} className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors">
               ঠিক আছে
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Direct PIN / Password Change Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200 relative border border-gray-100">
+            <button
+              onClick={() => setShowPinModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+                <Lock size={22} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900">
+                {language === 'bn' ? 'পিন বা পাসওয়ার্ড পরিবর্তন' : 'Change PIN / Password'}
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {language === 'bn' ? 'লগইনের জন্য নতুন ৪-সংখ্যার পিন অথবা পাসওয়ার্ড লিখুন' : 'Set your new 4-digit PIN or password'}
+              </p>
+            </div>
+
+            <form onSubmit={handleSavePin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  {language === 'bn' ? 'নতুন ৪-সংখ্যার পিন / পাসওয়ার্ড' : 'New PIN / Password'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPinVisibility ? 'text' : 'password'}
+                    placeholder={language === 'bn' ? 'যেমন: 1234 বা পাসওয়ার্ড' : 'e.g. 1234 or password'}
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPinVisibility(!showPinVisibility)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    {showPinVisibility ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  {language === 'bn' ? 'নতুন পিন পুনরায় লিখুন (Confirm)' : 'Confirm New PIN'}
+                </label>
+                <input
+                  type={showPinVisibility ? 'text' : 'password'}
+                  placeholder={language === 'bn' ? 'একই পিন পুনরায় লিখুন' : 'Re-type the same PIN'}
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 transition-all"
+                  required
+                />
+              </div>
+
+              <div className="bg-purple-50 p-3 rounded-xl text-[11px] text-purple-900 space-y-1 border border-purple-100">
+                <p className="font-bold flex items-center gap-1 text-purple-950">
+                  <ShieldCheck size={13} className="text-purple-600" />
+                  {language === 'bn' ? 'সহজ লগইন সুবিধা:' : 'PIN Benefit:'}
+                </p>
+                <p>
+                  {language === 'bn'
+                    ? 'পরের বার মোবাইল নম্বর ও এই নতুন ৪-ডিজিটের পিন দিয়েই সরাসরি অ্যাপে লগইন করতে পারবেন।'
+                    : 'Next time you can easily log in with your phone and this new 4-digit PIN.'}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="flex-1 py-2.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all cursor-pointer"
+                >
+                  {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSavingPin}
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-all shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSavingPin ? (
+                    <span>{language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
+                  ) : (
+                    <>
+                      <CheckCircle size={14} />
+                      <span>{language === 'bn' ? 'পিন সংরক্ষণ করুন' : 'Save PIN'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

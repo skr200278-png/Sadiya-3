@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Ensure invisible reCAPTCHA badge does not overlap floating buttons or confuse users */
+.grecaptcha-badge {
+  bottom: 14px !important;
+  z-index: 40 !important;
+}

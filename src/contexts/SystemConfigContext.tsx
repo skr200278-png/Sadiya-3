@@ -388,7 +388,15 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     featureDesc: ''
   });
 
-  const isAdmin = currentUser?.email === MASTER_ADMIN_EMAIL || (currentUser as any)?.role === 'admin';
+  const isAdmin = 
+    currentUser?.email === MASTER_ADMIN_EMAIL || 
+    currentUser?.email === 'sr0632890@gmail.com' ||
+    currentUser?.email === 'admin@digitalfarm.pro' ||
+    (currentUser as any)?.role === 'admin' ||
+    userProfileData?.role === 'admin' ||
+    userProfileData?.isAdmin === true ||
+    extractPhoneDigits(currentUser?.email) === '01410991934' ||
+    extractPhoneDigits(userProfileData?.phone) === '01410991934';
 
   // 1. Listen to user profile document
   useEffect(() => {
