@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.khamarpro.app',
-  appName: 'KhamarPro',
+  appName: 'Digital Khamar Pro',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

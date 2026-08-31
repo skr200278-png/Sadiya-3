@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
             </button>
             <div>
               <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                {lang === 'bn' ? 'প্রাইভেসি পলিসি (Privacy Policy)' : 'Privacy Policy - KhamarPro'}
+                {lang === 'bn' ? 'প্রাইভেসি পলিসি (Privacy Policy)' : 'Privacy Policy - Digital Khamar Pro'}
               </h1>
               <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
                 <Shield size={11} /> Google Play Data Safety Compliant
@@ -67,17 +67,17 @@ export default function PrivacyPolicy() {
             <Lock size={12} /> Data Protection & Privacy Rights
           </div>
           <h2 className="text-xl sm:text-2xl font-black mb-1.5">
-            {lang === 'bn' ? 'খামার প্রো প্রাইভেসি পলিসি ও নিরাপত্তা' : 'Official Privacy Policy for KhamarPro'}
+            {lang === 'bn' ? 'ডিজিটাল খামার প্রো প্রাইভেসি পলিসি ও নিরাপত্তা' : 'Official Privacy Policy for Digital Khamar Pro'}
           </h2>
           <p className="text-emerald-100 text-xs sm:text-sm leading-relaxed">
             {lang === 'bn' 
-              ? 'খামার প্রো অ্যাপ আপনার ব্যক্তিগত তথ্য ও খামারের হিসাব-নিকাশের গোপনীয়তা শতভাগ সুরক্ষিত রাখতে প্রতিশ্রুতিবদ্ধ।'
-              : 'Learn how KhamarPro collects, uses, protects, and handles your personal and farm data.'}
+              ? 'ডিজিটাল খামার প্রো অ্যাপ আপনার ব্যক্তিগত তথ্য ও খামারের হিসাব-নিকাশের গোপনীয়তা শতভাগ সুরক্ষিত রাখতে প্রতিশ্রুতিবদ্ধ।'
+              : 'Learn how Digital Khamar Pro collects, uses, protects, and handles your personal and farm data.'}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-emerald-200 mt-3 pt-3 border-t border-white/15">
             <span>📅 <strong>Effective:</strong> March 2025</span>
             <span>🔄 <strong>Updated:</strong> August 2026</span>
-            <span>🌐 <strong>URL:</strong> https://khamarpro.com/privacy-policy</span>
+            <span>🌐 <strong>URL:</strong> https://polty-e357c.web.app/privacy-policy.html</span>
           </div>
         </div>
 
@@ -90,7 +90,7 @@ export default function PrivacyPolicy() {
                 পরিচিতি ও সাধারণ নীতি
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                <strong>খামার প্রো (KhamarPro)</strong> বাংলাদেশের পোল্ট্রি, ডেইরি, গরুর মোটাতাজাকরণ ও মৎস্য খামারিদের জন্য নির্মিত পূর্ণাঙ্গ খামার ব্যবস্থাপনা অ্যাপ্লিকেশন। এই অ্যাপ খামারের ব্যাচ রেকর্ড, খাদ্য গ্রহণ, মর্টালিটি, চিকিৎসা, খরচ, বিক্রয় ও গ্রাহকের বকেয়া হিসাব নির্ভুলভাবে রাখতে সাহায্য করে।
+                <strong>ডিজিটাল খামার প্রো (Digital Khamar Pro)</strong> বাংলাদেশের পোল্ট্রি, ডেইরি, গরুর মোটাতাজাকরণ ও মৎস্য খামারিদের জন্য নির্মিত পূর্ণাঙ্গ খামার ব্যবস্থাপনা অ্যাপ্লিকেশন। এই অ্যাপ খামারের ব্যাচ রেকর্ড, খাদ্য গ্রহণ, মর্টালিটি, চিকিৎসা, খরচ, বিক্রয় ও গ্রাহকের বকেয়া হিসাব নির্ভুলভাবে রাখতে সাহায্য করে।
               </p>
             </div>
 
@@ -150,7 +150,7 @@ export default function PrivacyPolicy() {
               <p className="text-xs text-emerald-800">
                 ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | মোবাইল: <strong>01410991934</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: https://khamarpro.com</p>
+              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="https://polty-e357c.web.app/privacy-policy.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
             </div>
           </div>
         ) : (
@@ -162,7 +162,7 @@ export default function PrivacyPolicy() {
                 Overview & Scope
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                KhamarPro ("the App", "we", "us", or "our") provides smart farm management and livestock analytics for poultry, cattle, dairy, and fish farmers. We are dedicated to protecting user privacy and complying fully with Google Play Developer Policies and Data Safety requirements.
+                Digital Khamar Pro ("the App", "we", "us", or "our") provides smart farm management and livestock analytics for poultry, cattle, dairy, and fish farmers. We are dedicated to protecting user privacy and complying fully with Google Play Developer Policies and Data Safety requirements.
               </p>
             </div>
 
@@ -222,7 +222,7 @@ export default function PrivacyPolicy() {
               <p className="text-xs text-emerald-800">
                 Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | Phone: <strong>01410991934 (+8801410991934)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">Website: https://khamarpro.com</p>
+              <p className="text-[11px] text-emerald-700">Website: <a href="https://polty-e357c.web.app/privacy-policy.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
             </div>
           </div>
         )}

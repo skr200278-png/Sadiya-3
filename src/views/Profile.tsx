@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, deleteDoc } from 'firebase/firestore';
+import { sendPasswordResetEmail, deleteUser } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap } from 'lucide-react';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -28,6 +28,8 @@ export default function Profile() {
   const [language, setLanguage] = useState<Language>(currentLanguage);
   const [showDeveloperSupport, setShowDeveloperSupport] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     setLanguage(currentLanguage);
@@ -142,6 +144,76 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (isDemo) {
+      toast.success(language === 'bn' ? 'ডেমো অ্যাকাউন্ট রিসেট সম্পন্ন হয়েছে।' : 'Demo account reset successfully.');
+      demoStore.clearAllData();
+      await logout();
+      navigate('/login');
+      return;
+    }
+
+    if (!currentUser) return;
+
+    try {
+      setIsDeletingAccount(true);
+      const uid = currentUser.uid;
+
+      // 1. Delete user record in firestore
+      try {
+        await offlineSafeDocWrite(deleteDoc(doc(db, 'users', uid)));
+      } catch (e) {
+        console.warn('Could not delete user document:', e);
+      }
+
+      // 2. Delete user's active batches and associated basic records
+      try {
+        const collectionsToClean = ['batches', 'expenses', 'sales', 'dues', 'feed_records', 'mortality', 'medicine_records'];
+        for (const colName of collectionsToClean) {
+          const q = query(collection(db, colName), where('userId', '==', uid));
+          const snapshot = await fastGetDocs(q);
+          const deletePromises = snapshot.docs.map(d => offlineSafeDocWrite(deleteDoc(doc(db, colName, d.id))));
+          await Promise.allSettled(deletePromises);
+        }
+      } catch (cleanupErr) {
+        console.warn('Batch data cleanup warning:', cleanupErr);
+      }
+
+      // 3. Delete Firebase Auth User
+      if (auth.currentUser) {
+        try {
+          await deleteUser(auth.currentUser);
+        } catch (authDeleteErr: any) {
+          console.warn('Auth delete user error (might need re-auth):', authDeleteErr);
+          if (authDeleteErr.code === 'auth/requires-recent-login') {
+            toast.error(
+              language === 'bn' 
+                ? 'নিরাপত্তার স্বার্থে অনুগ্রহ করে একবার লগআউট করে পুনরায় লগইন করে অ্যাকাউন্ট ডিলিট করুন।' 
+                : 'Please log out and log in again to delete your account.'
+            );
+            setIsDeletingAccount(false);
+            setShowDeleteConfirm(false);
+            return;
+          }
+        }
+      }
+
+      toast.success(
+        language === 'bn' 
+          ? 'আপনার অ্যাকাউন্ট এবং সমস্ত তথ্য সফলভাবে মুছে ফেলা হয়েছে।' 
+          : 'Your account and all data have been deleted successfully.'
+      );
+      await logout();
+      navigate('/login');
+    } catch (err: any) {
+      console.error('Delete account error:', err);
+      toast.error(err.message || (language === 'bn' ? 'অ্যাকাউন্ট ডিলিট করতে সমস্যা হয়েছে।' : 'Failed to delete account.'));
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const handlePasswordReset = async () => {
     if (!currentUser?.email) {
       toast.error(language === 'bn' ? 'আপনার অ্যাকাউন্টে ইমেইল যুক্ত নেই।' : 'No email associated with this account.');
@@ -221,7 +293,7 @@ export default function Profile() {
                 <h4 className={`text-sm font-black ${isPremium ? 'text-amber-900' : 'text-amber-300'}`}>
                   {isPremium 
                     ? (currentLanguage === 'bn' ? '💎 ভিআইপি প্রো মেম্বারশিপ সক্রিয়' : '💎 VIP PRO Membership Active')
-                    : (currentLanguage === 'bn' ? '🚀 খামার প্রো প্রিমিয়াম প্যাকেজ' : '🚀 Khamar Pro Premium Packages')}
+                    : (currentLanguage === 'bn' ? '🚀 ডিজিটাল খামার প্রো প্রিমিয়াম প্যাকেজ' : '🚀 Digital Khamar Pro Premium Packages')}
                 </h4>
                 <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
                   isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-400 text-slate-950'
@@ -253,7 +325,7 @@ export default function Profile() {
 
           <button
             type="button"
-            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Khamar Pro Premium')}
+            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ডিজিটাল খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Digital Khamar Pro Premium')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
               isPremium 
                 ? 'bg-amber-500 hover:bg-amber-600 text-white' 
@@ -411,7 +483,74 @@ export default function Profile() {
           </div>
           <ChevronRight size={20} className="text-gray-400" />
         </button>
+
+        {/* Google Play Required Account Deletion Button */}
+        <button 
+          onClick={() => setShowDeleteConfirm(true)} 
+          className="w-full flex items-center justify-between p-4 hover:bg-red-50/50 transition-colors border-t border-gray-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+              <Trash2 size={18} />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-red-600 text-sm">
+                {language === 'bn' ? 'অ্যাকাউন্ট ও সকল তথ্য মুছুন' : 'Delete Account & Data'}
+              </p>
+              <p className="text-xs text-red-400">
+                {language === 'bn' ? 'স্থায়ীভাবে অ্যাকাউন্ট ও খামারের রেকর্ড ডিলিট' : 'Permanently remove account and all records'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-red-300" />
+        </button>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-6 text-center animate-in fade-in zoom-in-95 duration-200 relative">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl mx-auto flex items-center justify-center mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            
+            <h3 className="text-lg font-black text-slate-900 mb-2">
+              {language === 'bn' ? 'অ্যাকাউন্ট স্থায়ীভাবে মুছবেন?' : 'Delete Account Permanently?'}
+            </h3>
+            
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              {language === 'bn' 
+                ? 'সতর্কতা: আপনার অ্যাকাউন্ট মুছে ফেললে খামারের সমস্ত ব্যাচ, বিক্রয়, খরচ, খাদ্য ও বকেয়া খাতার ডাটা স্থায়ীভাবে মুছে যাবে এবং তা আর পুনরুদ্ধার করা সম্ভব হবে না।'
+                : 'Warning: Deleting your account will permanently wipe all batches, feed, sales, expenses, and dues data. This action cannot be undone.'}
+            </p>
+
+            <div className="space-y-2">
+              <button 
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+                className="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 active:scale-98 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+              >
+                {isDeletingAccount ? (
+                  <span>{language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...'}</span>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    <span>{language === 'bn' ? 'হ্যাঁ, সম্পূর্ণ মুছে ফেলুন' : 'Yes, Delete Everything'}</span>
+                  </>
+                )}
+              </button>
+              
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeletingAccount}
+                className="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors text-sm"
+              >
+                {language === 'bn' ? 'না, বাতিল করুন' : 'Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeveloperSupport && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">

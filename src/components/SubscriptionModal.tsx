@@ -71,7 +71,7 @@ export default function SubscriptionModal() {
 
   const defaultMsg = language === 'bn'
     ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপের "${selectedPlanName}" প্যাকেজটি সক্রিয় করতে চাই।${userPhone ? ` আমার মোবাইল নম্বর: ${userPhone}` : ''}`
-    : `Hello, I want to activate the "${selectedPlanName}" package in Khamar Pro.${userPhone ? ` My phone: ${userPhone}` : ''}`;
+    : `Hello, I want to activate the "${selectedPlanName}" package in Digital Khamar Pro.${userPhone ? ` My phone: ${userPhone}` : ''}`;
 
   const cleanAdminWa = (config.adminWhatsApp || '01410991934').replace(/[^0-9]/g, '');
   const finalWaNumber = cleanAdminWa.startsWith('88') ? cleanAdminWa : `88${cleanAdminWa}`;
@@ -94,7 +94,7 @@ export default function SubscriptionModal() {
 
           <div className="inline-flex items-center justify-center gap-1.5 bg-amber-400 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider mb-2 shadow-xs">
             <Crown size={13} className="text-slate-950" />
-            <span>{language === 'bn' ? 'খামার প্রো প্রিমিয়াম ও সুবিধা' : 'KHAMAR PRO PACKAGES'}</span>
+            <span>{language === 'bn' ? 'ডিজিটাল খামার প্রো প্রিমিয়াম ও সুবিধা' : 'DIGITAL KHAMAR PRO PACKAGES'}</span>
           </div>
 
           <h3 className="text-base sm:text-lg font-black text-white leading-tight">
@@ -310,7 +310,7 @@ export default function SubscriptionModal() {
                     {language === 'bn' ? 'নির্বাচিত প্যাকেজ:' : 'Selected Plan:'}
                   </span>
                   <p className="text-xs font-black text-emerald-950">
-                    {selectedPlan ? (language === 'bn' ? selectedPlan.nameBn : selectedPlan.nameEn) : (language === 'bn' ? 'খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Khamar Pro Premium Plan')}
+                    {selectedPlan ? (language === 'bn' ? selectedPlan.nameBn : selectedPlan.nameEn) : (language === 'bn' ? 'ডিজিটাল খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Digital Khamar Pro Premium Plan')}
                   </p>
                 </div>
                 <div className="text-right">
@@ -420,7 +420,7 @@ export default function SubscriptionModal() {
                   {config.adminName || 'আবু সুফিয়ান'}
                 </p>
                 <p className="text-[10px] text-slate-500 font-semibold">
-                  {language === 'bn' ? 'ফাউন্ডার ও সফটওয়্যার ইঞ্জিনিয়ার, ডিজিটাল খামার প্রো' : 'Founder & Software Engineer, Khamar Pro'}
+                  {language === 'bn' ? 'ফাউন্ডার ও সফটওয়্যার ইঞ্জিনিয়ার, ডিজিটাল খামার প্রো' : 'Founder & Software Engineer, Digital Khamar Pro'}
                 </p>
               </div>
 

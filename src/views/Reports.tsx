@@ -514,7 +514,7 @@ export default function Reports() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `KhamarPro_Full_Farm_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `Digital_Khamar_Pro_Full_Backup_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -542,7 +542,7 @@ export default function Reports() {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(5, 150, 105);
-    doc.text('KhamarPro Farm Batch Financial Report', 14, 20);
+    doc.text('Digital Khamar Pro Farm Batch Financial Report', 14, 20);
     
     doc.setFontSize(10);
     doc.setTextColor(70, 70, 70);
