@@ -335,13 +335,13 @@ export default function Login() {
         return;
       }
 
-      if (cleanPin.length !== 6 || !/^\d{6}$/.test(cleanPin)) {
-        toast.error('পিন অবশ্যই ৬ ডিজিটের সংখ্যা হতে হবে (যেমন: 123456)');
+      if (cleanPin.length < 6) {
+        toast.error(language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.');
         return;
       }
 
       if (cleanPin !== cleanConfirmPin) {
-        toast.error('পিন এবং কনফার্ম পিন মেলেনি! উভয় ঘরে একই ৬ ডিজিটের পিন দিন।');
+        toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড দিন।' : 'PIN / Password does not match! Please recheck.');
         return;
       }
 
@@ -410,7 +410,7 @@ export default function Login() {
     const cleanPin = password.trim();
 
     if (!cleanEmail || !cleanPin) {
-      toast.error('জিমেইল / ইমেইল এবং ৬-ডিজিটের পিন দিন।');
+      toast.error(language === 'bn' ? 'জিমেইল / ইমেইল এবং পিন বা পাসওয়ার্ড দিন।' : 'Please enter Email and PIN / Password.');
       return;
     }
 
@@ -420,7 +420,7 @@ export default function Login() {
     }
 
     if (cleanPin.length < 6) {
-      toast.error('৬ ডিজিটের পিন লিখুন (যেমন: 123456)');
+      toast.error(language === 'bn' ? 'কমপক্ষে ৬ ডিজিট বা অক্ষরের পিন/পাসওয়ার্ড লিখুন।' : 'PIN / Password must be at least 6 characters.');
       return;
     }
 
@@ -575,21 +575,21 @@ export default function Login() {
 
     if (!cleanPass) {
       setResetErrorMessage(
-        language === 'bn' ? 'নতুন ৬-ডিজিটের পিন লিখুন।' : 'Please enter your new 6-digit PIN.'
+        language === 'bn' ? 'নতুন পিন বা পাসওয়ার্ড লিখুন।' : 'Please enter your new PIN or Password.'
       );
       return;
     }
 
-    if (cleanPass.length !== 6 || !/^\d{6}$/.test(cleanPass)) {
+    if (cleanPass.length < 6) {
       setResetErrorMessage(
-        language === 'bn' ? 'পিন অবশ্যই ৬ ডিজিটের সংখ্যা হতে হবে।' : 'PIN must be exactly 6 digits.'
+        language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.'
       );
       return;
     }
 
     if (cleanPass !== cleanConfirm) {
       setResetErrorMessage(
-        language === 'bn' ? 'উভয় ঘরে একই ৬-ডিজিটের পিন লিখুন।' : 'PINs do not match.'
+        language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড লিখুন।' : 'PIN / Password does not match.'
       );
       return;
     }
@@ -866,10 +866,10 @@ export default function Login() {
                   </p>
                 </div>
 
-                {/* 3. 6-digit PIN */}
+                {/* 3. PIN / Password */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? '৬-ডিজিটের পিন (PIN)' : '6-Digit PIN'}
+                    {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -877,12 +877,9 @@ export default function Login() {
                     </div>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder={language === 'bn' ? '৬ ডিজিটের পিন (যেমন: 123456)' : '6-digit PIN (e.g. 123456)'}
+                      placeholder={language === 'bn' ? 'কমপক্ষে ৬ ডিজিটের পিন বা পাসওয়ার্ড' : 'At least 6 characters PIN or Password'}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
                       required
                     />
@@ -890,17 +887,17 @@ export default function Login() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                      title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
 
-                {/* 4. Confirm 6-digit PIN */}
+                {/* 4. Confirm PIN / Password */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'পিন নিশ্চিত করুন (Confirm PIN)' : 'Confirm PIN'}
+                    {language === 'bn' ? 'পিন / পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm PIN / Password'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -908,12 +905,9 @@ export default function Login() {
                     </div>
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder={language === 'bn' ? 'একই ৬ ডিজিটের পিন পুনরায় লিখুন' : 'Re-enter same 6-digit PIN'}
+                      placeholder={language === 'bn' ? 'একই পিন বা পাসওয়ার্ড পুনরায় লিখুন' : 'Re-enter same PIN or Password'}
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
                       required
                     />
@@ -921,7 +915,7 @@ export default function Login() {
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showConfirmPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                      title={showConfirmPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
                     >
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -951,11 +945,11 @@ export default function Login() {
                   </div>
                 </div>
 
-                {/* 2. 6-digit PIN */}
+                {/* 2. PIN / Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      {language === 'bn' ? '৬-ডিজিটের পিন (PIN)' : '6-Digit PIN'}
+                      {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
                     </label>
                     <button
                       type="button"
@@ -968,7 +962,7 @@ export default function Login() {
                       }}
                       className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                     >
-                      {language === 'bn' ? 'পিন ভুলে গেছেন?' : 'Forgot PIN?'}
+                      {language === 'bn' ? 'পিন/পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot PIN/Password?'}
                     </button>
                   </div>
 
@@ -978,12 +972,9 @@ export default function Login() {
                     </div>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder={language === 'bn' ? '৬ ডিজিটের পিন (যেমন: 123456)' : '6-digit PIN (e.g. 123456)'}
+                      placeholder={language === 'bn' ? 'আপনার পিন বা পাসওয়ার্ড লিখুন' : 'Enter your PIN or Password'}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
                       required
                     />
@@ -991,7 +982,7 @@ export default function Login() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                      title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -1258,7 +1249,7 @@ export default function Login() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                    {language === 'bn' ? 'নতুন ৬-ডিজিটের পিন' : 'New 6-Digit PIN'}
+                    {language === 'bn' ? 'নতুন পিন বা পাসওয়ার্ড' : 'New PIN / Password'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -1266,12 +1257,9 @@ export default function Login() {
                     </div>
                     <input
                       type={showNewResetPassword ? 'text' : 'password'}
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder={language === 'bn' ? '৬-ডিজিটের পিন লিখুন' : 'Enter 6-digit PIN'}
+                      placeholder={language === 'bn' ? 'কমপক্ষে ৬ ডিজিটের পিন বা পাসওয়ার্ড' : 'At least 6 characters PIN or Password'}
                       value={newResetPassword}
-                      onChange={(e) => setNewResetPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setNewResetPassword(e.target.value)}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-gray-50/50 focus:bg-white"
                       required
                     />
@@ -1287,7 +1275,7 @@ export default function Login() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                    {language === 'bn' ? 'নতুন পিন নিশ্চিত করুন' : 'Confirm New PIN'}
+                    {language === 'bn' ? 'পিন / পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm PIN / Password'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -1295,12 +1283,9 @@ export default function Login() {
                     </div>
                     <input
                       type={showNewResetPassword ? 'text' : 'password'}
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder={language === 'bn' ? 'একই পিন পুনরায় লিখুন' : 'Re-enter same PIN'}
+                      placeholder={language === 'bn' ? 'একই পিন বা পাসওয়ার্ড পুনরায় লিখুন' : 'Re-enter same PIN or Password'}
                       value={confirmResetPassword}
-                      onChange={(e) => setConfirmResetPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setConfirmResetPassword(e.target.value)}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-gray-50/50 focus:bg-white"
                       required
                     />
@@ -1330,8 +1315,8 @@ export default function Login() {
                         ? 'সংরক্ষণ হচ্ছে...'
                         : 'Saving...'
                       : language === 'bn'
-                      ? 'পিন সংরক্ষণ করুন'
-                      : 'Save PIN'}
+                      ? 'সংরক্ষণ করুন'
+                      : 'Save'}
                   </button>
                 </div>
               </form>
