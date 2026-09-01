@@ -480,14 +480,15 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
           setConfig(DEFAULT_CONFIG);
         }
         setLoading(false);
-      }, (err) => {
-        console.warn("System settings sync notice:", err);
+      }, () => {
+        // Fallback gracefully without console noise
+        setConfig(DEFAULT_CONFIG);
         setLoading(false);
       });
 
       return () => unsub();
-    } catch (e) {
-      console.warn("Config listener error:", e);
+    } catch {
+      setConfig(DEFAULT_CONFIG);
       setLoading(false);
     }
   }, []);
@@ -512,13 +513,14 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         } else {
           setPlans(DEFAULT_PLANS);
         }
-      }, (err) => {
-        console.warn("Subscription plans fetch notice:", err);
+      }, () => {
+        // Fallback gracefully without console noise
+        setPlans(DEFAULT_PLANS);
       });
 
       return () => unsub();
-    } catch (e) {
-      console.warn("Plans listener error:", e);
+    } catch {
+      setPlans(DEFAULT_PLANS);
     }
   }, []);
 

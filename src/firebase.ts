@@ -5,11 +5,11 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
 import { firebaseConfig } from './firebaseConfig';
 
-// Suppress verbose SDK warnings like transport errors in the sandbox iframe environment
+// Suppress verbose SDK transport logs and transient reconnect notices
 try {
-  setLogLevel('error');
+  setLogLevel('silent');
 } catch (e) {
-  console.warn("Could not set log level:", e);
+  // Ignore
 }
 
 export const app = initializeApp(firebaseConfig);
@@ -31,23 +31,28 @@ if (typeof window !== 'undefined') {
   }).catch(() => {});
 }
 
-// Bulletproof database initialization that handles sandboxed iframe environments where IndexedDB might be disabled.
-// We DO NOT force experimentalForceLongPolling by default, because HTTP chunked long polling responses can be buffered 
-// by reverse proxies (like Nginx) leading to a 10-second connection timeout. Instead, we use standard connections 
-// (which utilize fast, unbuffered WebSockets), and fall back if needed.
+// Robust database initialization handling iframe sandboxes, offline caching, and automatic network protocol negotiation
 let dbInstance;
 try {
-  dbInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-  }, firebaseConfig.firestoreDatabaseId);
+  dbInstance = initializeFirestore(
+    app,
+    {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      experimentalAutoDetectLongPolling: true
+    },
+    firebaseConfig.firestoreDatabaseId
+  );
 } catch (error) {
-  console.warn("Firestore persistent cache initialization failed, trying with fallback config:", error);
+  console.warn("Firestore persistent cache init note, falling back to standard config:", error);
   try {
-    dbInstance = initializeFirestore(app, {
-      experimentalForceLongPolling: true
-    }, firebaseConfig.firestoreDatabaseId);
+    dbInstance = initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
   } catch (fallbackError) {
-    console.error("Firestore initialization fallback failed:", fallbackError);
     dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
   }
 }

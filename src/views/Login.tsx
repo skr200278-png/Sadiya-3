@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -8,10 +8,8 @@ import {
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult,
   updatePassword,
+  updateProfile,
   setPersistence,
   indexedDBLocalPersistence,
   browserLocalPersistence
@@ -34,54 +32,39 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Smartphone,
-  HelpCircle,
   KeyRound,
   X,
-  Globe,
-  PhoneCall,
-  Send,
-  Sparkles,
-  ArrowLeft
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const { currentUser } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
+  // Form Fields
   const [name, setName] = useState('');
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Forgot / Reset Password Modal State
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [resetStep, setResetStep] = useState<'input' | 'sent' | 'phone_otp' | 'new_password' | 'success'>('input');
-  const [resetTab, setResetTab] = useState<'email' | 'phone'>('email');
-  const [resetIdentifier, setResetIdentifier] = useState('');
+  const [resetStep, setResetStep] = useState<'input' | 'sent' | 'new_password' | 'success'>('input');
+  const [resetEmail, setResetEmail] = useState('');
   const [resetOobCode, setResetOobCode] = useState<string | null>(null);
-  const [phoneOtpCode, setPhoneOtpCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [otpCountdown, setOtpCountdown] = useState(0);
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
   const [newResetPassword, setNewResetPassword] = useState('');
   const [confirmResetPassword, setConfirmResetPassword] = useState('');
   const [showNewResetPassword, setShowNewResetPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
   const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null);
-
-  // OTP Countdown timer
-  useEffect(() => {
-    if (otpCountdown > 0) {
-      const timer = setTimeout(() => setOtpCountdown(otpCountdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [otpCountdown]);
 
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -114,13 +97,15 @@ export default function Login() {
         setResetOobCode(oobCodeParam);
         setResetStep('new_password');
         setIsForgotModalOpen(true);
-        verifyPasswordResetCode(auth, oobCodeParam).then((email) => {
-          if (email) {
-            setResetIdentifier(email);
-          }
-        }).catch((err) => {
-          console.warn('Invalid or expired reset code:', err);
-        });
+        verifyPasswordResetCode(auth, oobCodeParam)
+          .then((verifiedEmail) => {
+            if (verifiedEmail) {
+              setResetEmail(verifiedEmail);
+            }
+          })
+          .catch((err) => {
+            console.warn('Invalid or expired reset code:', err);
+          });
       }
     } catch (err) {
       console.warn('URL reset param parsing skipped:', err);
@@ -131,33 +116,10 @@ export default function Login() {
     return <Navigate to="/" replace />;
   }
 
-  const formatAuthIdentifier = (raw: string) => {
-    const clean = raw.trim();
-
-    if (clean.includes('@')) {
-      return {
-        authEmail: clean.toLowerCase(),
-        isPhone: false,
-        phone: '',
-        email: clean.toLowerCase()
-      };
-    }
-
-    const digits = clean.replace(/\D/g, '');
-
-    return {
-      authEmail: `phone_${digits}@digitalfarm.app`,
-      isPhone: true,
-      phone: clean,
-      email: ''
-    };
-  };
-
   const bootstrapUser = async (
     uid: string,
     displayName: string | null = null,
-    phone: string | null = null,
-    email: string | null = null
+    userEmail: string | null = null
   ) => {
     try {
       const userRef = doc(db, 'users', uid);
@@ -167,21 +129,19 @@ export default function Login() {
         await setDoc(userRef, {
           userId: uid,
           name: displayName || 'খামারি',
-          phone: phone || '',
-          email: email || '',
-          farmName: '',
+          email: userEmail || '',
           createdAt: new Date().toISOString()
         });
       } else {
         const existingData = snap.data();
         const updatePayload: any = {};
 
-        if (phone && !existingData.phone) {
-          updatePayload.phone = phone;
+        if (userEmail && !existingData.email) {
+          updatePayload.email = userEmail;
         }
 
-        if (email && !existingData.email) {
-          updatePayload.email = email;
+        if (displayName && (!existingData.name || existingData.name === 'খামারি')) {
+          updatePayload.name = displayName;
         }
 
         if (Object.keys(updatePayload).length > 0) {
@@ -189,16 +149,12 @@ export default function Login() {
         }
       }
     } catch (err) {
-      console.warn(
-        'Bootstrap user document write skipped or offline:',
-        err
-      );
+      console.warn('Bootstrap user document write skipped or offline:', err);
     }
   };
 
   /*
    * GOOGLE LOGIN
-   *
    * Native Mobile One-Tap via @codetrix-studio/capacitor-google-auth on Android/iOS.
    * Standard Firebase popup on Web browsers.
    */
@@ -210,17 +166,13 @@ export default function Login() {
     setErrorMessage(null);
 
     try {
-      // Try persistent Firebase auth state.
       try {
         await setPersistence(auth, browserLocalPersistence);
       } catch {
         try {
           await setPersistence(auth, indexedDBLocalPersistence);
         } catch (persistenceError) {
-          console.warn(
-            'Firebase persistence unavailable:',
-            persistenceError
-          );
+          console.warn('Firebase persistence unavailable:', persistenceError);
         }
       }
 
@@ -273,7 +225,6 @@ export default function Login() {
             return;
           }
 
-          // If native failed unexpectedly, proceed to try web popup fallback
           console.warn('Falling back to web popup...');
         }
       }
@@ -297,21 +248,16 @@ export default function Login() {
       await bootstrapUser(
         authedUser.uid,
         authedUser.displayName,
-        (authedUser as any).phoneNumber || null,
         authedUser.email
       );
 
       toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');
-
-      navigate('/', {
-        replace: true
-      });
+      navigate('/', { replace: true });
 
     } catch (error: any) {
       const errCode = error?.code || '';
       const errMsg = error?.message || '';
 
-      // Gracefully handle normal user actions like closing the popup or cancelling
       if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
         console.info('Google sign-in popup dismissed or cancelled by user.');
         toast(language === 'bn' ? 'গুগল সাইন-ইন উইন্ডো বন্ধ করা হয়েছে।' : 'Google login was cancelled.', {
@@ -323,7 +269,7 @@ export default function Login() {
 
         if (errCode === 'auth/popup-blocked') {
           setErrorMessage(
-            language === 'bn' 
+            language === 'bn'
               ? 'ব্রাউজার Google Login popup ব্লক করেছে। ব্রাউজারে popup অনুমতি দিয়ে আবার চেষ্টা করুন।'
               : 'Popup was blocked by browser. Please allow popups and try again.'
           );
@@ -349,7 +295,7 @@ export default function Login() {
           toast.error(language === 'bn' ? 'নেটওয়ার্ক সমস্যা।' : 'Network error');
         } else if (errCode === 'auth/web-storage-unsupported') {
           setErrorMessage(
-            language === 'bn' 
+            language === 'bn'
               ? 'এই ব্রাউজারে Firebase authentication storage কাজ করছে না। সাধারণ Chrome browser-এ আবার চেষ্টা করুন।'
               : 'Web storage unsupported in this browser.'
           );
@@ -361,51 +307,120 @@ export default function Login() {
           toast.error(language === 'bn' ? 'Google Login করা যায়নি।' : 'Google Login failed');
         }
       }
-
     } finally {
       setLoading(false);
     }
   };
 
+  /*
+   * MAIN AUTH SUBMISSION (Email + 6-Digit PIN)
+   */
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const cleanIdentifier = identifier.trim();
+    // 1. REGISTRATION FLOW
+    if (mode === 'register') {
+      const cleanName = name.trim();
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPin = password.trim();
+      const cleanConfirmPin = confirmPassword.trim();
 
-    if (!cleanIdentifier || !password) {
-      toast.error(
-        'মোবাইল নাম্বার/ইমেইল এবং পাসওয়ার্ড দিন।'
-      );
-      return;
-    }
-
-    const {
-      authEmail,
-      isPhone,
-      phone,
-      email: userEmail
-    } = formatAuthIdentifier(cleanIdentifier);
-
-    if (isPhone) {
-      const digits = cleanIdentifier.replace(/\D/g, '');
-
-      if (digits.length < 10) {
-        toast.error(
-          'সঠিক মোবাইল নাম্বার দিন (কমপক্ষে ১০-১১ ডিজিট)'
-        );
+      if (!cleanName) {
+        toast.error('আপনার পুরো নাম লিখুন।');
         return;
       }
-    }
 
-    if (password.length < 4) {
-      toast.error(
-        'পিন বা পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।'
-      );
+      if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
+        return;
+      }
+
+      if (cleanPin.length !== 6 || !/^\d{6}$/.test(cleanPin)) {
+        toast.error('পিন অবশ্যই ৬ ডিজিটের সংখ্যা হতে হবে (যেমন: 123456)');
+        return;
+      }
+
+      if (cleanPin !== cleanConfirmPin) {
+        toast.error('পিন এবং কনফার্ম পিন মেলেনি! উভয় ঘরে একই ৬ ডিজিটের পিন দিন।');
+        return;
+      }
+
+      setLoading(true);
+      setErrorMessage(null);
+      setUnauthorizedDomain(null);
+
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch {
+        try {
+          await setPersistence(auth, indexedDBLocalPersistence);
+        } catch (persErr) {
+          console.warn('Auth persistence fallback note:', persErr);
+        }
+      }
+
+      try {
+        const result = await createUserWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          cleanPin
+        );
+
+        try {
+          await updateProfile(result.user, { displayName: cleanName });
+        } catch (profErr) {
+          console.warn('Profile update note:', profErr);
+        }
+
+        await bootstrapUser(
+          result.user.uid,
+          cleanName,
+          cleanEmail
+        );
+
+        toast.success('সফলভাবে অ্যাকাউন্ট তৈরি ও লগইন হয়েছে!');
+        navigate('/', { replace: true });
+      } catch (error: any) {
+        console.error('Registration Auth Error:', error);
+        const errCode = error?.code || '';
+
+        if (errCode === 'auth/email-already-in-use') {
+          setErrorMessage(
+            'এই জিমেইল/ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার ৬-ডিজিটের পিন দিয়ে প্রবেশ করুন।'
+          );
+          toast.error('এই ইমেইলে ইতিমধ্যে রেজিস্ট্রেশন করা আছে।');
+        } else if (errCode === 'auth/invalid-email') {
+          setErrorMessage('সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন।');
+          toast.error('ইমেইল ফরম্যাট সঠিক নয়!');
+        } else if (errCode === 'auth/weak-password') {
+          setErrorMessage('পিন কমপক্ষে ৬ ডিজিটের হতে হবে।');
+          toast.error('পিন অন্তত ৬ অক্ষরের হতে হবে।');
+        } else {
+          setErrorMessage(`রেজিস্ট্রেশন সম্পন্ন করা যায়নি: ${error?.message || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`);
+          toast.error('রেজিস্ট্রেশন সম্পন্ন করা যায়নি।');
+        }
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
-    if (mode === 'register' && !name.trim()) {
-      toast.error('আপনার পুরো নাম লিখুন।');
+    // 2. LOGIN FLOW
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPin = password.trim();
+
+    if (!cleanEmail || !cleanPin) {
+      toast.error('জিমেইল / ইমেইল এবং ৬-ডিজিটের পিন দিন।');
+      return;
+    }
+
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন (যেমন: name@gmail.com)');
+      return;
+    }
+
+    if (cleanPin.length < 6) {
+      toast.error('৬ ডিজিটের পিন লিখুন (যেমন: 123456)');
       return;
     }
 
@@ -413,240 +428,97 @@ export default function Login() {
     setErrorMessage(null);
     setUnauthorizedDomain(null);
 
-    // Ensure session stays permanently saved so user doesn't need to re-login repeatedly
     try {
       await setPersistence(auth, browserLocalPersistence);
     } catch {
       try {
         await setPersistence(auth, indexedDBLocalPersistence);
-      } catch (e) {
-        console.warn('Auth persistence fallback note:', e);
+      } catch (persErr) {
+        console.warn('Auth persistence fallback note:', persErr);
       }
     }
 
     try {
-      if (mode === 'register') {
-        const effectivePassword = password.length < 6 ? `df_pin_${password}` : password;
-        const result =
-          await createUserWithEmailAndPassword(
-            auth,
-            authEmail,
-            effectivePassword
-          );
+      const authedResult = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        cleanPin
+      );
 
-        await bootstrapUser(
-          result.user.uid,
-          name.trim(),
-          isPhone ? phone : null,
-          isPhone ? null : userEmail
-        );
+      await bootstrapUser(
+        authedResult.user.uid,
+        authedResult.user.displayName,
+        authedResult.user.email
+      );
 
-        toast.success(
-          'সফলভাবে অ্যাকাউন্ট তৈরি ও লগইন হয়েছে!'
-        );
-
-        navigate('/', {
-          replace: true
-        });
-
-      } else {
-        // Sign in mode: try the exact password first (or prefixed PIN if <6)
-        const primaryPassword = password.length < 6 ? `df_pin_${password}` : password;
-        
-        let authedResult: any = null;
-        try {
-          authedResult = await signInWithEmailAndPassword(
-            auth,
-            authEmail,
-            primaryPassword
-          );
-        } catch (firstErr: any) {
-          // If first attempt failed and password was <6, try plain password as fallback once only
-          if (password.length < 6 && (firstErr.code === 'auth/invalid-credential' || firstErr.code === 'auth/wrong-password')) {
-            try {
-              authedResult = await signInWithEmailAndPassword(
-                auth,
-                authEmail,
-                password
-              );
-            } catch {
-              throw firstErr;
-            }
-          } else {
-            throw firstErr;
-          }
-        }
-
-        if (!authedResult || !authedResult.user) {
-          throw new Error('লগইন করা যায়নি।');
-        }
-
-        await bootstrapUser(
-          authedResult.user.uid,
-          authedResult.user.displayName,
-          isPhone ? phone : null,
-          isPhone ? null : userEmail
-        );
-
-        toast.success(
-          'সফলভাবে লগইন হয়েছে!'
-        );
-
-        navigate('/', {
-          replace: true
-        });
-      }
+      toast.success('সফলভাবে লগইন হয়েছে!');
+      navigate('/', { replace: true });
 
     } catch (error: any) {
-      console.error('Auth Error:', error);
-
       const errCode = error?.code || '';
       const errMsg = error?.message || '';
 
-      if (errCode === 'auth/email-already-in-use') {
-        setErrorMessage(
-          isPhone
-            ? 'এই মোবাইল নম্বর দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার পাসওয়ার্ড দিয়ে প্রবেশ করুন।'
-            : 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার পাসওয়ার্ড দিয়ে প্রবেশ করুন।'
-        );
-
-        toast.error(
-          'এই অ্যাকাউন্টে ইতিমধ্যে রেজিস্ট্রেশন করা আছে। দয়া করে লগইন করুন।'
-        );
-
-      } else if (errCode === 'auth/user-not-found') {
-        setErrorMessage(
-          'এই নম্বর বা ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে উপরে "নতুন রেজিস্ট্রেশন (Sign Up)" ট্যাবে ক্লিক করে একটি নতুন অ্যাকাউন্ট তৈরি করুন অথবা গুগল দিয়ে প্রবেশ করুন।'
-        );
-
-        toast.error(
-          'অ্যাকাউন্ট পাওয়া যায়নি! নতুন রেজিস্ট্রেশন করুন।'
-        );
-
-      } else if (errCode === 'auth/wrong-password') {
-        setErrorMessage(
-          'আপনার দেওয়া পাসওয়ার্ডটি সঠিক নয়। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন অথবা নিচে "পাসওয়ার্ড ভুলে গেছেন?" অপশন ব্যবহার করুন।'
-        );
-
-        toast.error(
-          'পাসওয়ার্ড ভুল হয়েছে! আবার চেষ্টা করুন।'
-        );
-
-      } else if (errCode === 'auth/invalid-credential') {
-        setErrorMessage(
-          mode === 'login'
-            ? 'আপনার নম্বর/ইমেইল অথবা পাসওয়ার্ডটি সঠিক নয়। যদি আপনার অ্যাকাউন্ট এখনও না থাকে, তবে উপরে "নতুন রেজিস্ট্রেশন (Sign Up)" ট্যাবে ক্লিক করে অ্যাকাউন্ট খুলুন অথবা গুগল দিয়ে সরাসরি প্রবেশ করুন।'
-            : 'প্রদত্ত তথ্য সঠিক নয়। দয়া করে সঠিক মোবাইল নম্বর বা ইমেইল দিয়ে আবার চেষ্টা করুন।'
-        );
-
-        toast.error(
-          'লগইন তথ্য সঠিক নয়। চেক করে দেখুন।'
-        );
-
-      } else if (errCode === 'auth/too-many-requests') {
-        setErrorMessage(
-          'অতিরিক্ত ভুল চেষ্টার কারণে ফায়ারবেস সাময়িকভাবে এই অ্যাকাউন্টে পাসওয়ার্ড লগইন ব্লক করেছে। আপনি গুগল (Google Sign-In) দিয়ে এখনই কোনো পাসওয়ার্ড ছাড়া সরাসরি প্রবেশ করতে পারেন অথবা কিছুক্ষণ পর চেষ্টা করুন।'
-        );
-
-        toast.error(
-          'অতিরিক্ত চেষ্টার কারণে সাময়িক ব্লক! গুগল দিয়ে চেষ্টা করুন।'
-        );
-
-      } else if (errCode === 'auth/invalid-email') {
-        setErrorMessage(
-          'সঠিক মোবাইল নম্বর (১১ ডিজিট) অথবা সঠিক ইমেইল অ্যাড্রেস লিখুন।'
-        );
-
-        toast.error(
-          'নম্বর বা ইমেইল সঠিক নয়!'
-        );
-
-      } else if (errCode === 'auth/weak-password') {
-        setErrorMessage(
-          'পাসওয়ার্ডটি খুব ছোট। আপনার অ্যাকাউন্ট সুরক্ষিত রাখতে কমপক্ষে ৬ অক্ষরের বা সংখ্যার পাসওয়ার্ড দিন।'
-        );
-
-        toast.error(
-          'পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।'
-        );
-
-      } else if (errCode === 'auth/operation-not-allowed') {
-        setErrorMessage(
-          'Firebase Console-এ ইমেইল/পাসওয়ার্ড লগইন সচল করা নেই। অ্যাডমিনের সাথে যোগাযোগ করুন।'
-        );
-
-        toast.error(
-          'লগইন পদ্ধতি চালু নেই।'
-        );
-
-      } else if (errCode === 'auth/network-request-failed') {
-        setErrorMessage(
-          'ইন্টারনেট সংযোগে সমস্যা হয়েছে। দয়া করে আপনার ডাটা/ওয়াইফাই চেক করে আবার চেষ্টা করুন।'
-        );
-
-        toast.error(
-          'ইন্টারনেট সংযোগ চেক করুন।'
-        );
-
+      if (errCode === 'auth/invalid-credential' || errCode === 'auth/user-not-found' || errCode === 'auth/wrong-password') {
+        console.warn('Authentication attempt notice:', errCode);
       } else {
-        setErrorMessage(
-          `লগইন করা সম্ভব হয়নি (${errCode || 'Error'}): ${errMsg || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`
-        );
-
-        toast.error(
-          'লগইন সম্পন্ন করা যায়নি।'
-        );
+        console.error('Auth Error:', error);
       }
 
+      if (errCode === 'auth/user-not-found') {
+        setErrorMessage(
+          'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে উপরে "নতুন রেজিস্ট্রেশন (Sign Up)" ট্যাবে ক্লিক করে একটি নতুন অ্যাকাউন্ট তৈরি করুন অথবা গুগল দিয়ে প্রবেশ করুন।'
+        );
+        toast.error('অ্যাকাউন্ট পাওয়া যায়নি! নতুন রেজিস্ট্রেশন করুন।');
+      } else if (errCode === 'auth/wrong-password') {
+        setErrorMessage(
+          'আপনার দেওয়া ৬-ডিজিটের পিনটি সঠিক নয়। অনুগ্রহ করে সঠিক পিন দিন অথবা নিচে "পিন ভুলে গেছেন?" অপশন ব্যবহার করুন।'
+        );
+        toast.error('পিন ভুল হয়েছে! আবার চেষ্টা করুন।');
+      } else if (errCode === 'auth/invalid-credential') {
+        setErrorMessage(
+          'আপনার ইমেইল অথবা ৬-ডিজিটের পিনটি সঠিক নয়। অনুগ্রহ করে সঠিক তথ্য দিন অথবা নিচে "গুগল দিয়ে ১-ক্লিকে প্রবেশ" করুন।'
+        );
+        toast.error('ইমেইল বা পিন সঠিক নয়।');
+      } else if (errCode === 'auth/too-many-requests') {
+        setErrorMessage(
+          'অতিরিক্ত ভুল চেষ্টার কারণে সাময়িকভাবে এই অ্যাকাউন্টে লগইন ব্লক করা হয়েছে। আপনি গুগল (Google Sign-In) দিয়ে এখনই সরাসরি প্রবেশ করতে পারেন অথবা কিছুক্ষণ পর চেষ্টা করুন।'
+        );
+        toast.error('অতিরিক্ত চেষ্টার কারণে সাময়িক ব্লক! গুগল দিয়ে চেষ্টা করুন।');
+      } else if (errCode === 'auth/invalid-email') {
+        setErrorMessage('সঠিক জিমেইল / ইমেইল অ্যাড্রেস লিখুন।');
+        toast.error('ইমেইল সঠিক নয়!');
+      } else if (errCode === 'auth/network-request-failed') {
+        setErrorMessage('ইন্টারনেট সংযোগে সমস্যা হয়েছে। দয়া করে আপনার ডাটা/ওয়াইফাই চেক করে আবার চেষ্টা করুন।');
+        toast.error('ইন্টারনেট সংযোগ চেক করুন।');
+      } else {
+        setErrorMessage(`লগইন করা সম্ভব হয়নি (${errCode || 'Error'}): ${errMsg || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`);
+        toast.error('লগইন সম্পন্ন করা যায়নি।');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const getOrCreateRecaptchaVerifier = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      if (recaptchaVerifierRef.current) {
-        return recaptchaVerifierRef.current;
-      }
-
-      let container = document.getElementById('recaptcha-container');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'recaptcha-container';
-        document.body.appendChild(container);
-      }
-
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          // Invisible reCAPTCHA verification passed automatically
-        },
-        'expired-callback': () => {
-          console.warn('reCAPTCHA token expired');
-        }
-      });
-
-      recaptchaVerifierRef.current = verifier;
-      return verifier;
-    } catch (err) {
-      console.warn('RecaptchaVerifier init notice:', err);
-      return null;
-    }
-  };
-
-  const handleForgotPasswordSubmit = async (
-    e: React.FormEvent
-  ) => {
+  /*
+   * PASSWORD / PIN RESET FLOW (Firebase sendPasswordResetEmail)
+   */
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const clean = resetIdentifier.trim();
+    const clean = resetEmail.trim().toLowerCase();
 
     if (!clean) {
       setResetErrorMessage(
-        resetTab === 'email'
-          ? (language === 'bn' ? 'আপনার নিবন্ধিত জিমেইল / ইমেইল ঠিকানা লিখুন।' : 'Please enter your registered email address.')
-          : (language === 'bn' ? 'আপনার ১১-ডিজিটের মোবাইল নম্বর লিখুন।' : 'Please enter your 11-digit mobile number.')
+        language === 'bn' ? 'আপনার নিবন্ধিত জিমেইল / ইমেইল ঠিকানা লিখুন।' : 'Please enter your registered email address.'
+      );
+      return;
+    }
+
+    if (!clean.includes('@') || !clean.includes('.')) {
+      setResetErrorMessage(
+        language === 'bn'
+          ? 'সঠিক জিমেইল / ইমেইল ফরম্যাট দিন (যেমন: name@gmail.com)'
+          : 'Please provide a valid email address (e.g. name@gmail.com)'
       );
       return;
     }
@@ -655,176 +527,40 @@ export default function Login() {
     setResetErrorMessage(null);
     setResetSuccessMessage(null);
 
-    const {
-      isPhone,
-      phone
-    } = formatAuthIdentifier(clean);
-
     try {
-      if (resetTab === 'email' || !isPhone) {
-        if (!clean.includes('@')) {
-          setResetErrorMessage(
-            language === 'bn'
-              ? 'সঠিক ইমেইল ফরম্যাট দিন (যেমন: name@gmail.com)'
-              : 'Please provide a valid email address (e.g. name@gmail.com)'
-          );
-          setResetLoading(false);
-          return;
-        }
+      await sendPasswordResetEmail(auth, clean);
 
-        await sendPasswordResetEmail(
-          auth,
-          clean.toLowerCase()
-        );
-
-        setResetSuccessMessage(
-          language === 'bn'
-            ? `আপনার ইমেইল (${clean})-এ পাসওয়ার্ড পরিবর্তনের লিংক পাঠানো হয়েছে! অনুগ্রহ করে আপনার ইনবক্স এবং স্প্যাম (Spam) ফোল্ডার চেক করুন।`
-            : `Password reset link has been sent to (${clean})! Please check your Inbox and Spam folder.`
-        );
-
-        setResetStep('sent');
-        toast.success(
-          language === 'bn' ? 'রিসেট লিংক সফলভাবে পাঠানো হয়েছে!' : 'Reset link sent successfully!'
-        );
-
-      } else {
-        // Mobile / Phone Account with Firebase Phone OTP
-        const digits = phone.replace(/\D/g, '');
-        if (digits.length < 10) {
-          setResetErrorMessage(
-            language === 'bn'
-              ? 'সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন (যেমন: 017XXXXXXXX)'
-              : 'Please enter a valid 11-digit mobile number'
-          );
-          setResetLoading(false);
-          return;
-        }
-
-        const e164Phone = digits.startsWith('880') ? `+${digits}` : `+880${digits.slice(-10)}`;
-
-        try {
-          const verifier = getOrCreateRecaptchaVerifier();
-          if (verifier) {
-            const confirmation = await signInWithPhoneNumber(auth, e164Phone, verifier);
-            setConfirmationResult(confirmation);
-            setOtpCountdown(60);
-            setPhoneOtpCode('');
-            setResetStep('phone_otp');
-            toast.success(
-              language === 'bn' ? `📱 ${e164Phone} নম্বরে ওটিপি কোড পাঠানো হয়েছে!` : `OTP sent to ${e164Phone}!`
-            );
-          } else {
-            throw new Error('reCAPTCHA unavailable');
-          }
-        } catch (phoneAuthErr: any) {
-          console.warn('Firebase Phone Auth OTP error:', phoneAuthErr);
-          const code = phoneAuthErr?.code || '';
-          if (code === 'auth/invalid-phone-number') {
-            setResetErrorMessage(
-              language === 'bn' ? 'মোবাইল নম্বর ফরম্যাট সঠিক নয়। ১১ ডিজিটের সঠিক মোবাইল নম্বর দিন।' : 'Invalid phone number format.'
-            );
-          } else if (code === 'auth/quota-exceeded' || code === 'auth/too-many-requests') {
-            setResetErrorMessage(
-              language === 'bn'
-                ? 'এসএমএস অনুরোধের সীমা অতিক্রান্ত হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।'
-                : 'SMS request limit exceeded. Please try again in a few minutes.'
-            );
-          } else if (code === 'auth/operation-not-allowed') {
-            setResetErrorMessage(
-              language === 'bn'
-                ? 'Firebase Console-এ Phone Authentication সক্রিয় (Enable) নেই। অনুগ্রহ করে Firebase Console > Authentication > Sign-in method-এ Phone অপশনটি Enable করুন।'
-                : 'Phone Authentication is not enabled in Firebase Console. Please enable Phone provider in Firebase Authentication.'
-            );
-          } else if (code === 'auth/captcha-check-failed') {
-            setResetErrorMessage(
-              language === 'bn'
-                ? 'reCAPTCHA ভেরিফিকেশন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
-                : 'reCAPTCHA verification failed. Please try again.'
-            );
-          } else {
-            setResetErrorMessage(
-              phoneAuthErr?.message || (language === 'bn' ? 'মোবাইলে ওটিপি পাঠানো সম্ভব হয়নি। দয়া করে নম্বরটি চেক করে পুনরায় চেষ্টা করুন।' : 'Failed to send OTP to mobile. Please check number and try again.')
-            );
-          }
-        }
-      }
-
-    } catch (error: any) {
-      console.error(
-        'Password reset error:',
-        error
+      setResetSuccessMessage(
+        language === 'bn'
+          ? `আপনার জিমেইল (${clean})-এ পিন/পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে! অনুগ্রহ করে আপনার ইনবক্স এবং স্প্যাম (Spam) ফোল্ডার চেক করুন।`
+          : `Password reset link has been sent to (${clean})! Please check your Inbox and Spam folder.`
       );
 
+      setResetStep('sent');
+      toast.success(
+        language === 'bn' ? 'রিসেট লিংক সফলভাবে পাঠানো হয়েছে!' : 'Reset link sent successfully!'
+      );
+    } catch (error: any) {
+      console.error('Password reset error:', error);
       const code = error?.code || '';
 
       if (code === 'auth/user-not-found') {
         setResetErrorMessage(
           language === 'bn'
-            ? 'এই ইমেইলে কোনো খামার অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক তথ্য দিন বা নতুন রেজিস্ট্রেশন করুন।'
-            : 'No farm account found with this email. Please check and try again.'
+            ? 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল দিন বা নতুন রেজিস্ট্রেশন করুন।'
+            : 'No account found with this email. Please check and try again.'
         );
-
       } else if (code === 'auth/invalid-email') {
         setResetErrorMessage(
           language === 'bn'
             ? 'সঠিক ইমেইল অ্যাড্রেস লিখুন।'
             : 'Please enter a valid email address.'
         );
-
       } else {
         setResetErrorMessage(
           language === 'bn'
             ? 'পাসওয়ার্ড রিসেট অনুরোধ সম্পন্ন করা যায়নি। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
             : 'Could not send reset request. Please check your internet connection.'
-        );
-      }
-
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanOtp = phoneOtpCode.trim();
-    if (cleanOtp.length < 6) {
-      setResetErrorMessage(
-        language === 'bn' ? 'অনুগ্রহ করে মোবাইলে আসা ৬-সংখ্যার ওটিপি কোডটি লিখুন।' : 'Please enter the 6-digit OTP code.'
-      );
-      return;
-    }
-
-    if (!confirmationResult) {
-      setResetErrorMessage(
-        language === 'bn' ? 'ওটিপি সেশন পাওয়া যায়নি। অনুগ্রহ করে কোড পুনরায় পাঠান।' : 'OTP session expired. Please resend code.'
-      );
-      return;
-    }
-
-    setResetLoading(true);
-    setResetErrorMessage(null);
-
-    try {
-      await confirmationResult.confirm(cleanOtp);
-      toast.success(
-        language === 'bn' ? 'ওটিপি সফলভাবে যাচাই হয়েছে!' : 'OTP verified successfully!'
-      );
-      setResetStep('new_password');
-    } catch (err: any) {
-      console.error('Verify OTP error:', err);
-      const code = err?.code || '';
-      if (code === 'auth/invalid-verification-code') {
-        setResetErrorMessage(
-          language === 'bn' ? 'ভুল ওটিপি কোড। অনুগ্রহ করে আপনার এসএমএস চেক করে সঠিক কোডটি দিন।' : 'Invalid OTP code. Please check your SMS and try again.'
-        );
-      } else if (code === 'auth/code-expired') {
-        setResetErrorMessage(
-          language === 'bn' ? 'ওটিপি কোডের মেয়াদ শেষ হয়েছে। নতুন কোড চেয়ে নিন।' : 'OTP code expired. Please resend code.'
-        );
-      } else {
-        setResetErrorMessage(
-          err?.message || (language === 'bn' ? 'ওটিপি যাচাই করা সম্ভব হয়নি।' : 'Failed to verify OTP.')
         );
       }
     } finally {
@@ -839,21 +575,21 @@ export default function Login() {
 
     if (!cleanPass) {
       setResetErrorMessage(
-        language === 'bn' ? 'নতুন ৪-সংখ্যার পিন বা পাসওয়ার্ড লিখুন।' : 'Please enter your new PIN or password.'
+        language === 'bn' ? 'নতুন ৬-ডিজিটের পিন লিখুন।' : 'Please enter your new 6-digit PIN.'
       );
       return;
     }
 
-    if (cleanPass.length < 4) {
+    if (cleanPass.length !== 6 || !/^\d{6}$/.test(cleanPass)) {
       setResetErrorMessage(
-        language === 'bn' ? 'পিন কমপক্ষে ৪ অক্ষরের হতে হবে।' : 'PIN must be at least 4 characters.'
+        language === 'bn' ? 'পিন অবশ্যই ৬ ডিজিটের সংখ্যা হতে হবে।' : 'PIN must be exactly 6 digits.'
       );
       return;
     }
 
     if (cleanPass !== cleanConfirm) {
       setResetErrorMessage(
-        language === 'bn' ? 'উভয় ঘরে একই পাসওয়ার্ড/পিন লিখুন।' : 'Passwords/PINs do not match.'
+        language === 'bn' ? 'উভয় ঘরে একই ৬-ডিজিটের পিন লিখুন।' : 'PINs do not match.'
       );
       return;
     }
@@ -862,27 +598,15 @@ export default function Login() {
     setResetErrorMessage(null);
 
     try {
-      const effectivePassword = cleanPass.length < 6 ? `df_pin_${cleanPass}` : cleanPass;
-
       if (resetOobCode) {
-        await confirmPasswordReset(auth, resetOobCode, effectivePassword);
+        await confirmPasswordReset(auth, resetOobCode, cleanPass);
       } else if (auth.currentUser) {
-        await updatePassword(auth.currentUser, effectivePassword);
-        try {
-          const userRef = doc(db, 'users', auth.currentUser.uid);
-          await setDoc(userRef, {
-            hasCustomPin: true,
-            phone: resetIdentifier,
-            pinUpdatedAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (docErr) {
-          console.warn('Firestore PIN sync note:', docErr);
-        }
+        await updatePassword(auth.currentUser, cleanPass);
       }
 
       setResetStep('success');
       toast.success(
-        language === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!' : 'Password updated successfully!'
+        language === 'bn' ? 'পিন সফলভাবে পরিবর্তিত হয়েছে!' : 'PIN updated successfully!'
       );
     } catch (err: any) {
       console.error('Confirm password reset error:', err);
@@ -899,15 +623,9 @@ export default function Login() {
             ? 'রিসেট কোডটি সঠিক নয় অথবা ইতিমধ্যে ব্যবহৃত হয়েছে।'
             : 'Reset code is invalid or already used.'
         );
-      } else if (code === 'auth/requires-recent-login') {
-        setResetErrorMessage(
-          language === 'bn'
-            ? 'নিরাপত্তার স্বার্থে ওটিপি কোড পুনরায় ভেরিফাই করুন।'
-            : 'Please re-verify OTP for security.'
-        );
       } else {
         setResetErrorMessage(
-          err.message || (language === 'bn' ? 'পাসওয়ার্ড আপডেট করা সম্ভব হয়নি।' : 'Failed to update password.')
+          err.message || (language === 'bn' ? 'পিন আপডেট করা সম্ভব হয়নি।' : 'Failed to update PIN.')
         );
       }
     } finally {
@@ -916,19 +634,14 @@ export default function Login() {
   };
 
   const openInNewTab = () => {
-    window.open(
-      window.location.href,
-      '_blank'
-    );
+    window.open(window.location.href, '_blank');
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-gray-50 to-green-50 p-4">
-
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-
+        {/* Header Hero */}
         <div className="bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 p-7 text-center relative">
-
           {/* Language Switcher Pill */}
           <div className="absolute top-3.5 right-3.5 flex items-center bg-black/25 backdrop-blur-md rounded-full p-0.5 border border-white/20 shadow-sm z-10">
             <button
@@ -956,17 +669,14 @@ export default function Login() {
           </div>
 
           <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden mt-1">
-
             <img
               src={appLogo}
               onError={(e) => {
-                e.currentTarget.src =
-                  '/farm_app_icon_1779214389225.png';
+                e.currentTarget.src = '/farm_app_icon_1779214389225.png';
               }}
               alt="Khamar Pro Logo"
               className="w-full h-full object-contain rounded-xl"
             />
-
           </div>
 
           <h1 className="text-2xl font-black text-white tracking-wide">
@@ -974,8 +684,8 @@ export default function Login() {
           </h1>
 
           <p className="text-emerald-100 text-xs mt-1 font-medium">
-            {language === 'bn' 
-              ? 'পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা' 
+            {language === 'bn'
+              ? 'পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা'
               : 'Smart Farm Management for Poultry, Cattle & Fish'}
           </p>
 
@@ -984,7 +694,7 @@ export default function Login() {
               type="button"
               onClick={openInNewTab}
               className="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-[11px] font-semibold py-1.5 px-3 rounded-full backdrop-blur-sm transition-all cursor-pointer"
-              title={language === 'bn' ? "নতুন ব্রাউজার ট্যাবে খুলুন" : "Open in new tab"}
+              title={language === 'bn' ? 'নতুন ব্রাউজার ট্যাবে খুলুন' : 'Open in new tab'}
             >
               <ExternalLink size={13} />
               <span>
@@ -992,13 +702,11 @@ export default function Login() {
               </span>
             </button>
           )}
-
         </div>
 
         <div className="p-6 md:p-8">
-
+          {/* Mode Switcher Tabs */}
           <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 border border-gray-200">
-
             <button
               type="button"
               onClick={() => {
@@ -1028,28 +736,18 @@ export default function Login() {
             >
               {language === 'bn' ? 'নতুন রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}
             </button>
-
           </div>
 
+          {/* Error Banner */}
           {errorMessage && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-5 text-xs text-red-900 font-medium">
-
               <div className="flex items-start gap-2.5">
-
-                <AlertTriangle
-                  className="text-red-600 shrink-0 mt-0.5"
-                  size={17}
-                />
-
+                <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={17} />
                 <div className="space-y-1">
-
                   <p className="font-bold text-red-950">
                     {language === 'bn' ? 'লগইন সমস্যা:' : 'Authentication Error:'}
                   </p>
-
-                  <p className="leading-relaxed">
-                    {errorMessage}
-                  </p>
+                  <p className="leading-relaxed">{errorMessage}</p>
 
                   <div className="flex flex-wrap gap-2 pt-2">
                     {mode === 'login' && (
@@ -1081,198 +779,232 @@ export default function Login() {
                   </div>
 
                   {unauthorizedDomain && (
-                    <p className="text-[10px] break-all mt-2">
-                      Domain: {unauthorizedDomain}
-                    </p>
+                    <p className="text-[10px] break-all mt-2">Domain: {unauthorizedDomain}</p>
                   )}
-
                 </div>
-
               </div>
-
             </div>
           )}
 
+          {/* Google Sign-in Button */}
           <button
             type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-800 font-bold py-3 px-4 rounded-2xl hover:bg-gray-50 active:bg-gray-100 transition-all disabled:opacity-50 shadow-sm mb-5 group cursor-pointer"
           >
-
             <img
               src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
               alt="Google"
               className="w-5 h-5 group-hover:scale-110 transition-transform"
             />
-
             <span>
               {loading
-                ? (language === 'bn' ? 'অপেক্ষা করুন...' : 'Please wait...')
-                : (language === 'bn' ? 'গুগল (Google) দিয়ে ১-ক্লিকে প্রবেশ' : 'Sign in with Google (1-Click)')}
+                ? language === 'bn'
+                  ? 'অপেক্ষা করুন...'
+                  : 'Please wait...'
+                : language === 'bn'
+                ? 'গুগল (Google) দিয়ে ১-ক্লিকে প্রবেশ'
+                : 'Sign in with Google (1-Click)'}
             </span>
-
           </button>
 
           <div className="relative flex items-center py-2 mb-5">
-
             <div className="flex-grow border-t border-gray-200" />
-
             <span className="flex-shrink-0 mx-3 text-gray-400 text-xs font-semibold uppercase tracking-wider">
-              {language === 'bn' ? 'অথবা নাম্বার / ইমেইল দিয়ে' : 'Or with Phone / Email'}
+              {language === 'bn' ? 'অথবা ইমেইল ও পিন দিয়ে' : 'Or with Email & PIN'}
             </span>
-
             <div className="flex-grow border-t border-gray-200" />
-
           </div>
 
-          <form
-            onSubmit={handleAuthSubmit}
-            className="space-y-4"
-          >
+          {/* Main Auth Form */}
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {mode === 'register' ? (
+              <>
+                {/* 1. Full Name */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {language === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <UserPlus size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={language === 'bn' ? 'যেমন: মোঃ রফিকুল ইসলাম' : 'e.g. John Doe'}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                  </div>
+                </div>
 
-            {mode === 'register' && (
-              <div>
+                {/* 2. Gmail / Email */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <Mail size={18} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1 pl-1">
+                    {language === 'bn'
+                      ? 'লগইন এবং ভবিষ্যতে পিন রিসেট করার জন্য এই ইমেইলটি ব্যবহার হবে।'
+                      : 'This email will be used for login and PIN reset.'}
+                  </p>
+                </div>
 
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  {language === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
-                </label>
+                {/* 3. 6-digit PIN */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {language === 'bn' ? '৬-ডিজিটের পিন (PIN)' : '6-Digit PIN'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      maxLength={6}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={language === 'bn' ? '৬ ডিজিটের পিন (যেমন: 123456)' : '6-digit PIN (e.g. 123456)'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                      title={showPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
 
-                <div className="relative">
+                {/* 4. Confirm 6-digit PIN */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {language === 'bn' ? 'পিন নিশ্চিত করুন (Confirm PIN)' : 'Confirm PIN'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      maxLength={6}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={language === 'bn' ? 'একই ৬ ডিজিটের পিন পুনরায় লিখুন' : 'Re-enter same 6-digit PIN'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                      title={showConfirmPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* LOGIN FORM */}
+                {/* 1. Gmail / Email */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <Mail size={18} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                  </div>
+                </div>
 
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <UserPlus size={18} />
+                {/* 2. 6-digit PIN */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      {language === 'bn' ? '৬-ডিজিটের পিন (PIN)' : '6-Digit PIN'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetEmail(email.trim());
+                        setResetErrorMessage(null);
+                        setResetSuccessMessage(null);
+                        setResetStep('input');
+                        setIsForgotModalOpen(true);
+                      }}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                    >
+                      {language === 'bn' ? 'পিন ভুলে গেছেন?' : 'Forgot PIN?'}
+                    </button>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder={language === 'bn' ? "যেমন: মোঃ রফিকুল ইসলাম" : "e.g. John Doe"}
-                    value={name}
-                    onChange={(e) =>
-                      setName(e.target.value)
-                    }
-                    className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                    required
-                  />
-
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      maxLength={6}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={language === 'bn' ? '৬ ডিজিটের পিন (যেমন: 123456)' : '6-digit PIN (e.g. 123456)'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                      title={showPassword ? (language === 'bn' ? 'পিন লুকান' : 'Hide PIN') : language === 'bn' ? 'পিন দেখুন' : 'Show PIN'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
-
-              </div>
+              </>
             )}
-
-            <div>
-
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                {language === 'bn' ? 'মোবাইল নাম্বার অথবা ইমেইল' : 'Mobile Number or Email'}
-              </label>
-
-              <div className="relative">
-
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-
-                  {identifier.includes('@')
-                    ? <Mail size={18} />
-                    : <Smartphone size={18} />}
-
-                </div>
-
-                <input
-                  type="text"
-                  placeholder={language === 'bn' ? "যেমন: 017XXXXXXXX অথবা your@gmail.com" : "e.g. 017XXXXXXXX or your@email.com"}
-                  value={identifier}
-                  onChange={(e) =>
-                    setIdentifier(e.target.value)
-                  }
-                  className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                  required
-                />
-
-              </div>
-
-              <p className="text-[11px] text-gray-400 mt-1 pl-1">
-                {language === 'bn' 
-                  ? 'সহজেই মোবাইল নাম্বার অথবা ইমেইল দিয়ে কাজ করুন।' 
-                  : 'Use your phone number or email address.'}
-              </p>
-
-            </div>
-
-            <div>
-
-              <div className="flex items-center justify-between mb-1.5">
-
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                  {language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
-                </label>
-
-                {mode === 'login' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const isEmail = identifier.includes('@');
-                      setResetTab(isEmail ? 'email' : (identifier.trim().length > 0 ? 'phone' : 'email'));
-                      setResetIdentifier(identifier);
-                      setResetErrorMessage(null);
-                      setResetSuccessMessage(null);
-                      setResetStep('input');
-                      setIsForgotModalOpen(true);
-                    }}
-                    className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                  >
-                    {language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
-                  </button>
-                )}
-
-              </div>
-
-              <div className="relative">
-
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <Lock size={18} />
-                </div>
-
-                <input
-                  type={
-                    showPassword
-                      ? 'text'
-                      : 'password'
-                  }
-                  placeholder={language === 'bn' ? "৪ ডিজিটের পিন বা পাসওয়ার্ড (যেমন: 1234)" : "4-digit PIN or password (e.g. 1234)"}
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
-                  className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                  required
-                />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowPassword(!showPassword)
-                  }
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                  title={
-                    showPassword
-                      ? (language === 'bn' ? 'পাসওয়ার্ড লুকান' : 'Hide password')
-                      : (language === 'bn' ? 'পাসওয়ার্ড দেখুন' : 'Show password')
-                  }
-                >
-                  {showPassword
-                    ? <EyeOff size={18} />
-                    : <Eye size={18} />}
-                </button>
-
-              </div>
-
-            </div>
 
             <button
               type="submit"
               disabled={loading}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
             >
-
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1289,39 +1021,28 @@ export default function Login() {
                   {language === 'bn' ? 'লগইন করে খামারে প্রবেশ করুন' : 'Sign In to Farm'}
                 </span>
               )}
-
             </button>
-
           </form>
-
         </div>
 
         <div className="bg-gray-50 border-t border-gray-100 p-4 text-center">
-
           <p className="text-xs text-gray-500">
-
             {language === 'bn' ? 'লগইন করার মাধ্যমে আপনি আমাদের ' : 'By signing in, you agree to our '}
-
             <Link
               to="/privacy-policy"
               className="text-emerald-700 font-semibold hover:underline"
             >
               {language === 'bn' ? 'গোপনীয়তা নীতি (Privacy Policy)' : 'Privacy Policy'}
             </Link>
-
             {language === 'bn' ? ' মেনে নিচ্ছেন।' : '.'}
-
           </p>
-
         </div>
-
       </div>
 
+      {/* Forgot / Reset PIN Modal */}
       {isForgotModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
-
             <button
               onClick={() => {
                 setIsForgotModalOpen(false);
@@ -1350,22 +1071,38 @@ export default function Login() {
 
               <h3 className="text-lg font-black text-gray-800">
                 {resetStep === 'new_password'
-                  ? (language === 'bn' ? 'নতুন পাসওয়ার্ড / পিন দিন' : 'Set New Password / PIN')
+                  ? language === 'bn'
+                    ? 'নতুন পিন দিন'
+                    : 'Set New PIN'
                   : resetStep === 'success'
-                  ? (language === 'bn' ? 'পাসওয়ার্ড সফলভাবে সেট হয়েছে!' : 'Password Reset Successful!')
+                  ? language === 'bn'
+                    ? 'পিন সফলভাবে সেট হয়েছে!'
+                    : 'PIN Reset Successful!'
                   : resetStep === 'sent'
-                  ? (language === 'bn' ? 'যাচাইকরণ ও রিসেট তথ্য' : 'Verification & Reset Details')
-                  : (language === 'bn' ? 'পাসওয়ার্ড / পিন রিসেট' : 'Password / PIN Reset')}
+                  ? language === 'bn'
+                    ? 'রিসেট লিংক পাঠানো হয়েছে'
+                    : 'Reset Link Sent'
+                  : language === 'bn'
+                  ? 'পিন রিসেট করুন'
+                  : 'Reset PIN'}
               </h3>
 
               <p className="text-xs text-gray-500 mt-0.5">
                 {resetStep === 'new_password'
-                  ? (language === 'bn' ? 'আপনার অ্যাকাউন্টের জন্য নতুন ৪-সংখ্যার পিন বা পাসওয়ার্ড লিখুন' : 'Enter a new 4-digit PIN or password for your account')
+                  ? language === 'bn'
+                    ? 'আপনার অ্যাকাউন্টের জন্য নতুন ৬-সংখ্যার পিন লিখুন'
+                    : 'Enter a new 6-digit PIN for your account'
                   : resetStep === 'success'
-                  ? (language === 'bn' ? 'অভিনন্দন! আপনার নতুন পাসওয়ার্ড দিয়ে এখন খামারে প্রবেশ করুন' : 'Congratulations! You can now log in with your new password')
+                  ? language === 'bn'
+                    ? 'অভিনন্দন! আপনার নতুন পিন দিয়ে এখন খামারে প্রবেশ করুন'
+                    : 'Congratulations! You can now log in with your new PIN'
                   : resetStep === 'sent'
-                  ? (language === 'bn' ? 'নিচের নির্দেশনা অনুযায়ী আপনার অ্যাকাউন্ট উদ্ধার করুন' : 'Follow the instructions below to recover your account')
-                  : (language === 'bn' ? 'আপনার অ্যাকাউন্ট পুনরুদ্ধারের মাধ্যম বেছে নিন' : 'Select your account recovery method')}
+                  ? language === 'bn'
+                    ? 'আপনার জিমেইল ইনবক্স চেক করে পাসওয়ার্ড রিসেট করুন'
+                    : 'Check your Gmail inbox to reset your password'
+                  : language === 'bn'
+                  ? 'আপনার নিবন্ধিত জিমেইল ঠিকানা দিন'
+                  : 'Enter your registered Gmail address'}
               </p>
             </div>
 
@@ -1377,109 +1114,47 @@ export default function Login() {
               </div>
             )}
 
-            {/* STEP 1: INPUT IDENTIFIER */}
+            {/* STEP 1: INPUT EMAIL */}
             {resetStep === 'input' && (
               <div>
-                {/* Tab Selector: Email vs Phone */}
-                <div className="grid grid-cols-2 gap-1.5 bg-gray-100 p-1 rounded-2xl mb-4 text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetTab('email');
-                      setResetSuccessMessage(null);
-                      setResetErrorMessage(null);
-                    }}
-                    className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      resetTab === 'email'
-                        ? 'bg-white text-emerald-800 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Mail size={15} className={resetTab === 'email' ? 'text-emerald-600' : 'text-gray-400'} />
-                    <span>{language === 'bn' ? 'ইমেইল / জিমেইল' : 'Email / Gmail'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetTab('phone');
-                      setResetSuccessMessage(null);
-                      setResetErrorMessage(null);
-                    }}
-                    className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      resetTab === 'phone'
-                        ? 'bg-white text-emerald-800 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Smartphone size={15} className={resetTab === 'phone' ? 'text-emerald-600' : 'text-gray-400'} />
-                    <span>{language === 'bn' ? 'মোবাইল নম্বর' : 'Phone Number'}</span>
-                  </button>
-                </div>
-
                 <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                      {resetTab === 'email'
-                        ? (language === 'bn' ? 'নিবন্ধিত জিমেইল / ইমেইল' : 'Registered Email Address')
-                        : (language === 'bn' ? '১১ ডিজিটের মোবাইল নম্বর' : '11-Digit Mobile Number')}
+                      {language === 'bn' ? 'নিবন্ধিত জিমেইল / ইমেইল ঠিকানা' : 'Registered Gmail / Email Address'}
                     </label>
 
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                        {resetTab === 'email' ? <Mail size={18} /> : <Smartphone size={18} />}
+                        <Mail size={18} />
                       </div>
 
                       <input
-                        type={resetTab === 'email' ? 'email' : 'tel'}
-                        placeholder={
-                          resetTab === 'email'
-                            ? (language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com')
-                            : (language === 'bn' ? 'যেমন: 017XXXXXXXX' : 'e.g. 017XXXXXXXX')
-                        }
-                        value={resetIdentifier}
-                        onChange={(e) => setResetIdentifier(e.target.value)}
+                        type="email"
+                        placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
                         className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-gray-50/50 focus:bg-white"
                         required
                       />
                     </div>
                   </div>
 
-                  {resetTab === 'email' ? (
-                    <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-[11px] text-emerald-950 space-y-1.5">
-                      <p className="font-bold flex items-center gap-1.5 text-emerald-900">
-                        <Sparkles size={14} className="text-emerald-600" />
-                        {language === 'bn' ? 'ইমেইল রিসেট পদ্ধতি:' : 'Email Reset Instructions:'}
-                      </p>
-                      <p>
-                        {language === 'bn' 
-                          ? '• আপনার জিমেইল ঠিকানায় সরাসরি গুগলের পাসওয়ার্ড পরিবর্তনের লিংক যাবে।' 
-                          : '• A direct Google password reset link will be sent to your Gmail.'}
-                      </p>
-                      <p>
-                        {language === 'bn'
-                          ? '• লিংকে ক্লিক করে নতুন পাসওয়ার্ড দিলেই সাথে সাথে লগইন করতে পারবেন।'
-                          : '• Click the link in your email to set a new password and log in immediately.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80 text-[11px] text-emerald-950 space-y-1.5">
-                      <p className="font-bold flex items-center gap-1.5 text-emerald-900">
-                        <ShieldCheck size={14} className="text-emerald-600" />
-                        {language === 'bn' ? 'মোবাইল নম্বর ওটিপি ও পিন রিসেট:' : 'Mobile OTP & PIN Reset:'}
-                      </p>
-                      <p className="leading-relaxed">
-                        {language === 'bn'
-                          ? '• আপনার মোবাইল নম্বরে একটি ৬-ডিজিটের নিরাপদ Firebase OTP কোড পাঠানো হবে।'
-                          : '• A secure 6-digit Firebase OTP code will be sent to your phone.'}
-                      </p>
-                      <p className="leading-relaxed">
-                        {language === 'bn'
-                          ? '• ওটিপি কোড দিয়ে তাৎক্ষণিক নতুন ৪-ডিজিটের পিন সেট করে সরাসরি লগইন করতে পারবেন।'
-                          : '• Enter OTP to set a new 4-digit PIN and log in immediately.'}
-                      </p>
-                    </div>
-                  )}
+                  <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-[11px] text-emerald-950 space-y-1.5">
+                    <p className="font-bold flex items-center gap-1.5 text-emerald-900">
+                      <Sparkles size={14} className="text-emerald-600" />
+                      {language === 'bn' ? 'নিরাপদ রিসেট পদ্ধতি:' : 'Secure Reset Instructions:'}
+                    </p>
+                    <p>
+                      {language === 'bn'
+                        ? '• আপনার জিমেইল ঠিকানায় সরাসরি গুগলের পাসওয়ার্ড পরিবর্তনের লিংক যাবে।'
+                        : '• A direct Google password reset link will be sent to your Gmail.'}
+                    </p>
+                    <p>
+                      {language === 'bn'
+                        ? '• লিংকে ক্লিক করে নতুন ৬-ডিজিটের পিন দিলেই সাথে সাথে লগইন করতে পারবেন।'
+                        : '• Click the link in your email to set a new 6-digit PIN and log in immediately.'}
+                    </p>
+                  </div>
 
                   <div className="flex gap-2 pt-1">
                     <button
@@ -1499,107 +1174,18 @@ export default function Login() {
                       disabled={resetLoading}
                       className="flex-1 py-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all shadow-md shadow-emerald-700/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      {resetTab === 'email' ? <Mail size={15} /> : <Smartphone size={15} />}
+                      <Mail size={15} />
                       {resetLoading
-                        ? (language === 'bn' ? 'যাচাই হচ্ছে...' : 'Verifying...')
-                        : resetTab === 'email'
-                        ? (language === 'bn' ? 'রিসেট লিংক পাঠান' : 'Send Reset Link')
-                        : (language === 'bn' ? 'ওটিপি কোড পাঠান' : 'Send OTP Code')}
+                        ? language === 'bn'
+                          ? 'যাচাই হচ্ছে...'
+                          : 'Verifying...'
+                        : language === 'bn'
+                        ? 'রিসেট লিংক পাঠান'
+                        : 'Send Reset Link'}
                     </button>
                   </div>
                 </form>
               </div>
-            )}
-
-            {/* STEP: PHONE OTP VERIFICATION */}
-            {resetStep === 'phone_otp' && (
-              <form onSubmit={handleVerifyPhoneOtp} className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-xs text-emerald-950">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-emerald-900">
-                        {language === 'bn' ? 'মোবাইলে ওটিপি পাঠানো হয়েছে' : 'OTP Code Sent to Phone'}
-                      </p>
-                      <p className="text-emerald-700 text-[11px] font-semibold mt-0.5">
-                        {resetIdentifier}
-                      </p>
-                    </div>
-                    <Smartphone size={22} className="text-emerald-600 shrink-0" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                    {language === 'bn' ? '৬-ডিজিটের ওটিপি কোড লিখুন' : 'Enter 6-Digit OTP Code'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <KeyRound size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="• • • • • •"
-                      value={phoneOtpCode}
-                      onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-center text-lg tracking-widest font-black text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50/50 focus:bg-white"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs px-1">
-                  <button
-                    type="button"
-                    disabled={otpCountdown > 0 || resetLoading}
-                    onClick={handleForgotPasswordSubmit}
-                    className="text-emerald-700 font-semibold hover:underline disabled:opacity-50 disabled:no-underline cursor-pointer"
-                  >
-                    {otpCountdown > 0
-                      ? (language === 'bn' ? `পুনরায় কোড পাঠান (${otpCountdown}s)` : `Resend code (${otpCountdown}s)`)
-                      : (language === 'bn' ? 'কোড পাননি? পুনরায় পাঠান' : "Didn't receive code? Resend")}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetStep('input');
-                      setPhoneOtpCode('');
-                      setResetErrorMessage(null);
-                    }}
-                    className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer"
-                  >
-                    {language === 'bn' ? 'নম্বর পরিবর্তন' : 'Change Number'}
-                  </button>
-                </div>
-
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForgotModalOpen(false);
-                      setResetStep('input');
-                    }}
-                    className="flex-1 py-3 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all cursor-pointer"
-                  >
-                    {language === 'bn' ? 'বাতিল' : 'Cancel'}
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={resetLoading || phoneOtpCode.trim().length < 6}
-                    className="flex-1 py-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl transition-all shadow-md shadow-emerald-700/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle2 size={16} />
-                    {resetLoading
-                      ? (language === 'bn' ? 'যাচাই হচ্ছে...' : 'Verifying...')
-                      : (language === 'bn' ? 'ওটিপি যাচাই করুন' : 'Verify OTP')}
-                  </button>
-                </div>
-              </form>
             )}
 
             {/* STEP 2: EMAIL LINK SENT */}
@@ -1636,7 +1222,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => {
-                      setIdentifier(resetIdentifier);
+                      setEmail(resetEmail);
                       setIsForgotModalOpen(false);
                       setResetStep('input');
                     }}
@@ -1660,19 +1246,19 @@ export default function Login() {
               </div>
             )}
 
-            {/* STEP 3: SET NEW PASSWORD */}
+            {/* STEP 3: SET NEW PIN (via email reset link) */}
             {resetStep === 'new_password' && (
               <form onSubmit={handleNewPasswordSubmit} className="space-y-4">
-                {resetIdentifier && (
+                {resetEmail && (
                   <div className="bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2 text-xs text-gray-600 flex items-center justify-between">
                     <span className="font-medium">{language === 'bn' ? 'অ্যাকাউন্ট:' : 'Account:'}</span>
-                    <span className="font-bold text-gray-800 truncate max-w-[200px]">{resetIdentifier}</span>
+                    <span className="font-bold text-gray-800 truncate max-w-[200px]">{resetEmail}</span>
                   </div>
                 )}
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                    {language === 'bn' ? 'নতুন পাসওয়ার্ড / ৪-ডিজিটের পিন' : 'New Password / 4-Digit PIN'}
+                    {language === 'bn' ? 'নতুন ৬-ডিজিটের পিন' : 'New 6-Digit PIN'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -1680,9 +1266,12 @@ export default function Login() {
                     </div>
                     <input
                       type={showNewResetPassword ? 'text' : 'password'}
-                      placeholder={language === 'bn' ? 'নতুন পাসওয়ার্ড বা পিন লিখুন' : 'Enter new password or PIN'}
+                      maxLength={6}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={language === 'bn' ? '৬-ডিজিটের পিন লিখুন' : 'Enter 6-digit PIN'}
                       value={newResetPassword}
-                      onChange={(e) => setNewResetPassword(e.target.value)}
+                      onChange={(e) => setNewResetPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-gray-50/50 focus:bg-white"
                       required
                     />
@@ -1698,7 +1287,7 @@ export default function Login() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">
-                    {language === 'bn' ? 'নতুন পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm New Password'}
+                    {language === 'bn' ? 'নতুন পিন নিশ্চিত করুন' : 'Confirm New PIN'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
@@ -1706,9 +1295,12 @@ export default function Login() {
                     </div>
                     <input
                       type={showNewResetPassword ? 'text' : 'password'}
-                      placeholder={language === 'bn' ? 'একই পাসওয়ার্ড পুনরায় লিখুন' : 'Re-enter same password'}
+                      maxLength={6}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={language === 'bn' ? 'একই পিন পুনরায় লিখুন' : 'Re-enter same PIN'}
                       value={confirmResetPassword}
-                      onChange={(e) => setConfirmResetPassword(e.target.value)}
+                      onChange={(e) => setConfirmResetPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-gray-50/50 focus:bg-white"
                       required
                     />
@@ -1734,8 +1326,12 @@ export default function Login() {
                   >
                     <CheckCircle2 size={16} />
                     {resetLoading
-                      ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
-                      : (language === 'bn' ? 'পাসওয়ার্ড সংরক্ষণ করুন' : 'Save Password')}
+                      ? language === 'bn'
+                        ? 'সংরক্ষণ হচ্ছে...'
+                        : 'Saving...'
+                      : language === 'bn'
+                      ? 'পিন সংরক্ষণ করুন'
+                      : 'Save PIN'}
                   </button>
                 </div>
               </form>
@@ -1750,20 +1346,20 @@ export default function Login() {
 
                 <div>
                   <h4 className="font-bold text-gray-800 text-base mb-1">
-                    {language === 'bn' ? 'পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!' : 'Password Updated Successfully!'}
+                    {language === 'bn' ? 'পিন সফলভাবে আপডেট হয়েছে!' : 'PIN Updated Successfully!'}
                   </h4>
                   <p className="text-xs text-gray-500 max-w-xs mx-auto">
                     {language === 'bn'
-                      ? 'আপনার নতুন পিন/পাসওয়ার্ড দিয়ে এখন খামারে সরাসরি লগইন করতে পারেন।'
-                      : 'You can now log in to your farm account using your new PIN or password.'}
+                      ? 'আপনার নতুন ৬-সংখ্যার পিন দিয়ে এখন খামারে সরাসরি লগইন করতে পারেন।'
+                      : 'You can now log in to your farm account using your new 6-digit PIN.'}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
-                    if (resetIdentifier) {
-                      setIdentifier(resetIdentifier);
+                    if (resetEmail) {
+                      setEmail(resetEmail);
                     }
                     if (newResetPassword) {
                       setPassword(newResetPassword);
@@ -1779,15 +1375,9 @@ export default function Login() {
                 </button>
               </div>
             )}
-
           </div>
-
         </div>
       )}
-
-      {/* Invisible Firebase Phone Auth reCAPTCHA container */}
-      <div id="recaptcha-container"></div>
-
     </div>
   );
 }
