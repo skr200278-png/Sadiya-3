@@ -24,6 +24,12 @@ export interface PaymentNumbersConfig {
   rocket: string;
   rocketType: 'personal' | 'merchant';
   bankInfo: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankBranch?: string;
+  bankRoutingNumber?: string;
+  bankSwiftCode?: string;
   instructionsBn: string;
   instructionsEn: string;
 }
@@ -276,9 +282,15 @@ const DEFAULT_CONFIG: FeatureControls = {
     nagadType: 'personal',
     rocket: '01410991934',
     rocketType: 'personal',
-    bankInfo: 'সোনালী ব্যাংক / ডাচ-বাংলা ব্যাংক (প্রয়োজনে যোগাযোগ করুন)',
-    instructionsBn: 'বিকাশ/নগদ/রকেটে সেন্ড মানি (Send Money) করে ট্রানজেকশন আইডি (TrxID) ও প্রেরক নম্বর নিচে সাবমিট করুন অথবা হোয়াটসঅ্যাপে জানান।',
-    instructionsEn: 'Send Money via bKash/Nagad/Rocket and submit the Sender Mobile & TrxID below or message on WhatsApp.'
+    bankInfo: 'Dutch-Bangla Bank / Sonali Bank / Islami Bank',
+    bankName: 'Dutch-Bangla Bank PLC / Sonali Bank PLC',
+    bankAccountName: 'Md. Abu Sufian',
+    bankAccountNumber: '123.101.456789',
+    bankBranch: 'Main Branch, Dhaka',
+    bankRoutingNumber: '090260123',
+    bankSwiftCode: 'DBBLBDDH',
+    instructionsBn: 'বিকাশ/নগদ/রকেট বা ব্যাংকে সরাসরি ট্রান্সফার/রেমিট্যান্স পাঠিয়ে ট্রানজেকশন আইডি (TrxID) ও ডিপোজিট স্লিপ সাবমিট করুন অথবা হোয়াটসঅ্যাপে জানান।',
+    instructionsEn: 'Send payment via bKash/Nagad/Rocket or Bank Transfer/Remittance and submit your TrxID or receipt on WhatsApp.'
   },
   adminWhatsApp: '8801410991934',
   adminPhone: '01410991934',
@@ -299,6 +311,7 @@ interface SystemConfigContextType {
   userSubscription: UserSubscription | null;
   plans: SubscriptionPlan[];
   pendingRequests: PaymentRequest[];
+  allRequests: PaymentRequest[];
   hasAccess: (feature: keyof Omit<FeatureControls, 'whitelistedUsers' | 'paymentNumbers' | 'adminWhatsApp' | 'adminPhone' | 'adminEmail' | 'adminName' | 'disclaimerTextBn' | 'disclaimerTextEn' | 'subscriptionNoticeBn' | 'subscriptionNoticeEn'>) => boolean;
   updateConfig: (newConfig: Partial<FeatureControls>) => Promise<boolean>;
   addUserToWhitelist: (identifier: string) => Promise<boolean>;
@@ -306,6 +319,7 @@ interface SystemConfigContextType {
   submitPaymentRequest: (requestData: Omit<PaymentRequest, 'status' | 'createdAt'>) => Promise<boolean>;
   approvePaymentRequest: (requestId: string, targetUserId: string, durationDays: number, planId?: string) => Promise<boolean>;
   rejectPaymentRequest: (requestId: string, adminNotes?: string) => Promise<boolean>;
+  deletePaymentRequest: (requestId: string) => Promise<boolean>;
   grantUserSubscription: (userIdOrPhone: string, planId: string, durationDays: number, isLifetime?: boolean) => Promise<boolean>;
   revokeUserSubscription: (userIdOrPhone: string) => Promise<boolean>;
   saveSubscriptionPlan: (plan: SubscriptionPlan) => Promise<boolean>;
@@ -376,6 +390,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLANS);
   const [pendingRequests, setPendingRequests] = useState<PaymentRequest[]>([]);
+  const [allRequests, setAllRequests] = useState<PaymentRequest[]>([]);
 
   // Modal State
   const [subscriptionModal, setSubscriptionModal] = useState<{
@@ -524,18 +539,16 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 5. If Admin, listen to pending payment requests
+  // 5. If Admin, listen to all payment requests
   useEffect(() => {
     if (!isAdmin) {
       setPendingRequests([]);
+      setAllRequests([]);
       return;
     }
 
     try {
-      const reqQuery = query(
-        collection(db, 'payment_requests'), 
-        where('status', '==', 'pending')
-      );
+      const reqQuery = collection(db, 'payment_requests');
       const unsub = onSnapshot(reqQuery, (snapshot) => {
         const list = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -543,9 +556,10 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         } as PaymentRequest));
         // Sort newest first
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setPendingRequests(list);
+        setAllRequests(list);
+        setPendingRequests(list.filter(r => r.status === 'pending'));
       }, (err) => {
-        console.warn("Pending payment requests sync notice:", err);
+        console.warn("Payment requests sync notice:", err);
       });
 
       return () => unsub();
@@ -811,6 +825,20 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Delete Payment Request (Admin action)
+  const deletePaymentRequest = async (requestId: string): Promise<boolean> => {
+    if (!isAdmin) return false;
+    try {
+      await deleteDoc(doc(db, 'payment_requests', requestId));
+      toast.success('পেমেন্ট রিকোয়েস্ট রেকর্ড মুছে ফেলা হয়েছে');
+      return true;
+    } catch (err) {
+      console.error("Delete request error:", err);
+      toast.error('মুছে ফেলা যায়নি');
+      return false;
+    }
+  };
+
   // Revoke VIP subscription (Admin action)
   const revokeUserSubscription = async (userIdOrPhone: string): Promise<boolean> => {
     if (!isAdmin) return false;
@@ -821,7 +849,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
       // 1. Remove from whitelist
       await removeUserFromWhitelist(clean);
 
-      // 2. Revoke subscription document if UID
+      // 2. Revoke subscription document if UID or query
       if (clean.length > 15) {
         try {
           const subRef = doc(db, 'subscriptions', clean);
@@ -832,7 +860,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         } catch (e) {}
       }
 
-      toast.success(`সাবস্ক্রিপশন বাতিল করা হয়েছে (${clean})`);
+      toast.success(`সাবস্ক্রিপশন বাতিল ও মুছে ফেলা হয়েছে (${clean})`);
       return true;
     } catch (err) {
       toast.error('বাতিল করা যায়নি');
@@ -894,6 +922,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         userSubscription,
         plans,
         pendingRequests,
+        allRequests,
         hasAccess,
         updateConfig,
         addUserToWhitelist,
@@ -901,6 +930,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         submitPaymentRequest,
         approvePaymentRequest,
         rejectPaymentRequest,
+        deletePaymentRequest,
         grantUserSubscription,
         revokeUserSubscription,
         saveSubscriptionPlan,
