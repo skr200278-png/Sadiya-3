@@ -3,7 +3,8 @@ import { collection, query, where, getDocs, addDoc, doc, deleteDoc } from 'fireb
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, LineChart as ChartIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -21,9 +22,22 @@ export default function Feed() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
   
+  const [searchParams] = useSearchParams();
   const [feedTab, setFeedTab] = useState<'records' | 'fcr' | 'plan'>('records');
   const [showForm, setShowForm] = useState(false);
   const [batchId, setBatchId] = useState('');
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'fcr') setFeedTab('fcr');
+    else if (tabParam === 'plan') setFeedTab('plan');
+    else if (tabParam === 'records') setFeedTab('records');
+
+    const batchParam = searchParams.get('batchId');
+    if (batchParam) {
+      setBatchId(batchParam);
+    }
+  }, [searchParams]);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [quantityBags, setQuantityBags] = useState('');
   const [pricePerBag, setPricePerBag] = useState('');
@@ -297,8 +311,8 @@ export default function Feed() {
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <Calculator size={14} />
-            <span>{language === 'bn' ? '📉 অটো FCR' : 'FCR Tool'}</span>
+            <ChartIcon size={14} />
+            <span>{language === 'bn' ? '📉 FCR গ্রাফ' : 'FCR Graph'}</span>
           </button>
 
           <button
@@ -330,7 +344,7 @@ export default function Feed() {
               >
                 {activeBatches.map(b => (
                   <option key={b.id} value={b.id}>
-                    {b.batchName} ({b.farmType === 'cattle' ? 'গবাদিপশু' : b.farmType === 'fish' ? 'মৎস্য' : 'পোল্ট্রি'})
+                    {b.batchName} ({b.farmType === 'cattle' ? (language === 'bn' ? 'ছাগল ও পশু' : 'Cattle/Goat') : b.farmType === 'fish' ? (language === 'bn' ? 'মাছ' : 'Fish') : (language === 'bn' ? 'মুরগী ও পাখি' : 'Chicken/Birds')})
                   </option>
                 ))}
               </select>

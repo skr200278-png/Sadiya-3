@@ -77,6 +77,7 @@ export default function PrivacyPolicy() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-emerald-200 mt-3 pt-3 border-t border-white/15">
             <span>📅 <strong>Effective:</strong> March 2025</span>
             <span>🔄 <strong>Updated:</strong> August 2026</span>
+            <span>🏢 <strong>Developer:</strong> H-Novas</span>
             <span>🌐 <strong>URL:</strong> https://polty-e357c.web.app/privacy-policy.html</span>
           </div>
         </div>
@@ -146,7 +147,10 @@ export default function PrivacyPolicy() {
             </div>
 
             <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl space-y-2">
-              <h3 className="text-sm font-bold text-emerald-950">যোগাযোগের ঠিকানা</h3>
+              <h3 className="text-sm font-bold text-emerald-950">যোগাযোগ ও ডেভেলপার তথ্য</h3>
+              <p className="text-xs text-emerald-800">
+                ডেভেলপার: <strong>H-Novas</strong>
+              </p>
               <p className="text-xs text-emerald-800">
                 ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | মোবাইল: <strong>01410991934</strong>
               </p>
@@ -218,7 +222,10 @@ export default function PrivacyPolicy() {
             </div>
 
             <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl space-y-2">
-              <h3 className="text-sm font-bold text-emerald-950">Official Contact</h3>
+              <h3 className="text-sm font-bold text-emerald-950">Official Contact & Developer</h3>
+              <p className="text-xs text-emerald-800">
+                Developer: <strong>H-Novas</strong>
+              </p>
               <p className="text-xs text-emerald-800">
                 Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | Phone: <strong>01410991934 (+8801410991934)</strong>
               </p>

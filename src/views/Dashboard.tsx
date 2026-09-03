@@ -701,14 +701,23 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Direct CTA button to Batches & FCR */}
-          <Link
-            to="/batches"
-            className="w-full py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            {language === 'bn' ? 'সকল ব্যাচ ও FCR এনালাইটিক্স' : 'All Batches & FCR Analytics'}
-            <ChevronRight size={13} />
-          </Link>
+          {/* Direct CTA buttons to Batches & FCR Graph */}
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <Link
+              to="/batches"
+              className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <Package size={13} />
+              <span>{language === 'bn' ? 'সকল ব্যাচ' : 'All Batches'}</span>
+            </Link>
+            <Link
+              to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
+              className="py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <TrendingUp size={13} />
+              <span>{language === 'bn' ? '📉 FCR গ্রাফ' : 'FCR Graph'}</span>
+            </Link>
+          </div>
         </div>
       ) : (
         /* Empty Batch State */

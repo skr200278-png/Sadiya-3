@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign } from 'lucide-react';
+import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
@@ -652,13 +652,24 @@ export default function Batches() {
               <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
                 {batch.status === 'active' ? (
                   <>
-                    <button
-                      onClick={() => handleActivateOnDashboard(batch)}
-                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <LayoutDashboard size={13} />
-                      <span>{language === 'bn' ? 'ড্যাশবোর্ডে দেখুন' : 'View on Dashboard'}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => handleActivateOnDashboard(batch)}
+                        className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <LayoutDashboard size={13} />
+                        <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
+                        className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title={language === 'bn' ? 'সাপ্তাহিক ও মাসিক FCR গ্রাফ দেখুন' : 'View FCR Graph'}
+                      >
+                        <ChartIcon size={13} />
+                        <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
+                      </button>
+                    </div>
 
                     <button 
                       onClick={() => setCompleteBatchId(batch.id)} 
