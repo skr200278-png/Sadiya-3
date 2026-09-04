@@ -17,6 +17,18 @@ export default function Layout() {
   const location = useLocation();
   const [profileData, setProfileData] = useState<any>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (isDemoUser) {
@@ -100,6 +112,18 @@ export default function Layout() {
           </Link>
         </div>
       </header>
+
+      {/* Offline Status Alert */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-slate-950 px-3 py-1.5 text-center text-xs font-black flex items-center justify-center gap-1.5 shadow-xs sticky top-[52px] z-19">
+          <AlertTriangle size={14} className="text-slate-950 shrink-0" />
+          <span>
+            {language === 'bn' 
+              ? 'অফলাইন মোড সক্রিয়: ডাটা নিরাপদে লোকাল মেমরিতে জমা হচ্ছে, ইন্টারনেট এলে সিঙ্ক হবে।' 
+              : 'Offline Mode Active: Data is saved locally and will sync when online.'}
+          </span>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 p-3 sm:p-4 max-w-2xl mx-auto w-full">

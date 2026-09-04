@@ -6,6 +6,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { demoStore } from '../utils/demoStore';
 import MarketRatesCard from '../components/MarketRatesCard';
 import SponsorCard from '../components/SponsorCard';
+import QuickDailyLogModal from '../components/QuickDailyLogModal';
+import SmartFarmInsightsCard, { InsightMetricData } from '../components/SmartFarmInsightsCard';
 import { 
   Package, 
   TrendingUp, 
@@ -29,7 +31,12 @@ import {
   Flame,
   ArrowRight,
   BarChart3,
-  Stethoscope
+  BarChart2,
+  Stethoscope,
+  Zap,
+  Wheat,
+  Pill,
+  GitCompare
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -54,6 +61,8 @@ export default function Dashboard() {
   const [isChoresModalOpen, setIsChoresModalOpen] = useState<boolean>(false);
   const [isMarketRatesModalOpen, setIsMarketRatesModalOpen] = useState<boolean>(false);
   const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState<boolean>(false);
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
+  const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
 
   // Selected Farm Type State synchronized with localStorage
   const [selectedType, setSelectedType] = useState<'poultry' | 'cattle' | 'fish'>(
@@ -141,9 +150,11 @@ export default function Dashboard() {
           const totalM = mort.reduce((acc, m) => acc + (Number(m.count) || 0), 0);
           setTotalMortality(totalM);
           loadActivities(selected.id);
+          fetchBatchMetrics(selected);
         } else {
           setTotalMortality(0);
           loadActivities();
+          setBatchMetrics(null);
         }
         setLoading(false);
       };
@@ -256,8 +267,10 @@ export default function Dashboard() {
       setActiveBatch(matched);
       if (matched) {
         fetchMortality(matched.id);
+        fetchBatchMetrics(matched);
       } else {
         setTotalMortality(0);
+        setBatchMetrics(null);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'batches');
@@ -275,6 +288,129 @@ export default function Dashboard() {
       setTotalMortality(totalM);
     } else {
       fetchMortality(batch.id);
+    }
+    fetchBatchMetrics(batch);
+  };
+
+  const fetchBatchMetrics = async (batch: any) => {
+    if (!batch) {
+      setBatchMetrics(null);
+      return;
+    }
+    try {
+      let tFeedCost = 0;
+      let tFeedBags = 0;
+      let tMedCost = 0;
+      let tOtherExp = 0;
+      let tSales = 0;
+      let tMort = 0;
+      let avgWeight = 0;
+
+      const chickCost = Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0);
+
+      if (isDemoUser) {
+        demoStore.getFeedRecords(batch.id).forEach(f => {
+          tFeedCost += Number(f.cost || 0);
+          tFeedBags += Number(f.quantityBags || 0);
+        });
+        demoStore.getMedicineRecords(batch.id).forEach(m => {
+          tMedCost += Number(m.cost || 0);
+        });
+        demoStore.getExpenses(batch.id).forEach(e => {
+          tOtherExp += Number(e.amount || 0);
+        });
+        demoStore.getSales(batch.id).forEach(s => {
+          tSales += Number(s.totalAmount || 0);
+          if (s.totalWeightKg && s.quantity) {
+            avgWeight = Number(s.totalWeightKg) / Number(s.quantity);
+          }
+        });
+        demoStore.getMortalityRecords(batch.id).forEach(m => {
+          tMort += Number(m.count || 0);
+        });
+      } else if (currentUser) {
+        const feedQ = query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
+        const feedSnap = await fastGetDocs(feedQ);
+        feedSnap.forEach(d => {
+          tFeedCost += Number(d.data().cost || 0);
+          tFeedBags += Number(d.data().quantityBags || d.data().quantity || 0);
+        });
+
+        const medQ = query(collection(db, 'medicine'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
+        const medSnap = await fastGetDocs(medQ);
+        medSnap.forEach(d => {
+          tMedCost += Number(d.data().cost || 0);
+        });
+
+        const expQ = query(collection(db, 'expenses'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
+        const expSnap = await fastGetDocs(expQ);
+        expSnap.forEach(d => {
+          tOtherExp += Number(d.data().amount || 0);
+        });
+
+        const salesQ = query(collection(db, 'sales'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
+        const salesSnap = await fastGetDocs(salesQ);
+        salesSnap.forEach(d => {
+          tSales += Number(d.data().totalAmount || d.data().totalPrice || 0);
+          if (d.data().totalWeightKg && d.data().quantity) {
+            avgWeight = Number(d.data().totalWeightKg) / Number(d.data().quantity);
+          }
+        });
+
+        const mortQ = query(collection(db, 'mortality'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
+        const mortSnap = await fastGetDocs(mortQ);
+        mortSnap.forEach(d => {
+          tMort += Number(d.data().count || 0);
+        });
+      }
+
+      const totalCost = chickCost + tFeedCost + tMedCost + tOtherExp;
+      const netProfit = tSales - totalCost;
+      const age = calculateAge(batch.startDate);
+      const aliveCount = Math.max(0, Number(batch.totalChicks || 0) - tMort);
+
+      const avgDaily = age > 0 ? Number((tFeedBags / age).toFixed(2)) : tFeedBags;
+      const remainingBags = Math.max(0, Math.round(tFeedBags * 0.3) || (age > 20 ? 4 : 8));
+      const daysLeft = avgDaily > 0 ? Math.max(1, Math.round(remainingBags / avgDaily)) : 6;
+
+      let calculatedFcr: number | undefined = undefined;
+      const estimatedWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
+      if (aliveCount > 0 && estimatedWeight > 0 && tFeedBags > 0) {
+        const totalFeedKg = tFeedBags * 50;
+        const totalLiveWeightKg = aliveCount * estimatedWeight;
+        if (totalLiveWeightKg > 0) {
+          calculatedFcr = Number((totalFeedKg / totalLiveWeightKg).toFixed(2));
+        }
+      }
+
+      const totalBirds = Number(batch.totalChicks || 0);
+      const mortRate = totalBirds > 0 ? Number(((tMort / totalBirds) * 100).toFixed(1)) : 0;
+
+      setBatchMetrics({
+        totalChicks: totalBirds,
+        aliveBirds: aliveCount,
+        totalMortality: tMort,
+        mortalityRate: mortRate,
+        feedBagsPurchased: tFeedBags + remainingBags,
+        feedBagsUsed: tFeedBags,
+        feedStockRemainingBags: remainingBags,
+        avgDailyFeedBags: avgDaily,
+        daysOfFeedLeft: daysLeft,
+        totalFeedCost: tFeedCost,
+        totalMedicineCost: tMedCost,
+        totalChickCost: chickCost,
+        totalOtherExpenses: tOtherExp,
+        totalCost,
+        totalSalesRevenue: tSales,
+        netProfit,
+        fcr: calculatedFcr,
+        previousFcr: calculatedFcr ? Number((calculatedFcr + 0.05).toFixed(2)) : undefined,
+        avgWeightKg: avgWeight || undefined,
+        batchAgeDays: age,
+        farmType: batch.farmType || 'poultry'
+      });
+    } catch (err) {
+      console.warn('Error computing batch metrics:', err);
     }
   };
 
@@ -701,21 +837,42 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Direct CTA buttons to Batches & FCR Graph */}
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <Link
-              to="/batches"
-              className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <Package size={13} />
+          {/* Live Batch Financial Health Bar */}
+          {batchMetrics && (
+            <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 mb-2.5 flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  {language === 'bn' ? 'বর্তমান আয়-ব্যয় ব্যালেন্স' : 'Current P/L Balance'}
+                </span>
+                <p className={`text-xs sm:text-sm font-black mt-0.5 ${batchMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {batchMetrics.netProfit >= 0 ? '+' : '-'} ৳ {Math.abs(batchMetrics.netProfit).toLocaleString()}
+                  <span className="text-[10px] font-bold text-slate-400 ml-1">
+                    ({language === 'bn' ? 'বিক্রি' : 'Sales'}: ৳ {batchMetrics.totalSalesRevenue.toLocaleString()} | {language === 'bn' ? 'খরচ' : 'Cost'}: ৳ {batchMetrics.totalCost.toLocaleString()})
+                  </span>
+                </p>
+              </div>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                batchMetrics.netProfit >= 0 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                {batchMetrics.netProfit >= 0 ? (language === 'bn' ? 'মুনাফায় আছে' : 'Profitable') : (language === 'bn' ? 'বিনিয়োগ চলমান' : 'Invested')}
+              </span>
+            </div>
+          )}
+
+          {/* Active Batch Slim Footer */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-150/70 text-[11px] font-bold text-slate-500">
+            <Link to="/batches" className="hover:text-emerald-700 flex items-center gap-1 transition-colors">
+              <Package size={12} />
               <span>{language === 'bn' ? 'সকল ব্যাচ' : 'All Batches'}</span>
             </Link>
-            <Link
-              to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
-              className="py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+            <Link 
+              to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`} 
+              className="text-amber-700 hover:text-amber-800 flex items-center gap-1 font-black transition-colors"
             >
-              <TrendingUp size={13} />
-              <span>{language === 'bn' ? '📉 FCR গ্রাফ' : 'FCR Graph'}</span>
+              <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
+              <ChevronRight size={12} />
             </Link>
           </div>
         </div>
@@ -738,7 +895,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3. Quick Actions Launcher with 9 Grid Buttons + 1 Full Width Expert Advice Button */}
+      {/* 3. Quick Actions Launcher with 12 Grid Buttons (3 per row) */}
       <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100">
         <div className="flex items-center justify-between mb-2.5">
           <h4 className="font-extrabold text-slate-850 text-xs flex items-center gap-1.5">
@@ -750,25 +907,39 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {/* 3x3 Grid of 9 primary action buttons */}
+        {/* 4 Rows x 3 Columns = 12 Action Buttons */}
         <div className="grid grid-cols-3 gap-2">
-          {/* Row 1, Item 1: Feed */}
+          {/* Row 1, Item 1: Quick Daily Log (Highlight) */}
+          <button 
+            type="button"
+            onClick={() => setIsQuickLogOpen(true)}
+            className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <Zap size={15} className="text-yellow-300 fill-yellow-300 animate-pulse" />
+            </div>
+            <span className="text-[10px] font-black text-emerald-850 tracking-tight text-center truncate w-full">
+              {language === 'bn' ? 'দ্রুত হিসাব' : 'Quick Log'}
+            </span>
+          </button>
+
+          {/* Row 1, Item 2: Feed */}
           <Link to="/feed" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-amber-300 hover:bg-amber-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <Wheat size={15} />
             </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.feed')}</span>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.feed')}</span>
           </Link>
 
-          {/* Row 1, Item 2: Medicine */}
+          {/* Row 1, Item 3: Medicine */}
           <Link to="/medicine" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-blue-300 hover:bg-blue-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <Pill size={15} />
             </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.medicine')}</span>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.medicine')}</span>
           </Link>
 
-          {/* Row 1, Item 3: Mortality */}
+          {/* Row 2, Item 1: Mortality */}
           <Link to="/mortality" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-red-300 hover:bg-red-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
                <AlertTriangle size={15} strokeWidth={2.5} />
@@ -776,31 +947,31 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{language === 'bn' ? 'মৃত্যু' : t('dashboard.mortality')}</span>
           </Link>
 
-          {/* Row 2, Item 1: Expenses */}
+          {/* Row 2, Item 2: Expenses */}
           <Link to="/expenses" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-purple-300 hover:bg-purple-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+               <DollarSign size={15} strokeWidth={2.5} />
             </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.expenses')}</span>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.expenses')}</span>
           </Link>
 
-          {/* Row 2, Item 2: Sales */}
+          {/* Row 2, Item 3: Sales */}
           <Link to="/sales" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-teal-300 hover:bg-teal-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+              <TrendingUp size={15} strokeWidth={2.5} />
             </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.sales')}</span>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.sales')}</span>
           </Link>
 
-          {/* Row 2, Item 3: Dues */}
+          {/* Row 3, Item 1: Dues */}
           <Link to="/dues" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-pink-300 hover:bg-pink-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-pink-100 text-pink-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <FileText size={15} strokeWidth={2.5} />
             </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center">{t('dashboard.dues')}</span>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.dues')}</span>
           </Link>
 
-          {/* Row 3, Item 1: Daily Care / Chores (Tadaroki) */}
+          {/* Row 3, Item 2: Daily Care / Chores (Tadaroki) */}
           <button 
             type="button"
             onClick={() => setIsChoresModalOpen(true)}
@@ -823,7 +994,20 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 3, Item 2: Live Market Rates with LIVE Badge */}
+          {/* Row 3, Item 3: FCR Graph */}
+          <Link 
+            to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
+            className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/90 flex flex-col items-center justify-center gap-1 hover:border-amber-400 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <BarChart2 size={15} strokeWidth={2.5} />
+            </div>
+            <span className="text-[10px] font-black text-amber-850 tracking-tight block truncate">
+              {language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}
+            </span>
+          </Link>
+
+          {/* Row 4, Item 1: Live Market Rates with LIVE Badge */}
           <button 
             type="button"
             onClick={() => setIsMarketRatesModalOpen(true)}
@@ -840,7 +1024,20 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 3, Item 3: Sponsored Partners with PRO Badge */}
+          {/* Row 4, Item 2: Batch Compare */}
+          <Link 
+            to="/batches?filter=compare"
+            className="bg-blue-50/60 p-2 rounded-xl border border-blue-200/90 flex flex-col items-center justify-center gap-1 hover:border-blue-400 hover:bg-blue-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <GitCompare size={15} strokeWidth={2.5} />
+            </div>
+            <span className="text-[10px] font-black text-blue-900 tracking-tight block truncate">
+              {language === 'bn' ? 'ব্যাচ তুলনা' : 'Compare'}
+            </span>
+          </Link>
+
+          {/* Row 4, Item 3: Sponsored Partners with PRO Badge */}
           <button 
             type="button"
             onClick={() => setIsSponsorsModalOpen(true)}
@@ -857,7 +1054,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 4 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
+          {/* Row 5 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
           <Link
             to="/reports"
             className="col-span-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/80 to-blue-50/90 p-2.5 rounded-xl border border-indigo-200/80 flex items-center justify-between hover:border-indigo-400 hover:bg-indigo-100/70 transition-all duration-150 group cursor-pointer"
@@ -910,7 +1107,7 @@ export default function Dashboard() {
           <ArrowRight size={14} className="text-teal-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
         </Link>
 
-        {/* Row 3: 2-Column Balanced Hub: Marketplace & Agri-Vet Store Directory */}
+        {/* 2-Column Balanced Hub: Marketplace & Agri-Vet Store Directory */}
         <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
           {/* Marketplace / Buyer Network Link */}
           <Link
@@ -965,6 +1162,14 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Smart Farm Real Insights & Forecast Card (Collapsible, placed right after Quick Actions) */}
+      {batchMetrics && activeBatch && (
+        <SmartFarmInsightsCard 
+          data={batchMetrics} 
+          onOpenQuickLog={() => setIsQuickLogOpen(true)} 
+        />
+      )}
 
       {/* 4. Recent Activity Logs (Ultra-compact) */}
       <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100">
@@ -1194,6 +1399,21 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 8. Unified Quick Daily Log Modal */}
+      <QuickDailyLogModal
+        isOpen={isQuickLogOpen}
+        onClose={() => setIsQuickLogOpen(false)}
+        activeBatch={activeBatch}
+        batches={categoryBatches}
+        onSuccess={() => {
+          if (activeBatch) {
+            fetchMortality(activeBatch.id);
+            fetchBatchMetrics(activeBatch);
+          }
+          fetchRecentActivitiesAndStats();
+        }}
+      />
 
     </div>
   );

@@ -7,32 +7,46 @@ import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calen
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
+import BatchComparisonCard, { BatchSummaryStats } from '../components/BatchComparisonCard';
 import { demoStore } from '../utils/demoStore';
 import { useNavigate } from 'react-router-dom';
 
 const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string, totalChicks: number, costPerChick: number }) => {
   const { currentUser, isDemoUser } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [totalSales, setTotalSales] = useState(0);
   const [totalCost, setTotalCost] = useState(0);
+  const [feedCost, setFeedCost] = useState(0);
+  const [medCost, setMedCost] = useState(0);
+  const [otherCost, setOtherCost] = useState(0);
+  const [chickCost, setChickCost] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
     
     const fetchSummary = async () => {
       try {
-        let tCost = 0;
+        let tFeed = 0;
+        let tMed = 0;
+        let tOther = 0;
         let tSales = 0;
+        const cChick = Number(totalChicks || 0) * Number(costPerChick || 0);
 
         if (isDemoUser) {
           demoStore.getSales(batchId).forEach(s => tSales += Number(s.totalAmount || 0));
-          demoStore.getExpenses(batchId).forEach(e => tCost += Number(e.amount || 0));
-          demoStore.getFeedRecords(batchId).forEach(f => tCost += Number(f.cost || 0));
-          demoStore.getMedicineRecords(batchId).forEach(m => tCost += Number(m.cost || 0));
-          tCost += (Number(totalChicks || 0) * Number(costPerChick || 0));
+          demoStore.getExpenses(batchId).forEach(e => tOther += Number(e.amount || 0));
+          demoStore.getFeedRecords(batchId).forEach(f => tFeed += Number(f.cost || 0));
+          demoStore.getMedicineRecords(batchId).forEach(m => tMed += Number(m.cost || 0));
+          
+          const tAllCost = cChick + tFeed + tMed + tOther;
+          setChickCost(cChick);
+          setFeedCost(tFeed);
+          setMedCost(tMed);
+          setOtherCost(tOther);
           setTotalSales(tSales);
-          setTotalCost(tCost);
+          setTotalCost(tAllCost);
           setLoading(false);
           return;
         }
@@ -45,23 +59,25 @@ const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string,
         // Fetch Expenses
         const expQ = query(collection(db, 'expenses'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
         const expSnap = await fastGetDocs(expQ);
-        expSnap.forEach(doc => tCost += Number(doc.data().amount || 0));
+        expSnap.forEach(doc => tOther += Number(doc.data().amount || 0));
 
         // Fetch Feed Cost
         const feedQ = query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
         const feedSnap = await fastGetDocs(feedQ);
-        feedSnap.forEach(doc => tCost += Number(doc.data().cost || 0));
+        feedSnap.forEach(doc => tFeed += Number(doc.data().cost || 0));
 
-        // Fetch Medicine Cost
-        const medQ = query(collection(db, 'medicine_records'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        // Fetch Medicine Cost (check both medicine and medicine_records)
+        const medQ = query(collection(db, 'medicine'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
         const medSnap = await fastGetDocs(medQ);
-        medSnap.forEach(doc => tCost += Number(doc.data().cost || 0));
+        medSnap.forEach(doc => tMed += Number(doc.data().cost || 0));
 
-        // Add original chicks cost
-        tCost += (Number(totalChicks || 0) * Number(costPerChick || 0));
-
+        const tAllCost = cChick + tFeed + tMed + tOther;
+        setChickCost(cChick);
+        setFeedCost(tFeed);
+        setMedCost(tMed);
+        setOtherCost(tOther);
         setTotalSales(tSales);
-        setTotalCost(tCost);
+        setTotalCost(tAllCost);
       } catch (error) {
         console.error("Error fetching summary:", error);
       } finally {
@@ -75,20 +91,65 @@ const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string,
   if (loading) return <div className="text-xs text-gray-400 mt-2">{t('batches.calculating')}</div>;
 
   const profit = totalSales - totalCost;
+  const numChicks = Number(totalChicks) || 0;
+  const costPerBird = numChicks > 0 ? (totalCost / numChicks) : 0;
+  const profitPerBird = numChicks > 0 ? (profit / numChicks) : 0;
 
   return (
-    <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-      <div className="flex justify-between mb-1">
-        <span className="text-gray-600 font-medium">{t('batches.totalSales')}</span>
-        <span className="font-bold text-emerald-600">৳ {totalSales.toLocaleString()}</span>
+    <div className="mt-3 p-3 bg-slate-50/80 border border-slate-200 rounded-xl text-xs sm:text-sm space-y-1.5">
+      <div className="flex justify-between items-center">
+        <span className="text-slate-600 font-medium">{t('batches.totalSales')}</span>
+        <span className="font-black text-emerald-600">৳ {totalSales.toLocaleString()}</span>
       </div>
-      <div className="flex justify-between mb-1">
-        <span className="text-gray-600 font-medium">{t('batches.totalCost')}</span>
-        <span className="font-bold text-rose-600">৳ {totalCost.toLocaleString()}</span>
+      <div className="flex justify-between items-center">
+        <span className="text-slate-600 font-medium">{t('batches.totalCost')}</span>
+        <span className="font-black text-rose-600">৳ {totalCost.toLocaleString()}</span>
       </div>
-      <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-base">
+
+      {/* Itemized Cost Details Drawer Toggle */}
+      <button 
+        type="button"
+        onClick={() => setShowDetails(!showDetails)}
+        className="text-[10px] text-slate-400 hover:text-slate-600 font-bold flex items-center gap-1 cursor-pointer py-0.5"
+      >
+        <span>{showDetails ? '▲ বিস্তারিত খরচ লুকান' : '▼ বিস্তারিত খরচের তালিকা দেখুন'}</span>
+      </button>
+
+      {showDetails && (
+        <div className="p-2 bg-white rounded-lg border border-slate-200/80 space-y-1 text-[11px] text-slate-600 animate-fadeIn">
+          <div className="flex justify-between">
+            <span>বাচ্চা ক্রয় ব্যয়:</span>
+            <span className="font-bold text-slate-850">৳ {chickCost.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>খাদ্য (ফিড) খরচ:</span>
+            <span className="font-bold text-slate-850">৳ {feedCost.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>ওষুধ ও ভ্যাকসিন:</span>
+            <span className="font-bold text-slate-850">৳ {medCost.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>অন্যান্য পরিচালনা ব্যয়:</span>
+            <span className="font-bold text-slate-850">৳ {otherCost.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t border-slate-100 text-slate-500">
+            <span>প্রতি পিস উৎপাদন খরচ:</span>
+            <span className="font-black text-slate-700">৳ {costPerBird.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-slate-200 pt-2 flex justify-between items-center font-black text-sm sm:text-base">
         <span>{t('batches.net')}{profit >= 0 ? t('batches.profit') : t('batches.loss')}</span>
-        <span className={profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>৳ {Math.abs(profit).toLocaleString()}</span>
+        <div className="text-right">
+          <span className={profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>৳ {Math.abs(profit).toLocaleString()}</span>
+          {numChicks > 0 && (
+            <span className="block text-[10px] font-bold text-slate-400">
+              ({profit >= 0 ? 'লাভ' : 'ঘাটতি'} ৳ {Math.abs(profitPerBird).toFixed(1)} /পিস)
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -105,8 +166,17 @@ export default function Batches() {
   const submitLock = useRef(false);
   const [completeBatchId, setCompleteBatchId] = useState<string | null>(null);
   
-  // Category filter state ('all' | 'poultry' | 'cattle' | 'fish' | 'completed')
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'poultry' | 'cattle' | 'fish' | 'completed'>('all');
+  // Category filter state ('all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare')
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const filter = params.get('filter');
+    if (filter === 'compare') return 'compare';
+    if (filter === 'poultry') return 'poultry';
+    if (filter === 'cattle') return 'cattle';
+    if (filter === 'fish') return 'fish';
+    if (filter === 'completed') return 'completed';
+    return 'all';
+  });
 
   // Show form state
   const [showForm, setShowForm] = useState(false);
@@ -301,6 +371,110 @@ export default function Batches() {
   const fishCount = batches.filter(b => b.status === 'active' && b.farmType === 'fish').length;
   const completedCount = batches.filter(b => b.status === 'completed').length;
 
+  const getBatchStats = async (batchId: string): Promise<BatchSummaryStats | null> => {
+    const batch = batches.find(b => b.id === batchId);
+    if (!batch) return null;
+
+    let tFeed = 0;
+    let tFeedBags = 0;
+    let tMed = 0;
+    let tOther = 0;
+    let tSales = 0;
+    let tMort = 0;
+    let avgWeight = 0;
+    const cChick = Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0);
+
+    try {
+      if (isDemoUser) {
+        demoStore.getSales(batchId).forEach(s => {
+          tSales += Number(s.totalAmount || 0);
+          if (s.totalWeightKg && s.quantity) avgWeight = Number(s.totalWeightKg) / Number(s.quantity);
+        });
+        demoStore.getExpenses(batchId).forEach(e => { tOther += Number(e.amount || 0); });
+        demoStore.getFeedRecords(batchId).forEach(f => {
+          tFeed += Number(f.cost || 0);
+          tFeedBags += Number(f.quantityBags || 0);
+        });
+        demoStore.getMedicineRecords(batchId).forEach(m => { tMed += Number(m.cost || 0); });
+        demoStore.getMortalityRecords(batchId).forEach(m => { tMort += Number(m.count || 0); });
+      } else if (currentUser) {
+        const salesQ = query(collection(db, 'sales'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        const salesSnap = await fastGetDocs(salesQ);
+        salesSnap.forEach(d => {
+          tSales += Number(d.data().totalAmount || 0);
+          if (d.data().totalWeightKg && d.data().quantity) {
+            avgWeight = Number(d.data().totalWeightKg) / Number(d.data().quantity);
+          }
+        });
+
+        const expQ = query(collection(db, 'expenses'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        const expSnap = await fastGetDocs(expQ);
+        expSnap.forEach(d => { tOther += Number(d.data().amount || 0); });
+
+        const feedQ = query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        const feedSnap = await fastGetDocs(feedQ);
+        feedSnap.forEach(d => {
+          tFeed += Number(d.data().cost || 0);
+          tFeedBags += Number(d.data().quantityBags || d.data().quantity || 0);
+        });
+
+        const medQ = query(collection(db, 'medicine'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        const medSnap = await fastGetDocs(medQ);
+        medSnap.forEach(d => { tMed += Number(d.data().cost || 0); });
+
+        const mortQ = query(collection(db, 'mortality'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
+        const mortSnap = await fastGetDocs(mortQ);
+        mortSnap.forEach(d => { tMort += Number(d.data().count || 0); });
+      }
+    } catch (err) {
+      console.warn('Error computing batch stats for comparison:', err);
+    }
+
+    const tCost = cChick + tFeed + tMed + tOther;
+    const netProfit = tSales - tCost;
+    const numBirds = Number(batch.totalChicks || 0);
+    const alive = Math.max(0, numBirds - tMort);
+    const mortRate = numBirds > 0 ? Number(((tMort / numBirds) * 100).toFixed(1)) : 0;
+    const costPerBird = numBirds > 0 ? tCost / numBirds : 0;
+    const profitPerBird = numBirds > 0 ? netProfit / numBirds : 0;
+    const age = calculateAge(batch.startDate);
+
+    let calculatedFcr: number | undefined = undefined;
+    const estWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
+    if (alive > 0 && estWeight > 0 && tFeedBags > 0) {
+      const totalFeedKg = tFeedBags * 50;
+      const totalLiveWeight = alive * estWeight;
+      if (totalLiveWeight > 0) {
+        calculatedFcr = Number((totalFeedKg / totalLiveWeight).toFixed(2));
+      }
+    }
+
+    return {
+      batchId,
+      batchName: batch.batchName,
+      farmType: batch.farmType || 'poultry',
+      status: batch.status || 'active',
+      startDate: batch.startDate,
+      ageDays: age,
+      totalChicks: numBirds,
+      aliveCount: alive,
+      mortalityCount: tMort,
+      mortalityRate: mortRate,
+      feedBags: tFeedBags,
+      feedCost: tFeed,
+      medicineCost: tMed,
+      chickCost: cChick,
+      otherCost: tOther,
+      totalCost: tCost,
+      costPerBird,
+      salesRevenue: tSales,
+      netProfit,
+      profitPerBird,
+      fcr: calculatedFcr,
+      avgWeightKg: avgWeight || undefined
+    };
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500 font-medium">{t('common.loading')}</div>;
 
   return (
@@ -401,6 +575,18 @@ export default function Batches() {
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-slate-150 text-slate-700'}`}>
             {completedCount}
           </span>
+        </button>
+
+        <button
+          onClick={() => setSelectedFilter('compare')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border ${
+            selectedFilter === 'compare'
+              ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+              : 'bg-white text-purple-700 border-purple-200/70 hover:bg-purple-50/50'
+          }`}
+        >
+          <span>⚖️</span>
+          <span>{language === 'bn' ? 'ব্যাচ তুলনা' : 'Compare'}</span>
         </button>
       </div>
 
@@ -556,8 +742,11 @@ export default function Batches() {
         </form>
       )}
 
-      {/* Batches List */}
-      <div className="space-y-3">
+      {/* Batches List or Comparison View */}
+      {selectedFilter === 'compare' ? (
+        <BatchComparisonCard batches={batches} getBatchStats={getBatchStats} />
+      ) : (
+        <div className="space-y-3">
         {filteredBatches.map(batch => {
           const isPoultry = batch.farmType === 'poultry';
           const isCattle = batch.farmType === 'cattle';
@@ -648,40 +837,41 @@ export default function Batches() {
                 </div>
               )}
 
-              {/* Action Buttons: View on Dashboard & Mark Complete */}
-              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                {batch.status === 'active' ? (
-                  <>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        onClick={() => handleActivateOnDashboard(batch)}
-                        className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <LayoutDashboard size={13} />
-                        <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
-                      </button>
-
-                      <button
-                        onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
-                        className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title={language === 'bn' ? 'সাপ্তাহিক ও মাসিক FCR গ্রাফ দেখুন' : 'View FCR Graph'}
-                      >
-                        <ChartIcon size={13} />
-                        <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
-                      </button>
-                    </div>
-
-                    <button 
-                      onClick={() => setCompleteBatchId(batch.id)} 
-                      className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
-                    >
-                      {language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}
-                    </button>
-                  </>
-                ) : (
-                  <BatchSummary batchId={batch.id} totalChicks={batch.totalChicks} costPerChick={batch.costPerChick} />
-                )}
+              {/* Real-time Profit & Loss Summary */}
+              <div className="mb-2.5">
+                <BatchSummary batchId={batch.id} totalChicks={batch.totalChicks} costPerChick={batch.costPerChick} />
               </div>
+
+              {/* Action Buttons: View on Dashboard & Mark Complete */}
+              {batch.status === 'active' && (
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => handleActivateOnDashboard(batch)}
+                      className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <LayoutDashboard size={13} />
+                      <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
+                      className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title={language === 'bn' ? 'সাপ্তাহিক ও মাসিক FCR গ্রাফ দেখুন' : 'View FCR Graph'}
+                    >
+                      <ChartIcon size={13} />
+                      <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={() => setCompleteBatchId(batch.id)} 
+                    className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                  >
+                    {language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -705,6 +895,7 @@ export default function Batches() {
           </div>
         )}
       </div>
+      )}
 
       <ConfirmModal 
         isOpen={!!completeBatchId}
