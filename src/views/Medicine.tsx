@@ -222,7 +222,7 @@ export default function Medicine() {
 
   const handleQuickApplyVaccine = (vaccineItem: VaccineItem) => {
     setShowForm(true);
-    setType('vaccine');
+    setType(vaccineItem.category === 'vaccine' ? 'vaccine' : 'medicine');
     setMedicineName(vaccineItem.name);
     setDetails(`${vaccineItem.route} - ${vaccineItem.purpose}`);
     setActiveTab('records');
@@ -232,6 +232,53 @@ export default function Medicine() {
         ? `${vaccineItem.name} ফর্ম প্রস্তুত! খরচ ও তারিখ কনফার্ম করুন।` 
         : `Ready to log ${vaccineItem.name}. Confirm cost and date.`
     );
+  };
+
+  const getQuickMedicineSuggestions = (batch: any) => {
+    const farmType = batch?.farmType || 'poultry';
+    const name = (batch?.batchName || '').toLowerCase();
+    const subBreed = (batch?.subBreed || '').toLowerCase();
+
+    if (farmType === 'fish' || name.includes('মাছ')) {
+      return [
+        { name: 'কৃষি চুন ও জিওলাইট', label: 'চুন ও জিওলাইট (গ্যাস দূর)', type: 'medicine', note: 'পানির গ্যাস ও পিএইচ নিয়ন্ত্রণ' },
+        { name: 'পটাশ (KMNO4)', label: 'পটাশ (ক্ষতরোগ/লালদাগ)', type: 'medicine', note: 'জীবাণুনাশক ও পরজীবী দমন' },
+        { name: 'ভিটামিন সি ও প্রোবায়োটিক', label: 'ভিটামিন সি + প্রোবায়োটিক', type: 'medicine', note: 'রোগ প্রতিরোধ ও বৃদ্ধি' },
+        { name: 'জরুরি অক্সিজেন পাউডার', label: 'অক্সিজেন পাউডার', type: 'medicine', note: 'জরুরি ভেসে ওঠা রোধ' }
+      ];
+    }
+
+    if (farmType === 'cattle' || name.includes('গরু') || name.includes('গাভী') || name.includes('ষাঁড়') || name.includes('ছাগল')) {
+      return [
+        { name: 'এলবেনডাজল / ট্রাইক্লাবেনডাজল (কৃমিনাশক)', label: 'কৃমিনাশক বোলাস', type: 'medicine', note: 'পেট ও কলিজার কৃমি' },
+        { name: 'ব্লটোরিল / কার্মিনেটিভ মিক্সচার', label: 'ব্লটোরিল (পেট ফাঁপা/গ্যাস)', type: 'medicine', note: 'পেট ফাঁপা ও বদহজম' },
+        { name: 'ক্যালপ্লেক্স গোল্ড / ওরাল ক্যালসিয়াম', label: 'ক্যালপ্লেক্স গোল্ড (দুধ বৃদ্ধি)', type: 'medicine', note: 'দুধ ও ক্যালসিয়াম ঘাটতি' },
+        { name: 'হেপাটোটেক (লিভার টনিক)', label: 'হেপাটোটেক (লিভার টনিক)', type: 'medicine', note: 'কৃমিনাশকের পর রুচি বৃদ্ধি' },
+        { name: 'আইভারমেকটিন ইনজেকশন', label: 'আইভারমেকটিন (উকুন/আটালি)', type: 'medicine', note: 'বহিঃপরজীবী ও মাইট দমন' },
+        { name: 'ক্ষুরারোগ ভ্যাকসিন (FMD)', label: 'ক্ষুরারোগ টিকা (FMD)', type: 'vaccine', note: 'ক্ষুরারোগ প্রতিরোধ' }
+      ];
+    }
+
+    if (name.includes('হাঁস') || subBreed.includes('duck')) {
+      return [
+        { name: 'ডাক প্লেগ ভ্যাকসিন', label: 'ডাক প্লেগ ভ্যাকসিন', type: 'vaccine', note: 'চামড়ার নিচে ১ মিলি' },
+        { name: 'ডাক কলেরা ভ্যাকসিন', label: 'ডাক কলেরা ভ্যাকসিন', type: 'vaccine', note: 'মাংসে ইনজেকশন' },
+        { name: 'হাঁসের কৃমিনাশক ওষুধ', label: 'হাঁসের কৃমিনাশক', type: 'medicine', note: 'পানিতে খালি পেটে' },
+        { name: 'ভিটামিন এডি৩ই ও ক্যালসিয়াম', label: 'ভিটামিন এডি৩ই + ক্যালসিয়াম', type: 'medicine', note: 'ডিম ও হাড় শক্ত' }
+      ];
+    }
+
+    // Broiler / General Poultry
+    return [
+      { name: 'রেনামক্স / কসমিক্স (অ্যান্টিবায়োটিক)', label: 'রেনামক্স (নাভি শুকানো/ব্রুডিং)', type: 'medicine', note: '১ গ্রাম প্রতি লিটার পানিতে' },
+      { name: 'ক্যালপ্লেক্স / ক্যালসি-ডি', label: 'ক্যালপ্লেক্স (ক্যালসিয়াম/হাড় শক্ত)', type: 'medicine', note: 'পায়ের দুর্বলতা ও বৃদ্ধি' },
+      { name: 'হেপাটোটেক (লিভার টনিক)', label: 'হেপাটোটেক (লিভার টনিক)', type: 'medicine', note: 'হজম শক্তি ও লিভার সুরক্ষা' },
+      { name: 'কক্সিকিউর / টলট্রাজুরিল', label: 'কক্সিকিউর (রক্ত আমাশয়)', type: 'medicine', note: 'কক্সিডিওসিস ও রক্ত পায়খানা' },
+      { name: 'টাইলোসিন / ডক্সিটিন', label: 'টাইলোসিন (ঠান্ডা/ঘড়ঘড়/সিআরডি)', type: 'medicine', note: 'শ্বাসকষ্ট ও সর্দি নিরাময়' },
+      { name: 'ভিটামিন বি-কমপ্লেক্স', label: 'বি-কমপ্লেক্স + প্রোবায়োটিক', type: 'medicine', note: 'এফসিআর ও হজম উন্নয়ন' },
+      { name: 'রানীক্ষেত ক্লোন ৩০ (ND Clone 30)', label: 'রানীক্ষেত ক্লোন ৩০ (পানি/চোখে)', type: 'vaccine', note: 'চোখে ড্রপ বা খাবার পানিতে' },
+      { name: 'গামবোরো ভ্যাকসিন (IBD Live)', label: 'গামবোরো ভ্যাকসিন (পানিতে)', type: 'vaccine', note: 'খাবার ঠান্ডা পানিতে' }
+    ];
   };
 
   const selectedBatchObj = activeBatches.find(b => b.id === batchId) || (activeBatches.length > 0 ? activeBatches[0] : null);
@@ -344,6 +391,29 @@ export default function Medicine() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('medicine.nameDescLabel')}</label>
                 <input required type="text" value={medicineName} onChange={(e) => setMedicineName(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500" placeholder={t('medicine.nameDescPlaceholder')} />
+                
+                {/* Popular medicine quick selection chips */}
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>{language === 'bn' ? '⚡ দ্রুত নাম বসান (জনপ্রিয় ও সেরা ওষুধ):' : '⚡ Quick Name Suggestion:'}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5 max-h-28 overflow-y-auto no-scrollbar">
+                    {getQuickMedicineSuggestions(selectedBatchObj).map((med, mIdx) => (
+                      <button
+                        key={mIdx}
+                        type="button"
+                        onClick={() => {
+                          setMedicineName(med.name);
+                          setType(med.type);
+                          if (!details && med.note) setDetails(med.note);
+                        }}
+                        className="text-[10px] sm:text-[11px] font-bold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-all cursor-pointer shadow-2xs active:scale-95 text-left"
+                      >
+                        {med.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

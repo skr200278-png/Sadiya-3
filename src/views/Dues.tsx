@@ -1205,8 +1205,11 @@ export default function Dues() {
       {/* Mark Full Paid Confirmation Modal */}
       <ConfirmModal 
         isOpen={!!markPaidId}
-        title={t('dues.markPaidBtn')}
+        title={language === 'bn' ? 'সম্পূর্ণ বকেয়া পরিশোধ' : t('dues.markPaidBtn')}
         message={t('dues.verifyPayMsg')}
+        confirmText={language === 'bn' ? 'হ্যাঁ, পরিশোধ করুন' : 'Confirm Paid'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
+        confirmVariant="success"
         onConfirm={markPaid}
         onCancel={() => setMarkPaidId(null)}
       />
@@ -1216,6 +1219,9 @@ export default function Dues() {
         isOpen={!!deleteId}
         title={t('common.confirmDelete')}
         message={t('common.confirmDeleteMsg')}
+        confirmText={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
+        confirmVariant="danger"
         onConfirm={executeDelete}
         onCancel={() => setDeleteId(null)}
       />

@@ -901,6 +901,9 @@ export default function Batches() {
         isOpen={!!completeBatchId}
         title={t('batches.confirmCompleteTitle')}
         message={t('batches.confirmCompleteMsg')}
+        confirmText={language === 'bn' ? 'হ্যাঁ, সম্পন্ন করুন' : 'Complete'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
+        confirmVariant="primary"
         onConfirm={markCompleted}
         onCancel={() => setCompleteBatchId(null)}
       />
@@ -909,6 +912,9 @@ export default function Batches() {
         isOpen={!!deleteId}
         title={t('common.confirmDelete')}
         message={t('common.confirmDeleteMsg')}
+        confirmText={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
+        confirmVariant="danger"
         onConfirm={executeDelete}
         onCancel={() => setDeleteId(null)}
       />
