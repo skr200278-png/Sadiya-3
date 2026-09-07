@@ -60,8 +60,8 @@ export default function Layout() {
   const finalWaNumber = cleanAdminWa.startsWith('88') ? cleanAdminWa : `88${cleanAdminWa}`;
   const appLockWaUrl = `https://wa.me/${finalWaNumber}?text=${encodeURIComponent(
     language === 'bn'
-      ? `আসসালামু আলাইকুম। আমি ডিজিটাল খামার প্রো অ্যাপটি ব্যবহার করার জন্য অ্যাকাউন্টটি অ্যাক্টিভেট করতে চাই।`
-      : `Hello, I want to activate my Khamar Pro account.`
+      ? `আসসালামু আলাইকুম। আমি ফার্ম ম্যানেজার (Farm Manager) অ্যাপটি ব্যবহার করার জন্য অ্যাকাউন্টটি অ্যাক্টিভেট করতে চাই।`
+      : `Hello, I want to activate my Farm Manager account.`
   )}`;
 
   const navItems = [

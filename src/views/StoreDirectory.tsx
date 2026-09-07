@@ -959,7 +959,7 @@ export default function StoreDirectory() {
                   </a>
 
                   <a
-                    href={`https://wa.me/${(store.whatsapp || store.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(language === 'bn' ? `আসসালামু আলাইকুম, আমি ডিজিটাল খামার প্রো অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।` : `Hello, I am contacting you regarding your store "${store.shopName}" listed on Digital Khamar Pro.`)}`}
+                    href={`https://wa.me/${(store.whatsapp || store.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(language === 'bn' ? `আসসালামু আলাইকুম, আমি ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।` : `Hello, I am contacting you regarding your store "${store.shopName}" listed on Farm Manager.`)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="col-span-1 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center cursor-pointer"

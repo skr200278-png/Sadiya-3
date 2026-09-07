@@ -1183,8 +1183,8 @@ export default function DoctorConsultation() {
                   <a
                     href={`https://wa.me/${doctor.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
                       language === 'bn' 
-                        ? `আসসালামু আলাইকুম ${doctor.nameBn}, ডিজিটাল খামার অ্যাপ থেকে আপনার পরামর্শ নিতে চাচ্ছি।` 
-                        : `Hello Doctor, I need veterinary consultation for my farm.`
+                        ? `আসসালামু আলাইকুম ${doctor.nameBn}, ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার পরামর্শ নিতে চাচ্ছি।` 
+                        : `Hello Doctor, I need veterinary consultation for my farm through Farm Manager app.`
                     )}`}
                     target="_blank"
                     rel="noreferrer"

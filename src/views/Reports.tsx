@@ -542,7 +542,7 @@ export default function Reports() {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(5, 150, 105);
-    doc.text('Digital Khamar Pro Farm Batch Financial Report', 14, 20);
+    doc.text('Farm Manager Batch Financial Report', 14, 20);
     
     doc.setFontSize(10);
     doc.setTextColor(70, 70, 70);

@@ -344,7 +344,7 @@ export default function Profile() {
                 <h4 className={`text-sm font-black ${isPremium ? 'text-amber-900' : 'text-amber-300'}`}>
                   {isPremium 
                     ? (currentLanguage === 'bn' ? '💎 ভিআইপি প্রো মেম্বারশিপ সক্রিয়' : '💎 VIP PRO Membership Active')
-                    : (currentLanguage === 'bn' ? '🚀 ডিজিটাল খামার প্রো প্রিমিয়াম প্যাকেজ' : '🚀 Digital Khamar Pro Premium Packages')}
+                    : (currentLanguage === 'bn' ? '🚀 ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : '🚀 Farm Manager Premium Packages')}
                 </h4>
                 <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
                   isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-400 text-slate-950'
@@ -376,7 +376,7 @@ export default function Profile() {
 
           <button
             type="button"
-            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ডিজিটাল খামার প্রো প্রিমিয়াম প্যাকেজ' : 'Digital Khamar Pro Premium')}
+            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : 'Farm Manager Premium')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
               isPremium 
                 ? 'bg-amber-500 hover:bg-amber-600 text-white' 
@@ -680,8 +680,8 @@ export default function Profile() {
                 className="w-full h-full object-contain rounded-xl" 
               />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">ডিজিটাল খামার প্রো</h2>
-            <p className="text-gray-600 mb-6 text-sm">বাংলাদেশের সবচেয়ে আধুনিক খামার ব্যবস্থাপনা সফটওয়্যার।</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Farm Manager</h2>
+            <p className="text-gray-600 mb-6 text-sm">{currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার - সবচেয়ে আধুনিক খামার ব্যবস্থাপনা সফটওয়্যার।' : 'Smart Livestock & Farm Management Software.'}</p>
             
             <div className="bg-gray-50 rounded-2xl p-4 text-left space-y-3 mb-6 border border-gray-100">
               <div className="flex justify-between items-center text-sm border-b border-gray-200 pb-2">

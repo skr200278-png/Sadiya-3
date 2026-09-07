@@ -14,7 +14,7 @@ interface LanguageContextType {
 // Translations dictionary
 const translations: Record<Language, Record<string, string>> = {
   bn: {
-    'app.title': 'ডিজিটাল খামার প্রো',
+    'app.title': 'Farm Manager',
     // Layout Tab Bar
     'menu.home': 'হোম',
     'menu.dashboard': 'ড্যাশবোর্ড',
@@ -384,7 +384,7 @@ const translations: Record<Language, Record<string, string>> = {
     
   },
   en: {
-    'app.title': 'Digital Khamar Pro',
+    'app.title': 'Farm Manager',
     // Layout Tab Bar
     'menu.home': 'Home',
     'menu.dashboard': 'Dashboard',

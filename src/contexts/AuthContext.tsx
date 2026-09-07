@@ -146,8 +146,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 </svg>
               </div>
             )}
-            <h1 className="text-4xl font-black text-white tracking-wider drop-shadow-md">ডিজিটাল খামার</h1>
-            <p className="mt-2 text-green-100 font-medium font-sans text-sm tracking-wide">Smart Livestock & Farm Manager</p>
+            <h1 className="text-4xl font-black text-white tracking-wider drop-shadow-md">Farm Manager</h1>
+            <p className="mt-2 text-green-100 font-medium font-sans text-sm tracking-wide">ফার্ম ম্যানেজার • Smart Livestock & Farm Management</p>
           </div>
           <div className="absolute bottom-10 w-2/3 max-w-xs">
             <div className="h-1.5 w-full bg-green-950/60 rounded-full overflow-hidden p-0.5 border border-white/10">
