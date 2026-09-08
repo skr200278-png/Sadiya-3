@@ -699,22 +699,22 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="w-18 h-18 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-black/10 transform rotate-[-2deg] p-1 overflow-hidden mt-1">
+          <div className="w-14 h-14 bg-white/95 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-md p-1 overflow-hidden mt-0.5">
             <img
               src={appLogo}
               onError={(e) => {
                 e.currentTarget.src = '/farm_app_icon_1779214389225.png';
               }}
-              alt="Khamar Pro Logo"
+              alt="Farm Manager Logo"
               className="w-full h-full object-contain rounded-xl"
             />
           </div>
 
-          <h1 className="text-2xl font-black text-white tracking-wide">
+          <h1 className="text-xl font-black text-white tracking-wide">
             {language === 'bn' ? 'ফার্ম ম্যানেজার (Farm Manager)' : 'Farm Manager'}
           </h1>
 
-          <p className="text-emerald-100 text-xs mt-1 font-medium">
+          <p className="text-emerald-100 text-[11px] mt-0.5 font-medium">
             {language === 'bn'
               ? 'পাখি, পশু ও মাছের স্মার্ট খামার ব্যবস্থাপনা'
               : 'Smart Farm Management for Poultry, Cattle & Fish'}
@@ -724,10 +724,10 @@ export default function Login() {
             <button
               type="button"
               onClick={openInNewTab}
-              className="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-[11px] font-semibold py-1.5 px-3 rounded-full backdrop-blur-sm transition-all cursor-pointer"
+              className="mt-2 inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[10px] font-semibold py-1 px-2.5 rounded-full backdrop-blur-sm transition-all cursor-pointer"
               title={language === 'bn' ? 'নতুন ব্রাউজার ট্যাবে খুলুন' : 'Open in new tab'}
             >
-              <ExternalLink size={13} />
+              <ExternalLink size={11} />
               <span>
                 {language === 'bn' ? 'পপ-আপ সমস্যায় নতুন ট্যাবে খুলুন' : 'Open in new tab for popup'}
               </span>
@@ -735,72 +735,16 @@ export default function Login() {
           )}
         </div>
 
-        <div className="p-6 md:p-8">
-          {/* 🌟 1-CLICK GMAIL LOGIN (No Password Required) */}
-          <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white border-2 border-emerald-500/30 rounded-3xl p-4.5 sm:p-5 mb-6 shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-[10.5px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                <Sparkles size={12} />
-                {language === 'bn' ? 'সবচেয়ে সহজ ও দ্রুত' : 'Easiest & Fastest'}
-              </span>
-              <span className="text-[11px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-200">
-                {language === 'bn' ? 'কোনো পাসওয়ার্ড লাগবে না' : 'No Password Required'}
-              </span>
-            </div>
-
-            <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
-              {language === 'bn' ? 'ফোনে থাকা জিমেইল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : '1-Click Sign-in with Phone\'s Gmail'}
-            </h3>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed font-medium">
-              {language === 'bn'
-                ? 'আপনার ফোনে যে জিমেইল চালু আছে, তা দিয়ে সরাসরি ১-ট্যাপেই অ্যাকাউন্ট তৈরি বা লগইন হয়ে যাবে। আলাদা কোনো পাসওয়ার্ড মনে রাখা বা লেখার কোনো প্রয়োজন নেই।'
-                : 'Instantly sign in or create an account with the Gmail active on your phone in 1 click. No need to type or remember any password.'}
-            </p>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full mt-3.5 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] cursor-pointer group"
-            >
-              <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                <img
-                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                  alt="Google"
-                  className="w-4 h-4"
-                />
-              </div>
-              <span className="text-sm">
-                {loading
-                  ? (language === 'bn' ? 'গুগল কানেক্ট হচ্ছে, অপেক্ষা করুন...' : 'Connecting Google, please wait...')
-                  : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ করুন' : 'Sign in with Google (1-Click)')}
-              </span>
-            </button>
-
-            <div className="grid grid-cols-1 xs:grid-cols-3 gap-1.5 text-[10.5px] text-emerald-900 font-bold mt-3 pt-2.5 border-t border-emerald-500/20 text-center">
-              <span className="bg-emerald-100/60 rounded-lg py-1 px-1">✓ পাসওয়ার্ড ছাড়া</span>
-              <span className="bg-emerald-100/60 rounded-lg py-1 px-1">✓ নতুন ও পুরাতন সবার জন্য</span>
-              <span className="bg-emerald-100/60 rounded-lg py-1 px-1">✓ ১-ট্যাপে সরাসরি প্রবেশ</span>
-            </div>
-          </div>
-
-          <div className="relative flex items-center py-1 mb-5">
-            <div className="flex-grow border-t border-gray-200" />
-            <span className="flex-shrink-0 mx-3 text-gray-400 text-[11px] font-bold uppercase tracking-wider">
-              {language === 'bn' ? 'অথবা ইমেইল ও পাসওয়ার্ড দিয়ে ম্যানুয়াল' : 'Or Manual Email & Password'}
-            </span>
-            <div className="flex-grow border-t border-gray-200" />
-          </div>
-
+        <div className="p-4 sm:p-6">
           {/* Mode Switcher Tabs */}
-          <div className="flex bg-gray-100 p-1 rounded-2xl mb-5 border border-gray-200">
+          <div className="flex bg-gray-100 p-1 rounded-2xl mb-3 border border-gray-200">
             <button
               type="button"
               onClick={() => {
                 setMode('login');
                 setErrorMessage(null);
               }}
-              className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+              className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
                 mode === 'login'
                   ? 'bg-white text-emerald-800 shadow-sm'
                   : 'text-gray-500 hover:text-gray-800'
@@ -815,7 +759,7 @@ export default function Login() {
                 setMode('register');
                 setErrorMessage(null);
               }}
-              className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+              className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
                 mode === 'register'
                   ? 'bg-white text-emerald-800 shadow-sm'
                   : 'text-gray-500 hover:text-gray-800'
@@ -823,6 +767,38 @@ export default function Login() {
             >
               {language === 'bn' ? 'নতুন রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}
             </button>
+          </div>
+
+          {/* 🌟 1-CLICK GMAIL LOGIN (Standard Clean Social Button) */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 font-bold py-2.5 px-4 rounded-xl border border-slate-300 shadow-2xs text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <img
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              alt="Google"
+              className="w-4 h-4 shrink-0"
+            />
+            <span>
+              {loading
+                ? (language === 'bn' ? 'গুগল কানেক্ট হচ্ছে...' : 'Connecting Google...')
+                : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : 'Continue with Google (1-Click)')}
+            </span>
+          </button>
+          <p className="text-[10px] text-center text-slate-500 mt-1 mb-3">
+            {language === 'bn'
+              ? '💡 ফোনের জিমেইল দিয়ে কোনো পাসওয়ার্ড ছাড়াই সরাসরি ১-ক্লিকে লগইন'
+              : '💡 1-Click instant sign in with phone Gmail, no password needed'}
+          </p>
+
+          <div className="relative flex items-center py-1 mb-3">
+            <div className="flex-grow border-t border-gray-200" />
+            <span className="flex-shrink-0 mx-2 text-gray-400 text-[10.5px] font-semibold uppercase">
+              {language === 'bn' ? 'অথবা ইমেইল ও পাসওয়ার্ড' : 'Or Email & Password'}
+            </span>
+            <div className="flex-grow border-t border-gray-200" />
           </div>
 
           {/* Error Banner */}
@@ -1022,29 +998,6 @@ export default function Login() {
                       required
                     />
                   </div>
-                  {email.trim().toLowerCase().includes('@') && (
-                    <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-xs text-emerald-900 shadow-2xs animate-in fade-in duration-150">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Sparkles size={14} className="text-emerald-600 shrink-0" />
-                        <span className="text-[11px] font-bold truncate">
-                          {language === 'bn' ? 'ফোনের জিমেইল হলে পাসওয়ার্ড লাগবে না:' : 'On phone? No password needed:'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGoogleLogin}
-                        disabled={loading}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-lg text-[10.5px] flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                          alt="Google"
-                          className="w-3 h-3 bg-white rounded-full p-0.5"
-                        />
-                        <span>{language === 'bn' ? '১-ক্লিকে লগইন' : '1-Click'}</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* 2. PIN / Password */}

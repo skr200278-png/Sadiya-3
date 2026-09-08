@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -7,12 +7,15 @@ import { TrendingUp, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
+import { getRecordDueStatus } from '../utils/duesSync';
+import { DuesStatusBadge } from '../components/DuesStatusBadge';
 
 export default function Expenses() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currentUser, isDemoUser } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [records, setRecords] = useState<any[]>([]);
+  const [duesList, setDuesList] = useState<any[]>([]);
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +42,7 @@ export default function Expenses() {
         if (b.length > 0 && !batchId) setBatchId(b[0].id);
         const exp = demoStore.getExpenses();
         setRecords([...exp].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setDuesList(demoStore.getDues());
         setLoading(false);
       };
       loadDemoData();
@@ -65,9 +69,17 @@ export default function Expenses() {
       setLoading(false);
     });
 
+    const duesQuery = query(collection(db, 'dues'), where('userId', '==', currentUser.uid));
+    const unsubscribeDues = onSnapshot(duesQuery, (snap) => {
+      setDuesList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.warn('Expenses dues onSnapshot error:', error);
+    });
+
     return () => {
       unsubscribeBatches();
       unsubscribeExp();
+      unsubscribeDues();
     };
   }, [currentUser, isDemoUser]);
 
@@ -121,20 +133,11 @@ export default function Expenses() {
 
     try {
       const normalizedPersonName = personName.trim().replace(/\s+/g, ' ');
-      const newRecord = {
-        userId: currentUser.uid,
-        batchId,
-        date,
-        category: category || t('expenses.optElectricity'),
-        amount: totalAmountVal,
-        amountPaid: paidVal,
-        personName: normalizedPersonName,
-        details,
-        createdAt: new Date().toISOString()
-      };
 
       if (isDemoUser) {
-        demoStore.saveExpense(newRecord);
+        const expRecordId = 'exp_' + Date.now();
+        let createdDueId: string | undefined = undefined;
+
         if (paidVal < totalAmountVal) {
           const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
           const dueRecord = {
@@ -147,11 +150,30 @@ export default function Expenses() {
             details: `${batchName}${t('expenses.expenseDetails').replace('{category}', category || t('expenses.optElectricity'))}${details || ''}`,
             recordDate: date,
             status: 'pending' as const,
+            sourceType: 'expense',
+            sourceId: expRecordId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
-          demoStore.saveDue(dueRecord);
+          const savedDue = demoStore.saveDue(dueRecord);
+          createdDueId = savedDue?.id;
         }
+
+        const newRecord = {
+          id: expRecordId,
+          userId: currentUser.uid,
+          batchId,
+          date,
+          category: category || t('expenses.optElectricity'),
+          amount: totalAmountVal,
+          amountPaid: paidVal,
+          personName: normalizedPersonName,
+          details,
+          dueRecordId: createdDueId,
+          createdAt: new Date().toISOString()
+        };
+        demoStore.saveExpense(newRecord);
+
         toast.success(t('expenses.addSuccess'));
         setShowForm(false);
         setAmount('');
@@ -162,10 +184,14 @@ export default function Expenses() {
         return;
       }
 
-      await offlineSafeDocWrite(addDoc(collection(db, 'expenses'), newRecord));
+      // Live Firestore submission
+      const expDocRef = doc(collection(db, 'expenses'));
+      let createdDueId: string | undefined = undefined;
 
       if (paidVal < totalAmountVal) {
         const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
+        const dueDocRef = doc(collection(db, 'dues'));
+        createdDueId = dueDocRef.id;
         const dueRecord = {
           userId: currentUser.uid,
           personName: normalizedPersonName,
@@ -176,11 +202,28 @@ export default function Expenses() {
           details: `${batchName}${t('expenses.expenseDetails').replace('{category}', category || t('expenses.optElectricity'))}${details || ''}`,
           recordDate: date,
           status: 'pending',
+          sourceType: 'expense',
+          sourceId: expDocRef.id,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        await offlineSafeDocWrite(addDoc(collection(db, 'dues'), dueRecord));
+        await offlineSafeDocWrite(setDoc(dueDocRef, dueRecord));
       }
+
+      const newRecord = {
+        userId: currentUser.uid,
+        batchId,
+        date,
+        category: category || t('expenses.optElectricity'),
+        amount: totalAmountVal,
+        amountPaid: paidVal,
+        personName: normalizedPersonName,
+        details,
+        dueRecordId: createdDueId,
+        createdAt: new Date().toISOString()
+      };
+
+      await offlineSafeDocWrite(setDoc(expDocRef, newRecord));
 
       toast.success(t('expenses.addSuccess'));
       setShowForm(false);
@@ -278,8 +321,7 @@ export default function Expenses() {
 
       <div className="space-y-3">
         {records.map(record => {
-          const rPaid = record.amountPaid !== undefined ? record.amountPaid : record.amount;
-          const rDue = record.amount - rPaid;
+          const dueStatus = getRecordDueStatus(record, duesList, 'expense');
           return (
             <div key={record.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
               <div>
@@ -290,8 +332,12 @@ export default function Expenses() {
               </div>
               <div className="text-right flex flex-col items-end">
                 <span className="font-bold text-purple-600 text-lg">৳ {record.amount}</span>
-                {rDue > 0 && <span className="text-xs font-semibold text-red-500 outline outline-1 outline-red-200 px-1 rounded mt-1">{t('feed.dueLabel')}{rDue}</span>}
-                {rDue === 0 && <span className="text-xs font-semibold text-green-600 outline outline-1 outline-green-200 px-1 rounded mt-1">{t('feed.paidLabel')}</span>}
+                <DuesStatusBadge
+                  dueStatus={dueStatus}
+                  language={language as any}
+                  defaultPaidLabel={t('feed.paidLabel')}
+                  defaultDueLabel={`${t('feed.dueLabel')}${dueStatus.remainingDue}`}
+                />
                 <button onClick={() => handleDelete(record.id)} className="text-red-500 hover:bg-red-50 p-1 rounded-md mt-1 inline-block">
                   <Trash2 size={16} />
                 </button>

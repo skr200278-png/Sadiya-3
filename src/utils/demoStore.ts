@@ -188,7 +188,325 @@ export interface DemoStoreListing {
   createdAt: string;
 }
 
+export interface DemoChickRate {
+  id: string;
+  category: 'poultry' | 'birds' | 'fish' | 'cattle';
+  subCategory: string;
+  nameBn: string;
+  nameEn: string;
+  unit: string;
+  gradeA: number;
+  gradeB: number;
+  gradeC: number;
+  prevRate?: number;
+  trend: 'up' | 'down' | 'stable';
+  noteBn: string;
+  updatedAt: string;
+}
+
+export interface DemoChickListing {
+  id: string;
+  userId: string;
+  companyName: string;
+  contactPerson: string;
+  phone: string;
+  whatsapp?: string;
+  country?: string;
+  category: 'poultry' | 'birds' | 'fish' | 'cattle';
+  subCategory: string;
+  grade: 'A' | 'B' | 'C';
+  pricePerUnit: number;
+  unitLabel: string;
+  minimumOrder: number;
+  availableStock?: number;
+  deliveryDate?: string;
+  district: string;
+  deliveryArea: string;
+  vaccineDetails?: string;
+  description?: string;
+  isVerified?: boolean;
+  isFeatured?: boolean;
+  status: 'available' | 'booked';
+  createdAt: string;
+}
+
 const STORAGE_PREFIX = 'demo_farm_';
+
+export const initialChickRates: DemoChickRate[] = [
+  {
+    id: 'rate_broiler',
+    category: 'poultry',
+    subCategory: 'broiler',
+    nameBn: 'ব্রয়লার একদিনের বাচ্চা (DOC)',
+    nameEn: 'Broiler Day Old Chick',
+    unit: 'প্রতি পিস',
+    gradeA: 64,
+    gradeB: 56,
+    gradeC: 48,
+    trend: 'up',
+    noteBn: 'গ্রেড-এ: ওজন ৪০গ্রাম+, গামবোরো ও মারেক্স স্প্রে করা। দ্রুত ওজনে বৃদ্ধি।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_sonali',
+    category: 'poultry',
+    subCategory: 'sonali',
+    nameBn: 'সোনালী বাচ্চা (Sonali DOC)',
+    nameEn: 'Sonali Classic / Hybrid Chick',
+    unit: 'প্রতি পিস',
+    gradeA: 38,
+    gradeB: 32,
+    gradeC: 27,
+    trend: 'stable',
+    noteBn: 'গ্রেড-এ: ক্লাসিক ও হাইব্রিড ক্রস, ৩৯+ গ্রাম ওজন, ৯৮% জীবনীশক্তি।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_layer_brown',
+    category: 'poultry',
+    subCategory: 'layer',
+    nameBn: 'লেয়ার বাদামী ডিমের বাচ্চা (Layer Brown DOC)',
+    nameEn: 'Layer Brown DOC (Lohmann/Novogen)',
+    unit: 'প্রতি পিস',
+    gradeA: 72,
+    gradeB: 65,
+    gradeC: 58,
+    trend: 'stable',
+    noteBn: 'গ্রেড-এ: ৯২-৯৫% ডিম উৎপাদন রেকর্ড ও উচ্চ রোগ প্রতিরোধ ক্ষমতা।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_cockerel',
+    category: 'poultry',
+    subCategory: 'cockerel',
+    nameBn: 'কক / ফাউমি একদিনের বাচ্চা (Fayoumi/Cock)',
+    nameEn: 'Cockerel / Fayoumi Chick',
+    unit: 'প্রতি পিস',
+    gradeA: 26,
+    gradeB: 22,
+    gradeC: 18,
+    trend: 'down',
+    noteBn: 'গ্রেড-এ: শতভাগ পুং বাচ্চা আলাদা করা, রোগমুক্ত।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_quail',
+    category: 'birds',
+    subCategory: 'quail',
+    nameBn: 'জাপানি কোয়েল পাখির বাচ্চা (Quail Chick)',
+    nameEn: 'Japanese Quail Chick',
+    unit: 'প্রতি পিস',
+    gradeA: 12,
+    gradeB: 9,
+    gradeC: 7,
+    trend: 'stable',
+    noteBn: 'গ্রেড-এ: ৪২ দিনে ডিম দেওয়া শুরু করে, হাইব্রিড সুস্থ বাচ্চা।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_duck',
+    category: 'birds',
+    subCategory: 'duck',
+    nameBn: 'খাকি ক্যাম্পবেল ও বেইজিং হাঁসের বাচ্চা',
+    nameEn: 'Duckling (Khaki Campbell / Pekin)',
+    unit: 'প্রতি পিস',
+    gradeA: 55,
+    gradeB: 48,
+    gradeC: 40,
+    trend: 'up',
+    noteBn: 'গ্রেড-এ: হাঁসের প্লেগ প্রতিরোধী অ্যান্টিবডি সম্পন্ন প্যারেন্টস থেকে উৎপাদিত।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_tilapia',
+    category: 'fish',
+    subCategory: 'tilapia',
+    nameBn: 'মনোসেক্স তেলাপিয়া পোনা (Mono-sex Tilapia)',
+    nameEn: 'Mono-sex Tilapia Fry',
+    unit: 'প্রতি হাজার',
+    gradeA: 1800,
+    gradeB: 1400,
+    gradeC: 1100,
+    trend: 'stable',
+    noteBn: 'গ্রেড-এ: ৯৯% পুরুষ তেলাপিয়া হরমোন ট্রিটমেন্ট সম্পন্ন, দ্রুত বৃদ্ধি পায়।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_carp',
+    category: 'fish',
+    subCategory: 'carp',
+    nameBn: 'রুই ও কাতলা মাছের ধানী/আঙুল পোনা (Carp Fingerling)',
+    nameEn: 'Carp Species Fingerling (2-3 inch)',
+    unit: 'প্রতি কেজি/হাজার',
+    gradeA: 2800,
+    gradeB: 2200,
+    gradeC: 1700,
+    trend: 'up',
+    noteBn: 'গ্রেড-এ: ব্রুড স্টক বাছাই করা স্বাস্থ্যবান ২-৩ ইঞ্চি আঙুল পোনা।',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rate_pangash',
+    category: 'fish',
+    subCategory: 'pangash',
+    nameBn: 'পাঙ্গাশ ও থাই কই মাছের পোনা',
+    nameEn: 'Pangasius & Thai Koi Fingerling',
+    unit: 'প্রতি হাজার',
+    gradeA: 1500,
+    gradeB: 1200,
+    gradeC: 950,
+    trend: 'stable',
+    noteBn: 'গ্রেড-এ: কন্ডিশনিং করা পোনা, পরিবহনে কোনো ক্ষতি হয় না।',
+    updatedAt: new Date().toISOString()
+  }
+];
+
+export const initialChickListings: DemoChickListing[] = [
+  {
+    id: 'chick_ad_1',
+    userId: 'company_kazi_farms',
+    companyName: 'কাজী ফার্মস গ্রুপ (Kazi Farms Ltd.)',
+    contactPerson: 'মোঃ কামরুল হাসান (হেড অফ সেলস)',
+    phone: '01713000111',
+    whatsapp: '01713000111',
+    category: 'poultry',
+    subCategory: 'ব্রয়লার (Broiler DOC)',
+    grade: 'A',
+    pricePerUnit: 64,
+    unitLabel: 'পিস (১০০+২ ফ্রি প্রতি বক্স)',
+    minimumOrder: 200,
+    availableStock: 50000,
+    deliveryDate: 'প্রতি রবি ও বুধবার দেশব্যাপী',
+    district: 'গাজীপুর',
+    deliveryArea: 'সারা দেশে এসি ভ্যান ও নিজস্ব বাহনে ডেলিভারি',
+    vaccineDetails: 'হ্যাচারিতেই মারেক্স ও রোটেশনাল গামবোরো স্প্রে ভ্যাকসিনেটেড',
+    description: 'সর্বোচ্চ এফসিআর (FCR) ও আন্তর্জাতিক মানের সুস্থ ও চকচকে ব্রয়লার বাচ্চা। সরাসরি হ্যাচারি পয়েন্ট বা ডিলারের মাধ্যমে সংগ্রহ করুন।',
+    isVerified: true,
+    isFeatured: true,
+    status: 'available',
+    createdAt: new Date(Date.now() - 1 * 86400000).toISOString()
+  },
+  {
+    id: 'chick_ad_2',
+    userId: 'company_paragon',
+    companyName: 'প্যারাগন পোল্ট্রি ও হ্যাচারি (Paragon Group)',
+    contactPerson: 'ইঞ্জি. তারেক মাহমুদ',
+    phone: '01711889922',
+    whatsapp: '01711889922',
+    category: 'poultry',
+    subCategory: 'সোনালী হাইব্রিড বাচ্চা (Sonali Hybrid)',
+    grade: 'A',
+    pricePerUnit: 38,
+    unitLabel: 'পিস',
+    minimumOrder: 500,
+    availableStock: 35000,
+    deliveryDate: 'সপ্তাহের প্রতিদিন সকালের শিফটে',
+    district: 'ময়মনসিংহ',
+    deliveryArea: 'ময়মনসিংহ, ঢাকা, টাঙ্গাইল ও সিলেট অঞ্চল',
+    vaccineDetails: 'এনডি ও গামবোরো মাতৃক অ্যান্টিবডি সমৃদ্ধ',
+    description: '১০০% অরিজিনাল প্যারেন্টস থেকে সংগৃহীত। দ্রুত বর্ধনশীল এবং ৬০ দিনে ৮৫০-৯০০ গ্রাম গড় ওজন নিশ্চিত।',
+    isVerified: true,
+    isFeatured: true,
+    status: 'available',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
+  },
+  {
+    id: 'chick_ad_3',
+    userId: 'company_cp_bangladesh',
+    companyName: 'সিপি বাংলাদেশ কোং লিঃ (C.P. Bangladesh)',
+    contactPerson: 'জনাব মোস্তাফিজুর রহমান',
+    phone: '01844556677',
+    whatsapp: '01844556677',
+    category: 'poultry',
+    subCategory: 'লেয়ার বাদামী ডিমের বাচ্চা (CP Layer)',
+    grade: 'A',
+    pricePerUnit: 72,
+    unitLabel: 'পিস',
+    minimumOrder: 1000,
+    availableStock: 20000,
+    deliveryDate: 'অগ্রিম বুকিং সাপেক্ষে ৫ দিনের মধ্যে ডেলিভারি',
+    district: 'ঢাকা',
+    deliveryArea: 'সমগ্র বাংলাদেশ ডিলার পয়েন্টে ডেলিভারি',
+    vaccineDetails: 'কমপ্লিট হ্যাচারি বায়োসিকিউরিটি ও প্রি-ভ্যাকসিনেশন সম্পন্ন',
+    description: 'টানা ৮০-৮৫ সপ্তাহ পর্যন্ত পিক ডিম উৎপাদন ধরে রাখতে সক্ষম। বিশ্বখ্যাত সিপি লেয়ার ব্রিড।',
+    isVerified: true,
+    isFeatured: true,
+    status: 'available',
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString()
+  },
+  {
+    id: 'chick_ad_4',
+    userId: 'company_bogura_sonali',
+    companyName: 'বগুড়া গ্রিন হ্যাচারি অ্যান্ড ব্রিডার্স',
+    contactPerson: 'আলহাজ্ব নজরুল ইসলাম',
+    phone: '01912334455',
+    whatsapp: '01912334455',
+    category: 'poultry',
+    subCategory: 'সোনালী ক্লাসিক বাচ্চা',
+    grade: 'B',
+    pricePerUnit: 32,
+    unitLabel: 'পিস',
+    minimumOrder: 200,
+    availableStock: 15000,
+    deliveryDate: 'প্রতি সোম ও শুক্রবার',
+    district: 'বগুড়া',
+    deliveryArea: 'উত্তরবঙ্গের ১৬ জেলায় সরাসরি বাসে ডেলিভারি',
+    vaccineDetails: 'রানীক্ষেত ড্রপ ভ্যাকসিন দেওয়া আছে',
+    description: 'বগুড়ার অরিজিনাল সোনালী বাচ্চা। গ্রেড-বি এর মধ্যে সবচেয়ে তাজা ও সাশ্রয়ী মূল্যে সংগ্রহ করতে পারবেন।',
+    isVerified: true,
+    isFeatured: false,
+    status: 'available',
+    createdAt: new Date(Date.now() - 4 * 86400000).toISOString()
+  },
+  {
+    id: 'chick_ad_5',
+    userId: 'company_muktagacha_fish',
+    companyName: 'মুক্তাগাছা সরকারি অনুমোদিত মৎস্য হ্যাচারি',
+    contactPerson: 'মৎস্যবিদ মো. আবুল হোসেন',
+    phone: '01712998877',
+    whatsapp: '01712998877',
+    category: 'fish',
+    subCategory: 'মনোসেক্স তেলাপিয়া ও গুলশা পোনা',
+    grade: 'A',
+    pricePerUnit: 1800,
+    unitLabel: 'প্রতি হাজার',
+    minimumOrder: 2000,
+    availableStock: 80000,
+    deliveryDate: 'অক্সিজেন ব্যাগে করে ২৪ ঘণ্টার মধ্যে ডেলিভারি',
+    district: 'ময়মনসিংহ',
+    deliveryArea: 'ঢাকা, ময়মনসিংহ, রংপুর ও রাজশাহী',
+    vaccineDetails: 'রোগমুক্ত ব্রুড ও কন্ডিশনিং সম্পন্ন পোনা',
+    description: '১০০% মনোসেক্স গ্যারান্টি। কোনো মাদী বাচ্চা মিশে থাকবে না। পুকুরে দ্রুত বৃদ্ধি পাবে এবং ৪ মাসে ৫০০+ গ্রাম হবে।',
+    isVerified: true,
+    isFeatured: true,
+    status: 'available',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
+  },
+  {
+    id: 'chick_ad_6',
+    userId: 'company_quail_bird',
+    companyName: 'রংপুর কোয়েল ও টার্কি ব্রিডিং ফার্ম',
+    contactPerson: 'ডা. আসাদুজ্জামান',
+    phone: '01725667788',
+    whatsapp: '01725667788',
+    category: 'birds',
+    subCategory: 'জাপানি কোয়েল ও হাঁসের বাচ্চা',
+    grade: 'A',
+    pricePerUnit: 12,
+    unitLabel: 'পিস (কোয়েল বাচ্চা)',
+    minimumOrder: 500,
+    availableStock: 10000,
+    deliveryDate: 'সপ্তাহের যে কোনো দিন',
+    district: 'রংপুর',
+    deliveryArea: 'কুরিয়ার ও ট্রেন সার্ভিসের মাধ্যমে ডেলিভারি',
+    vaccineDetails: 'স্যালাইন ও গ্লুকোজ কেয়ার প্যাকেজ সহ',
+    description: '১ দিনের তাজা কোয়েল বাচ্চা ও বেইজিং হাঁসের সুস্থ বাচ্চা পাইকারি ও খুচরা বিক্রয় করা হয়।',
+    isVerified: true,
+    isFeatured: false,
+    status: 'available',
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString()
+  }
+];
 
 const initialMarketBuyers: DemoMarketBuyer[] = [
   {
@@ -870,6 +1188,49 @@ export const demoStore = {
     setItem('store_listings', records);
   },
 
+  // ----------------- Chick Market Rates (A, B, C Grades) -----------------
+  getChickRates(): DemoChickRate[] {
+    return getItem<DemoChickRate[]>('chick_rates', initialChickRates);
+  },
+  updateChickRate(id: string, updates: Partial<DemoChickRate>): DemoChickRate | null {
+    const rates = this.getChickRates();
+    const idx = rates.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      rates[idx] = { ...rates[idx], ...updates, updatedAt: new Date().toISOString() };
+      setItem('chick_rates', rates);
+      return rates[idx];
+    }
+    return null;
+  },
+
+  // ----------------- Chick & DOC Listings (Hatchery / Company Ads) -----------------
+  getChickListings(): DemoChickListing[] {
+    return getItem<DemoChickListing[]>('chick_listings', initialChickListings);
+  },
+  saveChickListing(listing: Omit<DemoChickListing, 'id' | 'createdAt'> & { id?: string }): DemoChickListing {
+    const records = this.getChickListings();
+    if (listing.id) {
+      const idx = records.findIndex(r => r.id === listing.id);
+      if (idx !== -1) {
+        records[idx] = { ...records[idx], ...listing };
+        setItem('chick_listings', records);
+        return records[idx];
+      }
+    }
+    const newRecord: DemoChickListing = {
+      ...listing,
+      id: 'chick_ad_' + Date.now(),
+      createdAt: new Date().toISOString()
+    };
+    records.unshift(newRecord);
+    setItem('chick_listings', records);
+    return newRecord;
+  },
+  deleteChickListing(id: string): void {
+    const records = this.getChickListings().filter(r => r.id !== id);
+    setItem('chick_listings', records);
+  },
+
   // Clear all demo/test data for production readiness
   clearAllData(): void {
     setItem('batches', []);
@@ -882,6 +1243,8 @@ export const demoStore = {
     setItem('market_posts', []);
     setItem('market_buyers', []);
     setItem('store_listings', []);
+    setItem('chick_rates', []);
+    setItem('chick_listings', []);
   },
 
   // Reset back to initial sample demo data
@@ -896,6 +1259,8 @@ export const demoStore = {
     setItem('market_posts', initialMarketPosts);
     setItem('market_buyers', initialMarketBuyers);
     setItem('store_listings', initialStoreListings);
+    setItem('chick_rates', initialChickRates);
+    setItem('chick_listings', initialChickListings);
   }
 };
 

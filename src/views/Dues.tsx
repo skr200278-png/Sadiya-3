@@ -28,6 +28,7 @@ import {
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
+import { syncPaymentToSourceRecord } from '../utils/duesSync';
 import CashMemoModal, { CashMemoData } from '../components/CashMemoModal';
 
 export default function Dues() {
@@ -336,6 +337,17 @@ export default function Dues() {
           status: isFullyPaid ? 'paid' : 'pending',
           updatedAt: new Date().toISOString()
         });
+        syncPaymentToSourceRecord(
+          record,
+          newTotalPaid,
+          paymentDate || new Date().toISOString().split('T')[0],
+          true,
+          null,
+          undefined,
+          undefined,
+          undefined,
+          demoStore
+        );
         if (returnAmount > 0) {
           toast.success(`${t('dues.updateReturn')}${returnAmount}`, { duration: 5000 });
         } else {
@@ -355,6 +367,16 @@ export default function Dues() {
         status: isFullyPaid ? 'paid' : 'pending',
         updatedAt: new Date().toISOString()
       }));
+      syncPaymentToSourceRecord(
+        record,
+        newTotalPaid,
+        paymentDate || new Date().toISOString().split('T')[0],
+        false,
+        db,
+        offlineSafeDocWrite,
+        updateDoc,
+        doc
+      );
       
       if (returnAmount > 0) {
         toast.success(`${t('dues.updateReturn')}${returnAmount}`, { duration: 5000 });
@@ -403,6 +425,17 @@ export default function Dues() {
           ...record,
           ...updateData
         });
+        syncPaymentToSourceRecord(
+          record,
+          Number(record.amount),
+          new Date().toISOString().split('T')[0],
+          true,
+          null,
+          undefined,
+          undefined,
+          undefined,
+          demoStore
+        );
         toast.success(t('dues.markPaidSuccess'));
         setMarkPaidId(null);
         return;
@@ -410,6 +443,16 @@ export default function Dues() {
 
       const ref = doc(db, 'dues', recordId);
       await offlineSafeDocWrite(updateDoc(ref, updateData));
+      syncPaymentToSourceRecord(
+        record,
+        Number(record.amount),
+        new Date().toISOString().split('T')[0],
+        false,
+        db,
+        offlineSafeDocWrite,
+        updateDoc,
+        doc
+      );
       toast.success(t('dues.markPaidSuccess'));
       setMarkPaidId(null);
     } catch (error) {

@@ -28,6 +28,7 @@ import PrivacyPolicy from './views/PrivacyPolicy';
 import Marketplace from './views/Marketplace';
 import DoctorConsultation from './views/DoctorConsultation';
 import StoreDirectory from './views/StoreDirectory';
+import ChickMarket from './views/ChickMarket';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAuth();
@@ -52,6 +53,8 @@ function AppRoutes() {
           <Route path="dues" element={<Dues />} />
           <Route path="marketplace" element={<Marketplace />} />
           <Route path="doctor" element={<DoctorConsultation />} />
+          <Route path="chicks" element={<ChickMarket />} />
+          <Route path="hatchery" element={<ChickMarket />} />
           <Route path="store" element={<StoreDirectory />} />
           <Route path="shop" element={<StoreDirectory />} />
           <Route path="reports" element={<Reports />} />

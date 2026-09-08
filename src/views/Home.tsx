@@ -597,6 +597,35 @@ export default function Home() {
         </div>
       </Link>
 
+      {/* 7. Chick & Hatchery Market CTA (Grade A, B, C & Company Ads) */}
+      <Link 
+        to="/chicks" 
+        className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-amber-700 via-orange-800 to-slate-900 text-white shadow-sm hover:from-amber-800 hover:to-orange-900 transition-all group border border-amber-500/30 cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/30 border border-amber-300/40 flex items-center justify-center text-amber-200 shrink-0 group-hover:scale-105 transition-transform shadow-inner text-lg">
+            🐣
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white">
+                {language === 'bn' ? 'বাচ্চার বাজার ও হ্যাচারি স্টোর' : 'Chick & Hatchery Market'}
+              </span>
+              <span className="bg-amber-400 text-slate-950 text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                {language === 'bn' ? 'A, B, C গ্রেড' : 'GRADES'}
+              </span>
+            </div>
+            <p className="text-[9.5px] text-amber-100/90 font-medium">
+              {language === 'bn' ? 'মুরগি, পাখি ও মাছের বাচ্চার সঠিক মার্কেট রেট ও কোম্পানির বিজ্ঞাপন' : 'Live DOC & fingerling prices with company advertisements'}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white/15 group-hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shrink-0 transition-colors">
+          <span>{language === 'bn' ? 'বাচ্চা বাজার' : 'Market'}</span>
+          <ChevronRight size={14} />
+        </div>
+      </Link>
+
       {/* 7. Agri-Vet Feed & Medicine Store Directory CTA */}
       <Link 
         to="/store" 

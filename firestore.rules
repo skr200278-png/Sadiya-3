@@ -120,6 +120,19 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
+    // Hatchery Chick, Fingerling & Seedling Market Listings & Ads
+    match /chick_listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Benchmark Chick & DOC Market Rates (A, B, C Grades)
+    match /chick_rates/{rateId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Subscription Plans & Ad Tiers
     match /subscription_plans/{planId} {
       allow read: if true;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   collection, 
   query, 
@@ -54,7 +55,8 @@ import {
   HelpCircle,
   Crown,
   Lock,
-  Globe
+  Globe,
+  ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -576,6 +578,33 @@ export default function Marketplace() {
 
       {/* Master Admin Controls Card if logged in as skabusufian452@gmail.com */}
       {isAdmin && <AdminFeatureControlCard />}
+
+      {/* Hatchery & Chick Market (A, B, C Grade Rates & Company Ads) Quick Card */}
+      <Link
+        to="/chicks"
+        className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black shadow-xs hover:opacity-95 transition-all border border-amber-300"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xl">🐣</span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-slate-950">
+                {language === 'bn' ? 'বাচ্চার বাজার ও হ্যাচারি স্টোর' : 'Chick & Hatchery Market'}
+              </span>
+              <span className="bg-slate-950 text-amber-300 text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                A, B, C গ্রেড
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-900 font-medium">
+              {language === 'bn' ? 'বাচ্চার লাইভ রেট দেখুন ও বিভিন্ন কোম্পানির বাচ্চা কিনুন বা বিজ্ঞাপন দিন' : 'View live DOC rates & buy from company hatcheries'}
+            </p>
+          </div>
+        </div>
+        <div className="bg-slate-950 text-white px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1 shrink-0">
+          <span>{language === 'bn' ? 'প্রবেশ করুন' : 'View'}</span>
+          <ChevronRight size={14} />
+        </div>
+      </Link>
 
 
       {/* 2. Dual Tab Selector (বিজ্ঞাপন বোর্ড vs পাইকারি ক্রেতা তালিকা) */}

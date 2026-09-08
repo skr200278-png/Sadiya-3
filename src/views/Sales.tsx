@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -26,6 +26,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
 import CashMemoModal, { CashMemoData } from '../components/CashMemoModal';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
+import { getRecordDueStatus } from '../utils/duesSync';
+import { DuesStatusBadge } from '../components/DuesStatusBadge';
 
 export default function Sales() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export default function Sales() {
   const { t, language } = useLanguage();
   const { hasAccess, openSubscriptionModal } = useSystemConfig();
   const [records, setRecords] = useState<any[]>([]);
+  const [duesList, setDuesList] = useState<any[]>([]);
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -230,6 +233,7 @@ export default function Sales() {
         }
         const sales = demoStore.getSales();
         setRecords([...sales].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setDuesList(demoStore.getDues());
         setLoading(false);
       };
       loadDemoData();
@@ -267,9 +271,17 @@ export default function Sales() {
       setLoading(false);
     });
 
+    const duesQuery = query(collection(db, 'dues'), where('userId', '==', currentUser.uid));
+    const unsubscribeDues = onSnapshot(duesQuery, (snap) => {
+      setDuesList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.warn('Sales dues onSnapshot error:', error);
+    });
+
     return () => {
       unsubscribeBatches();
       unsubscribeSales();
+      unsubscribeDues();
     };
   }, [currentUser, isDemoUser]);
 
@@ -362,6 +374,94 @@ export default function Sales() {
       const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
       const catTitle = getCategoryLabel(category, customProductName);
 
+      if (isDemoUser) {
+        const saleRecordId = 'sale_' + Date.now();
+        let createdDueId: string | undefined = undefined;
+
+        // Auto add to dues ledger if there is an unpaid balance
+        if (paidVal < currentTotalAmount) {
+          const itemSummaryText = saleType === 'weight'
+            ? `${totalWeightKg} কেজি`
+            : getUnitDisplay(unitType, Number(quantity) || 0);
+
+          const dueRecord = {
+            userId: currentUser.uid,
+            personName: normalizedBuyerName,
+            phone: buyerPhone.trim(),
+            type: 'receivable' as const,
+            amount: currentTotalAmount,
+            totalPaid: paidVal,
+            details: `${batchName} - ${catTitle} (${itemSummaryText}) বিক্রয় বাকি`,
+            recordDate: date,
+            status: 'pending' as const,
+            sourceType: 'sale',
+            sourceId: saleRecordId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          const savedDue = demoStore.saveDue(dueRecord);
+          createdDueId = savedDue?.id;
+        }
+
+        const newRecord = {
+          id: saleRecordId,
+          userId: currentUser.uid,
+          batchId,
+          date,
+          category,
+          productName: customProductName.trim() || '',
+          unit: unitType,
+          saleType,
+          totalWeightKg: saleType === 'weight' ? Number(totalWeightKg) || 0 : 0,
+          pricePerKg: saleType === 'weight' ? Number(pricePerKg) || 0 : 0,
+          quantity: saleType === 'weight' ? (quantity ? Number(quantity) : 0) : (Number(quantity) || 0),
+          pricePerPiece: saleType === 'quantity' ? Number(pricePerPiece) || 0 : 0,
+          totalAmount: currentTotalAmount,
+          amountPaid: paidVal,
+          buyerName: normalizedBuyerName,
+          buyerPhone: buyerPhone.trim(),
+          notes: notes.trim(),
+          dueRecordId: createdDueId,
+          createdAt: new Date().toISOString()
+        };
+
+        demoStore.saveSale(newRecord);
+        toast.success(t('sales.addSuccess'));
+        resetForm();
+        return;
+      }
+
+      // Live Firestore submission
+      const saleDocRef = doc(collection(db, 'sales'));
+      let createdDueId: string | undefined = undefined;
+
+      // Auto add to dues ledger if there is an unpaid balance
+      if (paidVal < currentTotalAmount) {
+        const itemSummaryText = saleType === 'weight'
+          ? `${totalWeightKg} কেজি`
+          : getUnitDisplay(unitType, Number(quantity) || 0);
+
+        const dueDocRef = doc(collection(db, 'dues'));
+        createdDueId = dueDocRef.id;
+
+        const dueRecord = {
+          userId: currentUser.uid,
+          personName: normalizedBuyerName,
+          phone: buyerPhone.trim(),
+          type: 'receivable',
+          amount: currentTotalAmount,
+          totalPaid: paidVal,
+          details: `${batchName} - ${catTitle} (${itemSummaryText}) বিক্রয় বাকি`,
+          recordDate: date,
+          status: 'pending',
+          sourceType: 'sale',
+          sourceId: saleDocRef.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        await offlineSafeDocWrite(setDoc(dueDocRef, dueRecord));
+      }
+
       const newRecord = {
         userId: currentUser.uid,
         batchId,
@@ -379,62 +479,11 @@ export default function Sales() {
         buyerName: normalizedBuyerName,
         buyerPhone: buyerPhone.trim(),
         notes: notes.trim(),
+        dueRecordId: createdDueId,
         createdAt: new Date().toISOString()
       };
 
-      if (isDemoUser) {
-        demoStore.saveSale(newRecord);
-        
-        // Auto add to dues ledger if there is an unpaid balance
-        if (paidVal < currentTotalAmount) {
-          const itemSummaryText = saleType === 'weight'
-            ? `${totalWeightKg} কেজি`
-            : getUnitDisplay(unitType, Number(quantity) || 0);
-
-          const dueRecord = {
-            userId: currentUser.uid,
-            personName: normalizedBuyerName,
-            phone: buyerPhone.trim(),
-            type: 'receivable' as const,
-            amount: currentTotalAmount,
-            totalPaid: paidVal,
-            details: `${batchName} - ${catTitle} (${itemSummaryText}) বিক্রয় বাকি`,
-            recordDate: date,
-            status: 'pending' as const,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          demoStore.saveDue(dueRecord);
-        }
-
-        toast.success(t('sales.addSuccess'));
-        resetForm();
-        return;
-      }
-
-      await offlineSafeDocWrite(addDoc(collection(db, 'sales'), newRecord));
-
-      // Auto add to dues ledger if there is an unpaid balance
-      if (paidVal < currentTotalAmount) {
-        const itemSummaryText = saleType === 'weight'
-          ? `${totalWeightKg} কেজি`
-          : getUnitDisplay(unitType, Number(quantity) || 0);
-
-        const dueRecord = {
-          userId: currentUser.uid,
-          personName: normalizedBuyerName,
-          phone: buyerPhone.trim(),
-          type: 'receivable',
-          amount: currentTotalAmount,
-          totalPaid: paidVal,
-          details: `${batchName} - ${catTitle} (${itemSummaryText}) বিক্রয় বাকি`,
-          recordDate: date,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        await offlineSafeDocWrite(addDoc(collection(db, 'dues'), dueRecord));
-      }
+      await offlineSafeDocWrite(setDoc(saleDocRef, newRecord));
 
       toast.success(t('sales.addSuccess'));
       resetForm();
@@ -997,8 +1046,7 @@ export default function Sales() {
 
         {filteredRecords.map(record => {
           const batchName = activeBatches.find(b => b.id === record.batchId)?.batchName || 'Default Batch';
-          const rPaid = record.amountPaid !== undefined ? Number(record.amountPaid) : Number(record.totalAmount);
-          const rDue = Number(record.totalAmount) - rPaid;
+          const dueStatus = getRecordDueStatus(record, duesList, 'sale');
           const catLabel = getCategoryLabel(record.category || 'chicken', record.productName);
 
           return (
@@ -1042,15 +1090,14 @@ export default function Sales() {
                   <span className="font-black text-teal-700 text-base sm:text-lg font-mono">
                     ৳ {Number(record.totalAmount).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}
                   </span>
-                  {rDue > 0 ? (
-                    <span className="text-[10px] font-black text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full mt-1">
-                      {language === 'bn' ? `বাকি: ৳${rDue}` : `Due: ৳${rDue}`}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full mt-1">
-                      {language === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
-                    </span>
-                  )}
+                  <div className="mt-1">
+                    <DuesStatusBadge
+                      dueStatus={dueStatus}
+                      language={language as any}
+                      defaultPaidLabel={language === 'bn' ? 'পরিশোধিত' : 'Paid in Full'}
+                      defaultDueLabel={language === 'bn' ? `বাকি: ৳${dueStatus.remainingDue}` : `Due: ৳${dueStatus.remainingDue}`}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1085,7 +1132,7 @@ export default function Sales() {
 
                 <div className="flex items-center gap-2">
                   <div className="text-[11px] font-semibold text-slate-500">
-                    {language === 'bn' ? 'জমা:' : 'Paid:'} <span className="font-bold text-emerald-700 font-mono">৳{rPaid}</span>
+                    {language === 'bn' ? 'জমা:' : 'Paid:'} <span className="font-bold text-emerald-700 font-mono">৳{dueStatus.totalPaid}</span>
                   </div>
 
                   <button 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, deleteDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -8,6 +8,8 @@ import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, Lin
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
+import { getRecordDueStatus } from '../utils/duesSync';
+import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
 import FcrCalculatorCard from '../components/FcrCalculatorCard';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
@@ -17,6 +19,7 @@ export default function Feed() {
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
   const [records, setRecords] = useState<any[]>([]);
+  const [duesList, setDuesList] = useState<any[]>([]);
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +75,23 @@ export default function Feed() {
     fetchInitialData();
   }, [currentUser, isDemoUser]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isDemoUser) {
+      const loadDues = () => setDuesList(demoStore.getDues());
+      loadDues();
+      const unsub = demoStore.subscribe(loadDues);
+      return () => unsub();
+    }
+    const q = query(collection(db, 'dues'), where('userId', '==', currentUser.uid));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setDuesList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.warn('Feed dues listener error:', err);
+    });
+    return () => unsubscribe();
+  }, [currentUser, isDemoUser]);
+
   const fetchInitialData = async () => {
     if (!currentUser) return;
     try {
@@ -85,6 +105,7 @@ export default function Feed() {
         }
         const fetchedRecords = demoStore.getFeedRecords();
         setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setDuesList(demoStore.getDues());
         setLoading(false);
         return;
       }
@@ -108,6 +129,10 @@ export default function Feed() {
       const feedSnap = await fastGetDocs(feedQuery);
       const fetchedRecords = feedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+      // Fetch initial dues
+      const duesSnap = await fastGetDocs(query(collection(db, 'dues'), where('userId', '==', currentUser.uid)));
+      setDuesList(duesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'feed_records');
     } finally {
@@ -160,22 +185,11 @@ export default function Feed() {
 
     try {
       const normalizedPersonName = personName.trim().replace(/\s+/g, ' ');
-      const newRecord = {
-        userId: currentUser.uid,
-        batchId,
-        date,
-        feedType,
-        quantityBags: quantity,
-        cost: totalAmountVal,
-        pricePerBag: price,
-        amountPaid: paidVal,
-        personName: normalizedPersonName,
-        details,
-        createdAt: new Date().toISOString()
-      };
 
       if (isDemoUser) {
-        demoStore.saveFeedRecord(newRecord);
+        const feedRecordId = 'feed_' + Date.now();
+        let createdDueId: string | undefined = undefined;
+
         if (paidVal < totalAmountVal) {
           const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
           const dueRecord = {
@@ -188,11 +202,32 @@ export default function Feed() {
             details: `${batchName}${t('feed.feedFood').replace('{type}', feedType)}${details || ''}`,
             recordDate: date,
             status: 'pending' as const,
+            sourceType: 'feed',
+            sourceId: feedRecordId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
-          demoStore.saveDue(dueRecord);
+          const savedDue = demoStore.saveDue(dueRecord);
+          createdDueId = savedDue?.id;
         }
+
+        const newRecord = {
+          id: feedRecordId,
+          userId: currentUser.uid,
+          batchId,
+          date,
+          feedType,
+          quantityBags: quantity,
+          cost: totalAmountVal,
+          pricePerBag: price,
+          amountPaid: paidVal,
+          personName: normalizedPersonName,
+          details,
+          dueRecordId: createdDueId,
+          createdAt: new Date().toISOString()
+        };
+        demoStore.saveFeedRecord(newRecord);
+
         toast.success(t('feed.addSuccess'));
         setShowForm(false);
         setQuantityBags('');
@@ -205,10 +240,14 @@ export default function Feed() {
         return;
       }
 
-      await offlineSafeDocWrite(addDoc(collection(db, 'feed_records'), newRecord));
+      // Live Firestore submission
+      const feedDocRef = doc(collection(db, 'feed_records'));
+      let createdDueId: string | undefined = undefined;
 
       if (paidVal < totalAmountVal) {
         const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
+        const dueDocRef = doc(collection(db, 'dues'));
+        createdDueId = dueDocRef.id;
         const dueRecord = {
           userId: currentUser.uid,
           personName: normalizedPersonName,
@@ -219,11 +258,30 @@ export default function Feed() {
           details: `${batchName}${t('feed.feedFood').replace('{type}', feedType)}${details || ''}`,
           recordDate: date,
           status: 'pending',
+          sourceType: 'feed',
+          sourceId: feedDocRef.id,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        await offlineSafeDocWrite(addDoc(collection(db, 'dues'), dueRecord));
+        await offlineSafeDocWrite(setDoc(dueDocRef, dueRecord));
       }
+
+      const newRecord = {
+        userId: currentUser.uid,
+        batchId,
+        date,
+        feedType,
+        quantityBags: quantity,
+        cost: totalAmountVal,
+        pricePerBag: price,
+        amountPaid: paidVal,
+        personName: normalizedPersonName,
+        details,
+        dueRecordId: createdDueId,
+        createdAt: new Date().toISOString()
+      };
+
+      await offlineSafeDocWrite(setDoc(feedDocRef, newRecord));
 
       toast.success(t('feed.addSuccess'));
       setShowForm(false);
@@ -476,8 +534,7 @@ export default function Feed() {
           <div className="space-y-3">
             {records.map(record => {
               const batchName = activeBatches.find(b => b.id === record.batchId)?.batchName || 'Unknown Batch';
-              const rPaid = record.amountPaid !== undefined ? record.amountPaid : record.cost;
-              const rDue = record.cost - rPaid;
+              const dueStatus = getRecordDueStatus(record, duesList, 'feed');
               return (
                 <div key={record.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
                   <div>
@@ -489,8 +546,12 @@ export default function Feed() {
                   </div>
                   <div className="text-right flex flex-col items-end">
                     <span className="font-bold text-orange-600 text-lg">৳ {record.cost}</span>
-                    {rDue > 0 && <span className="text-xs font-semibold text-red-500 outline outline-1 outline-red-200 px-1 rounded mt-1">{t('feed.dueLabel')}{rDue}</span>}
-                    {rDue === 0 && <span className="text-xs font-semibold text-green-600 outline outline-1 outline-green-200 px-1 rounded mt-1">{t('feed.paidLabel')}</span>}
+                    <DuesStatusBadge
+                      dueStatus={dueStatus}
+                      language={language as any}
+                      defaultPaidLabel={t('feed.paidLabel')}
+                      defaultDueLabel={`${t('feed.dueLabel')}${dueStatus.remainingDue}`}
+                    />
                     <button onClick={() => handleDelete(record.id)} className="text-red-500 hover:bg-red-50 p-1 rounded-md mt-1 inline-block">
                       <Trash2 size={16} />
                     </button>
