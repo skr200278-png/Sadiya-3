@@ -24,9 +24,22 @@ if (typeof window !== 'undefined') {
 
 export let analytics: Analytics | null = null;
 if (typeof window !== 'undefined') {
+  // Gracefully silence measurement fetch fallback notice in preview iframes / sandboxes
+  const origWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    if (typeof args[0] === 'string' && args[0].includes('@firebase/analytics')) {
+      return;
+    }
+    origWarn.apply(console, args);
+  };
+
   isSupported().then((supported) => {
     if (supported) {
-      analytics = getAnalytics(app);
+      try {
+        analytics = getAnalytics(app);
+      } catch {
+        // Safe fallback
+      }
     }
   }).catch(() => {});
 }

@@ -340,13 +340,13 @@ export const ChickMarket: React.FC = () => {
               </span>
             </div>
             <h1 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-              <span>🐣</span>
-              <span>{language === 'bn' ? 'বাচ্চার বাজার ও হ্যাচারি স্টোর' : 'Chick & Fingerling Market'}</span>
+              <span>🏬</span>
+              <span>{language === 'bn' ? 'হ্যাচারি ও বাচ্চার দোকান / স্টোর ডিরেক্টরি' : 'Hatchery & Chick Stores Directory'}</span>
             </h1>
             <p className="text-xs text-emerald-100/90 font-medium mt-0.5 max-w-xl">
               {language === 'bn' 
-                ? 'মুরগি, পাখি ও মাছের বাচ্চার দৈনিক বাজার দর (Grade A, B, C) ও বিভিন্ন স্বনামধন্য কোম্পানির সরাসরি বাচ্চা বিক্রির বিজ্ঞাপন।'
-                : 'Daily live chick & fingerling market prices (Grade A, B, C) and direct hatchery company advertisements.'}
+                ? 'স্বনামধন্য হ্যাচারি ও ডিলারদের দোকান থেকে সরাসরি সুস্থ বাচ্চা সংগ্রহ, ফোন ও হোয়াটসঅ্যাপে অর্ডার।' 
+                : 'Direct company stores, verified contact numbers, and chick availability directory.'}
             </p>
           </div>
 
@@ -356,14 +356,45 @@ export const ChickMarket: React.FC = () => {
             className="w-full sm:w-auto bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-95 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
           >
             <Plus size={16} className="text-slate-950" />
-            <span>{language === 'bn' ? 'বাচ্চার বিজ্ঞাপন দিন' : 'Post Chick Ad'}</span>
+            <span>{language === 'bn' ? 'বাচ্চার দোকান / বিজ্ঞাপন দিন' : 'Post Chick Store / Ad'}</span>
           </button>
         </div>
 
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-white/10 to-transparent skew-x-12 pointer-events-none" />
       </div>
 
-      {/* 2. Category Selector */}
+      {/* 2. Market Rates Notification Banner (Points to Dashboard Market Rates) */}
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200/90 rounded-2xl p-3 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
+            <Tag size={16} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-slate-850">
+                {language === 'bn' ? 'দৈনিক বাচ্চার বাজার দর (A, B, C গ্রেড)' : 'Daily Chick Market Rates (A, B, C Grades)'}
+              </span>
+              <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-black px-1.5 py-0.2 rounded-full">
+                ড্যাশবোর্ডে যুক্ত
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+              {language === 'bn' 
+                ? 'মুরগি ও বাচ্চার দৈনিক বেঞ্চমার্ক দর ড্যাশবোর্ডের "বাজার দর" অপশনে লাইভ দেখা যাবে।' 
+                : 'Daily live chick benchmark rates are now available inside the Dashboard Market Rates card.'}
+            </p>
+          </div>
+        </div>
+
+        <a
+          href="#/dashboard"
+          className="w-full sm:w-auto text-center py-1.5 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1 shrink-0"
+        >
+          <span>{language === 'bn' ? 'ড্যাশবোর্ডের বাজার দর দেখুন ➔' : 'View Dashboard Rates ➔'}</span>
+        </a>
+      </div>
+
+      {/* 3. Category Selector for Stores */}
       <div className="bg-white p-1.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center gap-1 overflow-x-auto scrollbar-thin">
         <button
           onClick={() => setActiveCategory('all')}
@@ -373,8 +404,8 @@ export const ChickMarket: React.FC = () => {
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <span>🌟</span>
-          <span>{language === 'bn' ? 'সকল বর্গ' : 'All'}</span>
+          <span>🏬</span>
+          <span>{language === 'bn' ? 'সকল দোকান ও স্টোর' : 'All Stores'}</span>
         </button>
 
         <button
@@ -386,7 +417,7 @@ export const ChickMarket: React.FC = () => {
           }`}
         >
           <span>🐔</span>
-          <span>{language === 'bn' ? 'মুরগির বাচ্চা' : 'Poultry Chicks'}</span>
+          <span>{language === 'bn' ? 'মুরগির বাচ্চা হ্যাচারি' : 'Poultry Chicks'}</span>
         </button>
 
         <button
@@ -398,7 +429,7 @@ export const ChickMarket: React.FC = () => {
           }`}
         >
           <span>🐦</span>
-          <span>{language === 'bn' ? 'পাখির বাচ্চা' : 'Bird Chicks'}</span>
+          <span>{language === 'bn' ? 'পাখির বাচ্চা স্টোর' : 'Bird Chicks'}</span>
         </button>
 
         <button
@@ -410,130 +441,8 @@ export const ChickMarket: React.FC = () => {
           }`}
         >
           <span>🐟</span>
-          <span>{language === 'bn' ? 'মাছের পোনা' : 'Fish Fry'}</span>
+          <span>{language === 'bn' ? 'মাছের পোনা নার্সারি' : 'Fish Fry'}</span>
         </button>
-      </div>
-
-      {/* 3. Live Benchmark Market Rates Card (Grade A, B, C) */}
-      <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-xs border border-slate-200/80">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-              <Tag size={16} />
-            </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-                <span>{language === 'bn' ? 'দৈনিক বাচ্চার বাজার দর (A, B, C গ্রেড)' : 'Daily Chick Market Rates (A, B, C Grades)'}</span>
-                <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
-                  LIVE
-                </span>
-              </h2>
-              <p className="text-[10px] text-slate-500 font-medium">
-                {language === 'bn' 
-                  ? 'হ্যাচারি ও ডিলার এসোসিয়েশন কর্তৃক নির্ধারিত বেঞ্চমার্ক দর' 
-                  : 'Benchmark rates verified from hatchery associations'}
-              </p>
-            </div>
-          </div>
-
-          {isAdmin && (
-            <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
-              <ShieldCheck size={12} />
-              {language === 'bn' ? 'অ্যাডমিন মোড' : 'Admin Mode'}
-            </span>
-          )}
-        </div>
-
-        {/* Grade Explanation Note */}
-        <div className="bg-slate-50 rounded-2xl p-2.5 mb-3 border border-slate-150 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600 font-medium">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              {language === 'bn' ? 'Grade A: সেরা মান (১ম গ্রেড)' : 'Grade A: Premium (1st)'}
-            </span>
-            <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-              {language === 'bn' ? 'Grade B: মাঝারি মান (২য় গ্রেড)' : 'Grade B: Standard (2nd)'}
-            </span>
-            <span className="inline-flex items-center gap-1 text-purple-800 font-bold bg-purple-100 px-2 py-0.5 rounded-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-              {language === 'bn' ? 'Grade C: সাধারণ/লোকাল (৩য় গ্রেড)' : 'Grade C: Economy (3rd)'}
-            </span>
-          </div>
-          <span className="text-slate-400 text-[9.5px]">
-            {language === 'bn' ? 'সর্বশেষ আপডেট: আজ' : 'Updated: Today'}
-          </span>
-        </div>
-
-        {/* Rates Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {filteredRates.map((rate) => (
-            <div 
-              key={rate.id}
-              className="bg-gradient-to-br from-white to-slate-50/50 rounded-2xl p-3 border border-slate-200/90 shadow-2xs hover:border-emerald-300 transition-all"
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div>
-                  <h3 className="text-xs font-black text-slate-850 leading-tight">
-                    {language === 'bn' ? rate.nameBn : rate.nameEn}
-                  </h3>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {rate.unit}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
-                    rate.trend === 'up' 
-                      ? 'bg-red-50 text-red-700 border border-red-200' 
-                      : rate.trend === 'down'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {rate.trend === 'up' ? <TrendingUp size={10} /> : rate.trend === 'down' ? <TrendingDown size={10} /> : <Minus size={10} />}
-                    <span>{rate.trend === 'up' ? 'উর্ধ্বমুখী' : rate.trend === 'down' ? 'নিম্নমুখী' : 'স্থির'}</span>
-                  </span>
-
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingRate({ ...rate });
-                        setIsRateEditModalOpen(true);
-                      }}
-                      className="p-1 text-slate-400 hover:text-emerald-600 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                      title="Edit Rate"
-                    >
-                      <Edit3 size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 3-Grade Price Badges */}
-              <div className="grid grid-cols-3 gap-1.5 mb-2 text-center">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-1.5">
-                  <span className="text-[9px] font-black text-emerald-800 uppercase block">Grade A</span>
-                  <span className="text-xs font-black text-emerald-900">৳{rate.gradeA}</span>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-1.5">
-                  <span className="text-[9px] font-black text-amber-800 uppercase block">Grade B</span>
-                  <span className="text-xs font-black text-amber-900">৳{rate.gradeB}</span>
-                </div>
-
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-1.5">
-                  <span className="text-[9px] font-black text-purple-800 uppercase block">Grade C</span>
-                  <span className="text-xs font-black text-purple-900">৳{rate.gradeC}</span>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-slate-500 font-medium leading-relaxed bg-white/80 p-1.5 rounded-lg border border-slate-100">
-                💡 {rate.noteBn}
-              </p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* 4. Filter & Search Bar for Company Advertisements */}
@@ -542,11 +451,11 @@ export const ChickMarket: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <Building2 size={16} className="text-emerald-700" />
             <h2 className="text-xs sm:text-sm font-black text-slate-900">
-              {language === 'bn' ? 'কোম্পানি ও হ্যাচারি বাচ্চার বিজ্ঞাপন' : 'Company & Hatchery Advertisements'}
+              {language === 'bn' ? 'হ্যাচারি ও বাচ্চার দোকান / স্টোর তালিকা' : 'Hatchery & Chick Store Listings'}
             </h2>
           </div>
           <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
-            {filteredListings.length} {language === 'bn' ? 'টি বিজ্ঞাপন সক্রিয়' : 'Ads Live'}
+            {filteredListings.length} {language === 'bn' ? 'টি স্টোর উপলব্ধ' : 'Stores Available'}
           </span>
         </div>
 

@@ -147,14 +147,36 @@ export function getRecordDueStatus(
       originalDue: initialDue,
       totalPaid: initialAmountPaid,
       totalPaidInDues: 0,
+      lastPaymentDate: (initialAmountPaid > 0 || record.lastPaidDate) ? (record.lastPaidDate || record.date) : undefined,
       payments: []
     };
   }
 
   // Found matching due! Calculate live totals from the due record
-  const dueTotalAmount = Number(matchedDue.amount) || totalAmount;
+  const dueTotalAmount = Number(matchedDue.amount) || initialDue || totalAmount;
   const dueTotalPaid = Number(matchedDue.totalPaid) || 0;
-  const remainingDue = Math.max(0, dueTotalAmount - dueTotalPaid);
+
+  // Check if matchedDue was created with initialDue amount or totalAmount
+  const isDueAmountInitialDue = initialAmountPaid > 0 && Math.abs(dueTotalAmount - initialDue) < 1;
+
+  let remainingDue: number;
+  let totalPaidOverall: number;
+  let paidInDues: number;
+
+  if (isDueAmountInitialDue) {
+    remainingDue = Math.max(0, dueTotalAmount - dueTotalPaid);
+    paidInDues = dueTotalPaid;
+    totalPaidOverall = initialAmountPaid + dueTotalPaid;
+  } else if (Math.abs(dueTotalAmount - totalAmount) < 1) {
+    remainingDue = Math.max(0, dueTotalAmount - dueTotalPaid);
+    paidInDues = Math.max(0, dueTotalPaid - initialAmountPaid);
+    totalPaidOverall = dueTotalPaid;
+  } else {
+    remainingDue = Math.max(0, dueTotalAmount - dueTotalPaid);
+    paidInDues = dueTotalPaid;
+    totalPaidOverall = Math.min(totalAmount, initialAmountPaid + dueTotalPaid);
+  }
+
   const isFullyPaid = matchedDue.status === 'paid' || remainingDue <= 0;
 
   const payments: DuePaymentItem[] = matchedDue.payments || [];
@@ -163,12 +185,15 @@ export function getRecordDueStatus(
   if (payments.length > 0) {
     const lastP = payments[payments.length - 1];
     lastPaymentDate = lastP.date;
+  } else if (record.lastPaidDate) {
+    lastPaymentDate = record.lastPaidDate;
   } else if (isFullyPaid) {
-    lastPaymentDate = matchedDue.updatedAt || matchedDue.recordDate || matchedDue.createdAt;
+    lastPaymentDate = matchedDue.updatedAt || matchedDue.recordDate || matchedDue.createdAt || record.date;
+  } else if (dueTotalPaid > 0) {
+    lastPaymentDate = matchedDue.updatedAt || matchedDue.recordDate || record.date;
+  } else if (initialAmountPaid > 0) {
+    lastPaymentDate = record.date;
   }
-
-  // Calculate how much extra was paid through dues ledger
-  const paidInDues = Math.max(0, dueTotalPaid - initialAmountPaid);
 
   return {
     hasDueRecord: true,
@@ -176,7 +201,7 @@ export function getRecordDueStatus(
     isFullyPaid,
     remainingDue,
     originalDue: dueTotalAmount,
-    totalPaid: dueTotalPaid,
+    totalPaid: totalPaidOverall,
     totalPaidInDues: paidInDues,
     lastPaymentDate,
     payments,

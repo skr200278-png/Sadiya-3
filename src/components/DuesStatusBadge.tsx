@@ -19,9 +19,16 @@ export const DuesStatusBadge: React.FC<DuesStatusBadgeProps> = ({
   // Scenario 1: Paid in full initially at the time of entry (never had dues)
   if (!dueStatus.hadDueOriginally && !dueStatus.hasDueRecord) {
     return (
-      <span className="text-xs font-semibold text-emerald-600 outline outline-1 outline-emerald-200 px-1.5 py-0.5 rounded mt-1 inline-block">
-        {defaultPaidLabel || (language === 'bn' ? 'পরিশোধ' : 'Paid')}
-      </span>
+      <div className="flex flex-col items-end gap-0.5 mt-1 text-right">
+        <span className="text-xs font-semibold text-emerald-600 outline outline-1 outline-emerald-200 px-1.5 py-0.5 rounded inline-block">
+          {defaultPaidLabel || (language === 'bn' ? 'পরিশোধ' : 'Paid')}
+        </span>
+        {dueStatus.lastPaymentDate && (
+          <span className="text-[10px] text-gray-500 font-medium">
+            {formatDisplayDate(dueStatus.lastPaymentDate, language)}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -29,7 +36,7 @@ export const DuesStatusBadge: React.FC<DuesStatusBadgeProps> = ({
   if (dueStatus.isFullyPaid) {
     return (
       <div className="flex flex-col items-end gap-0.5 mt-1 text-right">
-        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-250 px-2 py-0.5 rounded-md shadow-2xs">
+        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
           <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
           <span>{language === 'bn' ? 'সম্পূর্ণ পরিশোধিত' : 'Fully Paid'}</span>
         </span>
@@ -51,11 +58,11 @@ export const DuesStatusBadge: React.FC<DuesStatusBadgeProps> = ({
     );
   }
 
-  // Scenario 3: Partially paid through Dues ledger (some still remaining)
-  if (dueStatus.remainingDue > 0 && dueStatus.totalPaidInDues > 0) {
+  // Scenario 3: Partially paid (deposit made, some due still remaining)
+  if (dueStatus.remainingDue > 0 && (dueStatus.totalPaid > 0 || dueStatus.totalPaidInDues > 0)) {
     return (
       <div className="flex flex-col items-end gap-0.5 mt-1 text-right">
-        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-700 bg-amber-50 border border-amber-250 px-2 py-0.5 rounded-md shadow-2xs">
+        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
           <Clock size={11} className="text-amber-600 shrink-0" />
           <span>
             {language === 'bn' 
@@ -63,10 +70,10 @@ export const DuesStatusBadge: React.FC<DuesStatusBadgeProps> = ({
               : `Due: ৳ ${dueStatus.remainingDue.toLocaleString()}`}
           </span>
         </span>
-        <span className="text-[10px] text-slate-600 font-semibold tracking-tight">
+        <span className="text-[10px] text-slate-700 font-semibold tracking-tight">
           {language === 'bn' 
-            ? `জমা: ৳ ${dueStatus.totalPaidInDues.toLocaleString('bn-BD')} (${formatDisplayDate(dueStatus.lastPaymentDate, language)})` 
-            : `Deposited: ৳ ${dueStatus.totalPaidInDues} (${formatDisplayDate(dueStatus.lastPaymentDate, language)})`}
+            ? `জমা: ৳ ${dueStatus.totalPaid.toLocaleString('bn-BD')}${dueStatus.lastPaymentDate ? ` (${formatDisplayDate(dueStatus.lastPaymentDate, language)})` : ''}` 
+            : `Paid: ৳ ${dueStatus.totalPaid.toLocaleString()}${dueStatus.lastPaymentDate ? ` (${formatDisplayDate(dueStatus.lastPaymentDate, language)})` : ''}`}
         </span>
         <Link 
           to="/dues" 

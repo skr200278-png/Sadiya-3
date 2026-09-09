@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { TrendingUp, TrendingDown, Minus, MapPin, RefreshCw, Edit3, Check, DollarSign, Store, Tag } from 'lucide-react';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Minus, 
+  MapPin, 
+  RefreshCw, 
+  Edit3, 
+  Check, 
+  DollarSign, 
+  Store, 
+  Tag,
+  Egg,
+  ShieldCheck
+} from 'lucide-react';
+import { DemoChickRate, initialChickRates, demoStore } from '../utils/demoStore';
 
 interface MarketItem {
   id: string;
@@ -160,6 +174,9 @@ const DEFAULT_MARKET_RATES: MarketItem[] = [
 
 export default function MarketRatesCard({ farmType }: MarketRatesCardProps) {
   const { language } = useLanguage();
+  const [activeTab, setActiveTab] = useState<'meat' | 'chicks'>('meat');
+
+  // Livestock & Egg Rates
   const [rates, setRates] = useState<MarketItem[]>(() => {
     const saved = localStorage.getItem('user_market_rates_cache');
     if (saved) {
@@ -172,29 +189,59 @@ export default function MarketRatesCard({ farmType }: MarketRatesCardProps) {
     return DEFAULT_MARKET_RATES;
   });
 
+  // Chick Market Rates (Grade A, B, C)
+  const [chickRates, setChickRates] = useState<DemoChickRate[]>(() => {
+    const saved = localStorage.getItem('user_chick_rates_cache');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return demoStore.getChickRates();
+      }
+    }
+    return demoStore.getChickRates();
+  });
+
   const [selectedDivision, setSelectedDivision] = useState<string>(() => {
     return localStorage.getItem('user_market_division') || (language === 'bn' ? 'জাতীয় গড় বাজার' : 'National Avg');
   });
 
   const [isEditing, setIsEditing] = useState(false);
   const [editRates, setEditRates] = useState<MarketItem[]>(rates);
+  const [editChickRates, setEditChickRates] = useState<DemoChickRate[]>(chickRates);
 
   useEffect(() => {
     setEditRates(rates);
   }, [rates]);
 
+  useEffect(() => {
+    setEditChickRates(chickRates);
+  }, [chickRates]);
+
   const filteredRates = rates.filter(r => r.category === farmType);
 
   const handleSaveRates = () => {
-    setRates(editRates);
-    localStorage.setItem('user_market_rates_cache', JSON.stringify(editRates));
+    if (activeTab === 'meat') {
+      setRates(editRates);
+      localStorage.setItem('user_market_rates_cache', JSON.stringify(editRates));
+    } else {
+      setChickRates(editChickRates);
+      localStorage.setItem('user_chick_rates_cache', JSON.stringify(editChickRates));
+      editChickRates.forEach(r => demoStore.updateChickRate(r.id, r));
+    }
     setIsEditing(false);
   };
 
   const handleResetDefaults = () => {
-    setRates(DEFAULT_MARKET_RATES);
-    setEditRates(DEFAULT_MARKET_RATES);
-    localStorage.removeItem('user_market_rates_cache');
+    if (activeTab === 'meat') {
+      setRates(DEFAULT_MARKET_RATES);
+      setEditRates(DEFAULT_MARKET_RATES);
+      localStorage.removeItem('user_market_rates_cache');
+    } else {
+      setChickRates(initialChickRates);
+      setEditChickRates(initialChickRates);
+      localStorage.removeItem('user_chick_rates_cache');
+    }
     setIsEditing(false);
   };
 
@@ -241,44 +288,122 @@ export default function MarketRatesCard({ farmType }: MarketRatesCardProps) {
         </div>
       </div>
 
-      {/* Edit Mode Inputs */}
+      {/* Sub-Tabs: মুরগি/পণ্য বনাম বাচ্চার বাজার দর */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl mb-3 border border-slate-200">
+        <button
+          type="button"
+          onClick={() => { setActiveTab('meat'); setIsEditing(false); }}
+          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'meat'
+              ? 'bg-white text-slate-900 shadow-2xs font-extrabold border border-slate-200/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>🐔</span>
+          <span>{language === 'bn' ? (farmType === 'poultry' ? 'মুরগি ও ডিমের দর' : 'পণ্য ও মাংসের দর') : 'Live Rates'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('chicks'); setIsEditing(false); }}
+          className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'chicks'
+              ? 'bg-amber-500 text-white shadow-2xs font-extrabold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>🐣</span>
+          <span>{language === 'bn' ? 'বাচ্চার বাজার দর (A, B, C)' : 'Chick Rates (A, B, C)'}</span>
+        </button>
+      </div>
+
+      {/* Edit Mode */}
       {isEditing ? (
         <div className="space-y-3 bg-amber-50/40 p-3 rounded-xl border border-amber-200">
           <p className="text-[11px] font-bold text-slate-700 mb-2">
-            {language === 'bn' ? 'আপনার এলাকার নিজস্ব পাইকারি ও খুচরা রেট লিখুন:' : 'Set your local wholesale & retail prices:'}
+            {activeTab === 'meat'
+              ? (language === 'bn' ? 'আপনার এলাকার নিজস্ব পাইকারি ও খুচরা রেট লিখুন:' : 'Set your local wholesale & retail prices:')
+              : (language === 'bn' ? 'বাচ্চার গ্রেড অনুযায়ী নিজস্ব রেট লিখুন (টাকা/পিস):' : 'Set your local chick grade prices (BDT/Piece):')}
           </p>
-          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-            {editRates.filter(r => r.category === farmType).map((item) => (
-              <div key={item.id} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
-                <p className="font-bold text-slate-800 mb-1.5">{language === 'bn' ? item.nameBn : item.nameEn}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[9px] text-slate-500 font-bold block mb-0.5">{language === 'bn' ? 'পাইকারি (৳)' : 'Wholesale'}</span>
-                    <input
-                      type="text"
-                      value={item.wholesale}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditRates(prev => prev.map(p => p.id === item.id ? { ...p, wholesale: val } : p));
-                      }}
-                      className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-slate-500 font-bold block mb-0.5">{language === 'bn' ? 'খুচরা (৳)' : 'Retail'}</span>
-                    <input
-                      type="text"
-                      value={item.retail}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditRates(prev => prev.map(p => p.id === item.id ? { ...p, retail: val } : p));
-                      }}
-                      className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
-                    />
+          
+          <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+            {activeTab === 'meat' ? (
+              editRates.filter(r => r.category === farmType).map((item) => (
+                <div key={item.id} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
+                  <p className="font-bold text-slate-800 mb-1.5">{language === 'bn' ? item.nameBn : item.nameEn}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold block mb-0.5">{language === 'bn' ? 'পাইকারি (৳)' : 'Wholesale'}</span>
+                      <input
+                        type="text"
+                        value={item.wholesale}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditRates(prev => prev.map(p => p.id === item.id ? { ...p, wholesale: val } : p));
+                        }}
+                        className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold block mb-0.5">{language === 'bn' ? 'খুচরা (৳)' : 'Retail'}</span>
+                      <input
+                        type="text"
+                        value={item.retail}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditRates(prev => prev.map(p => p.id === item.id ? { ...p, retail: val } : p));
+                        }}
+                        className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              editChickRates.map((item) => (
+                <div key={item.id} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
+                  <p className="font-bold text-slate-800 mb-1.5">{language === 'bn' ? item.nameBn : item.nameEn}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div>
+                      <span className="text-[9px] text-emerald-700 font-bold block mb-0.5">Grade A (৳)</span>
+                      <input
+                        type="number"
+                        value={item.gradeA}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setEditChickRates(prev => prev.map(p => p.id === item.id ? { ...p, gradeA: val } : p));
+                        }}
+                        className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-amber-700 font-bold block mb-0.5">Grade B (৳)</span>
+                      <input
+                        type="number"
+                        value={item.gradeB}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setEditChickRates(prev => prev.map(p => p.id === item.id ? { ...p, gradeB: val } : p));
+                        }}
+                        className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-purple-700 font-bold block mb-0.5">Grade C (৳)</span>
+                      <input
+                        type="number"
+                        value={item.gradeC}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setEditChickRates(prev => prev.map(p => p.id === item.id ? { ...p, gradeC: val } : p));
+                        }}
+                        className="w-full p-1.5 text-xs border border-slate-200 rounded font-sans font-bold text-slate-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="flex items-center gap-2 pt-1">
@@ -297,8 +422,8 @@ export default function MarketRatesCard({ farmType }: MarketRatesCardProps) {
             </button>
           </div>
         </div>
-      ) : (
-        /* Market Rates View Grid */
+      ) : activeTab === 'meat' ? (
+        /* 1. Live Livestock / Meat / Egg Rates View */
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {filteredRates.map((item) => (
             <div 
@@ -345,6 +470,77 @@ export default function MarketRatesCard({ farmType }: MarketRatesCardProps) {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        /* 2. Chick Market Rates (Grade A, B, C) */
+        <div className="space-y-2.5">
+          {/* Grade summary pill */}
+          <div className="bg-amber-50/70 rounded-xl p-2 border border-amber-200/80 flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold">
+            <div className="flex items-center gap-1.5">
+              <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md">Grade A (১ম)</span>
+              <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md">Grade B (২য়)</span>
+              <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-md">Grade C (৩য়)</span>
+            </div>
+            <span className="text-slate-500 font-medium">প্রতি পিস বাচ্চার রেট</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-0.5">
+            {chickRates.map((chick) => (
+              <div 
+                key={chick.id}
+                className="bg-slate-50/80 hover:bg-amber-50/20 border border-slate-200 hover:border-amber-200 rounded-xl p-2.5 transition-all flex flex-col justify-between"
+              >
+                <div className="flex items-start justify-between gap-1 mb-1.5">
+                  <span className="text-xs font-extrabold text-slate-800 leading-tight">
+                    {language === 'bn' ? chick.nameBn : chick.nameEn}
+                  </span>
+                  <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-md flex items-center gap-0.5 shrink-0 ${
+                    chick.trend === 'up' ? 'bg-red-100 text-red-700' :
+                    chick.trend === 'down' ? 'bg-emerald-100 text-emerald-800' :
+                    'bg-slate-200/70 text-slate-600'
+                  }`}>
+                    {chick.trend === 'up' && <TrendingUp size={9} />}
+                    {chick.trend === 'down' && <TrendingDown size={9} />}
+                    {chick.trend === 'stable' && <Minus size={9} />}
+                    <span>{chick.trend === 'up' ? (language === 'bn' ? 'উর্ধ্বমুখী' : 'Up') : chick.trend === 'down' ? (language === 'bn' ? 'নিম্নমুখী' : 'Down') : (language === 'bn' ? 'স্থির' : 'Stable')}</span>
+                  </span>
+                </div>
+
+                {/* 3 Grade Price Badges */}
+                <div className="grid grid-cols-3 gap-1 my-1">
+                  <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-lg p-1 text-center">
+                    <span className="text-[8px] font-black text-emerald-800 uppercase block leading-tight">Grade A</span>
+                    <span className="text-xs font-black text-emerald-950">৳{chick.gradeA}</span>
+                  </div>
+                  <div className="bg-amber-50/90 border border-amber-200/80 rounded-lg p-1 text-center">
+                    <span className="text-[8px] font-black text-amber-800 uppercase block leading-tight">Grade B</span>
+                    <span className="text-xs font-black text-amber-950">৳{chick.gradeB}</span>
+                  </div>
+                  <div className="bg-purple-50/90 border border-purple-200/80 rounded-lg p-1 text-center">
+                    <span className="text-[8px] font-black text-purple-800 uppercase block leading-tight">Grade C</span>
+                    <span className="text-xs font-black text-purple-950">৳{chick.gradeC}</span>
+                  </div>
+                </div>
+
+                {chick.noteBn && (
+                  <p className="text-[9.5px] text-slate-500 font-medium leading-tight mt-1 line-clamp-2">
+                    💡 {chick.noteBn}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Direct Link to Chick Store Directory */}
+          <div className="pt-2 border-t border-slate-150 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500 font-semibold">সরাসরি হ্যাচারি থেকে কিনতে চান?</span>
+            <a 
+              href="#/chick-market" 
+              className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 shadow-2xs transition-colors"
+            >
+              <span>🏬 হ্যাচারি ও স্টোর ডিরেক্টরি ➔</span>
+            </a>
+          </div>
         </div>
       )}
 
