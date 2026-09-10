@@ -8,6 +8,8 @@ export interface DemoBatch {
   batchName: string;
   farmType: 'poultry' | 'cattle' | 'fish';
   startDate: string;
+  endDate?: string;
+  completedAt?: string;
   totalChicks: number;
   costPerChick: number;
   status: 'active' | 'completed';
@@ -121,6 +123,9 @@ export interface DemoUserProfile {
   farmName: string;
   phone: string;
   language: 'bn' | 'en';
+  country?: string;
+  currency?: string;
+  currencySymbol?: string;
 }
 
 export interface DemoMarketPost {
@@ -876,7 +881,10 @@ const initialProfile: DemoUserProfile = {
   name: 'মোঃ আবু সুফিয়ান (ডেমো)',
   farmName: 'সোনার বাংলা ডেমো খামার',
   phone: '01700-000000',
-  language: 'bn'
+  language: 'bn',
+  country: 'BD',
+  currency: 'BDT',
+  currencySymbol: '৳'
 };
 
 type Listener = () => void;
@@ -942,6 +950,13 @@ export const demoStore = {
   deleteBatch(id: string): void {
     const batches = this.getBatches().filter(b => b.id !== id);
     setItem('batches', batches);
+    // Cascade remove all associated batch records so no orphaned data lingers
+    setItem('feed', this.getFeedRecords().filter(r => r.batchId !== id));
+    setItem('medicine', this.getMedicineRecords().filter(r => r.batchId !== id));
+    setItem('mortality', this.getMortalityRecords().filter(r => r.batchId !== id));
+    setItem('expenses', this.getExpenseRecords().filter(r => r.batchId !== id));
+    setItem('sales', this.getSales().filter(r => r.batchId !== id));
+    setItem('dues', this.getDues().filter(r => r.batchId !== id));
   },
 
   // Feed

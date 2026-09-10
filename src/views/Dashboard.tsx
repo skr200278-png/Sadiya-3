@@ -9,6 +9,14 @@ import SponsorCard from '../components/SponsorCard';
 import QuickDailyLogModal from '../components/QuickDailyLogModal';
 import SmartFarmInsightsCard, { InsightMetricData } from '../components/SmartFarmInsightsCard';
 import { 
+  SCHEDULE_BROILER, 
+  SCHEDULE_SONALI, 
+  SCHEDULE_LAYER, 
+  SCHEDULE_DAIRY, 
+  SCHEDULE_FISH, 
+  VaccineItem 
+} from '../components/VaccineScheduleCard';
+import { 
   Package, 
   TrendingUp, 
   AlertTriangle, 
@@ -17,6 +25,9 @@ import {
   Sparkles, 
   Activity, 
   CheckCircle, 
+  CheckCircle2,
+  Syringe,
+  Droplets,
   Layers, 
   ChevronRight, 
   ClipboardCheck, 
@@ -36,7 +47,8 @@ import {
   Zap,
   Wheat,
   Pill,
-  GitCompare
+  GitCompare,
+  Bird
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -62,7 +74,13 @@ export default function Dashboard() {
   const [isMarketRatesModalOpen, setIsMarketRatesModalOpen] = useState<boolean>(false);
   const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
+  const [quickLogTab, setQuickLogTab] = useState<'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales'>('all');
   const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
+
+  const openQuickLog = (tab: 'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales' = 'all') => {
+    setQuickLogTab(tab);
+    setIsQuickLogOpen(true);
+  };
 
   // Selected Farm Type State synchronized with localStorage
   const [selectedType, setSelectedType] = useState<'poultry' | 'cattle' | 'fish'>(
@@ -563,6 +581,48 @@ export default function Dashboard() {
     localStorage.setItem('selected_farm_type', type);
   };
 
+  // Active batch vaccine calculation
+  const [vaccineDoneVersion, setVaccineDoneVersion] = useState(0);
+
+  const activeBatchVaccine = React.useMemo(() => {
+    if (!activeBatch) return null;
+    const age = calculateAge(activeBatch.startDate);
+    const fType = activeBatch.farmType || 'poultry';
+    let schedule = SCHEDULE_BROILER;
+    const bName = (activeBatch.batchName || '').toLowerCase();
+    if (fType === 'cattle') schedule = SCHEDULE_DAIRY;
+    else if (fType === 'fish') schedule = SCHEDULE_FISH;
+    else if (bName.includes('সোনালী') || bName.includes('sonali')) schedule = SCHEDULE_SONALI;
+    else if (bName.includes('লেয়ার') || bName.includes('layer')) schedule = SCHEDULE_LAYER;
+
+    const actionable = schedule.filter(item => !item.isHatcheryGiven);
+    const completedKey = `vax_done_${activeBatch.id}_`;
+
+    // 1. Due today or active window (targetDayMin <= age <= targetDayMax)
+    const dueToday = actionable.find(item => item.targetDayMin <= age && age <= item.targetDayMax);
+    if (dueToday) {
+      const isDone = localStorage.getItem(`${completedKey}${dueToday.id}`) === 'true';
+      return { item: dueToday, isDueToday: true, daysUntil: 0, age, isDone };
+    }
+
+    // 2. Next upcoming vaccine
+    const upcoming = actionable.find(item => item.targetDayMin > age);
+    if (upcoming) {
+      const isDone = localStorage.getItem(`${completedKey}${upcoming.id}`) === 'true';
+      return { item: upcoming, isDueToday: false, daysUntil: upcoming.targetDayMin - age, age, isDone };
+    }
+
+    return null;
+  }, [activeBatch, vaccineDoneVersion]);
+
+  const toggleVaccineDone = (item: VaccineItem) => {
+    if (!activeBatch) return;
+    const key = `vax_done_${activeBatch.id}_${item.id}`;
+    const current = localStorage.getItem(key) === 'true';
+    localStorage.setItem(key, String(!current));
+    setVaccineDoneVersion(v => v + 1);
+  };
+
   const totalCompletedChores = chores.filter(c => c.completed).length;
   const progressPercent = chores.length > 0 ? Math.round((totalCompletedChores / chores.length) * 100) : 0;
 
@@ -861,6 +921,79 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Active Batch Vaccine Reminder Alert */}
+          {activeBatchVaccine && (
+            <div className={`rounded-xl p-2.5 border mb-2.5 transition-all ${
+              activeBatchVaccine.isDone
+                ? 'bg-slate-50 border-slate-200 text-slate-600'
+                : activeBatchVaccine.isDueToday
+                ? 'bg-gradient-to-r from-red-50 to-amber-50/70 border-red-200 text-red-950 shadow-2xs'
+                : 'bg-emerald-50/60 border-emerald-200/80 text-emerald-950'
+            }`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold ${
+                    activeBatchVaccine.isDone
+                      ? 'bg-slate-200 text-slate-500'
+                      : activeBatchVaccine.isDueToday
+                      ? 'bg-red-500 text-white'
+                      : 'bg-emerald-600 text-white'
+                  }`}>
+                    <Syringe size={14} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md uppercase tracking-wider ${
+                        activeBatchVaccine.isDone
+                          ? 'bg-slate-200 text-slate-700'
+                          : activeBatchVaccine.isDueToday 
+                          ? 'bg-red-100 text-red-800 border border-red-300 animate-pulse' 
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {activeBatchVaccine.isDone
+                          ? (language === 'bn' ? '✓ সম্পন্ন হয়েছে' : '✓ Completed')
+                          : activeBatchVaccine.isDueToday 
+                          ? (language === 'bn' ? '🚨 আজকের ভ্যাকসিন' : '🚨 Vaccine Due Today')
+                          : (language === 'bn' ? `📅 আসন্ন ভ্যাকসিন (আর ${activeBatchVaccine.daysUntil} দিন বাকি)` : `📅 Upcoming in ${activeBatchVaccine.daysUntil} days`)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        (দিন {activeBatchVaccine.item.targetDayMin}-{activeBatchVaccine.item.targetDayMax})
+                      </span>
+                    </div>
+                    <h5 className={`text-xs font-black mt-0.5 leading-snug ${activeBatchVaccine.isDone ? 'line-through text-slate-500' : 'text-slate-850'}`}>
+                      {activeBatchVaccine.item.name}
+                    </h5>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      💧 {activeBatchVaccine.item.route}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleVaccineDone(activeBatchVaccine.item)}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer flex items-center gap-1 ${
+                      activeBatchVaccine.isDone
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    <CheckCircle2 size={11} className={activeBatchVaccine.isDone ? 'text-emerald-600' : 'text-slate-400'} />
+                    <span>{activeBatchVaccine.isDone ? (language === 'bn' ? 'সম্পন্ন' : 'Done') : (language === 'bn' ? 'টিকা দিন' : 'Mark Done')}</span>
+                  </button>
+                  <Link 
+                    to="/medicine"
+                    className="text-[9px] font-bold text-slate-400 hover:text-emerald-700 flex items-center gap-0.5"
+                  >
+                    <span>{language === 'bn' ? 'সব শিডিউল' : 'All'}</span>
+                    <ChevronRight size={10} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Active Batch Slim Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-slate-150/70 text-[11px] font-bold text-slate-500">
             <Link to="/batches" className="hover:text-emerald-700 flex items-center gap-1 transition-colors">
@@ -907,12 +1040,12 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {/* 4 Rows x 3 Columns = 12 Action Buttons */}
+        {/* 5 Rows x 3 Columns = 15 Action Buttons */}
         <div className="grid grid-cols-3 gap-2">
           {/* Row 1, Item 1: Quick Daily Log (Highlight) */}
           <button 
             type="button"
-            onClick={() => setIsQuickLogOpen(true)}
+            onClick={() => openQuickLog('all')}
             className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative"
           >
             <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
@@ -931,7 +1064,21 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.feed')}</span>
           </Link>
 
-          {/* Row 1, Item 3: Medicine */}
+          {/* Row 1, Item 3: Water Intake (পানির হিসাব - Dedicated Button) */}
+          <button 
+            type="button"
+            onClick={() => openQuickLog('water')}
+            className="bg-cyan-50/90 p-2 rounded-xl border border-cyan-200/90 flex flex-col items-center justify-center gap-1 hover:border-cyan-400 hover:bg-cyan-100/80 transition-all duration-150 group cursor-pointer relative"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <Droplets size={16} className="text-white fill-white/20" />
+            </div>
+            <span className="text-[10px] font-black text-cyan-900 tracking-tight text-center truncate w-full">
+              {language === 'bn' ? 'পানির হিসাব' : 'Water Log'}
+            </span>
+          </button>
+
+          {/* Row 2, Item 1: Medicine */}
           <Link to="/medicine" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-blue-300 hover:bg-blue-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <Pill size={15} />
@@ -939,7 +1086,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.medicine')}</span>
           </Link>
 
-          {/* Row 2, Item 1: Mortality */}
+          {/* Row 2, Item 2: Mortality */}
           <Link to="/mortality" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-red-300 hover:bg-red-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
                <AlertTriangle size={15} strokeWidth={2.5} />
@@ -947,7 +1094,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{language === 'bn' ? 'মৃত্যু' : t('dashboard.mortality')}</span>
           </Link>
 
-          {/* Row 2, Item 2: Expenses */}
+          {/* Row 2, Item 3: Expenses */}
           <Link to="/expenses" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-purple-300 hover:bg-purple-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
                <DollarSign size={15} strokeWidth={2.5} />
@@ -955,7 +1102,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.expenses')}</span>
           </Link>
 
-          {/* Row 2, Item 3: Sales */}
+          {/* Row 3, Item 1: Sales */}
           <Link to="/sales" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-teal-300 hover:bg-teal-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <TrendingUp size={15} strokeWidth={2.5} />
@@ -963,7 +1110,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.sales')}</span>
           </Link>
 
-          {/* Row 3, Item 1: Dues */}
+          {/* Row 3, Item 2: Dues */}
           <Link to="/dues" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-pink-300 hover:bg-pink-50/20 transition-all duration-150 group">
             <div className="w-8 h-8 bg-pink-100 text-pink-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <FileText size={15} strokeWidth={2.5} />
@@ -971,7 +1118,7 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.dues')}</span>
           </Link>
 
-          {/* Row 3, Item 2: Daily Care / Chores (Tadaroki) */}
+          {/* Row 3, Item 3: Daily Care / Chores (Tadaroki) */}
           <button 
             type="button"
             onClick={() => setIsChoresModalOpen(true)}
@@ -994,7 +1141,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 3, Item 3: FCR Graph */}
+          {/* Row 4, Item 1: FCR Graph */}
           <Link 
             to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
             className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/90 flex flex-col items-center justify-center gap-1 hover:border-amber-400 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer"
@@ -1007,7 +1154,7 @@ export default function Dashboard() {
             </span>
           </Link>
 
-          {/* Row 4, Item 1: Live Market Rates with LIVE Badge */}
+          {/* Row 4, Item 2: Live Market Rates with LIVE Badge */}
           <button 
             type="button"
             onClick={() => setIsMarketRatesModalOpen(true)}
@@ -1024,7 +1171,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 4, Item 2: Batch Compare */}
+          {/* Row 4, Item 3: Batch Compare */}
           <Link 
             to="/batches?filter=compare"
             className="bg-blue-50/60 p-2 rounded-xl border border-blue-200/90 flex flex-col items-center justify-center gap-1 hover:border-blue-400 hover:bg-blue-100/70 transition-all duration-150 group cursor-pointer"
@@ -1037,7 +1184,7 @@ export default function Dashboard() {
             </span>
           </Link>
 
-          {/* Row 4, Item 3: Sponsored Partners with PRO Badge */}
+          {/* Row 5, Item 1: Sponsored Partners with PRO Badge */}
           <button 
             type="button"
             onClick={() => setIsSponsorsModalOpen(true)}
@@ -1053,6 +1200,32 @@ export default function Dashboard() {
               {language === 'bn' ? 'স্পনসর' : 'Sponsors'}
             </span>
           </button>
+
+          {/* Row 5, Item 2: Chicks Market & Hatchery */}
+          <Link 
+            to="/chicks"
+            className="bg-orange-50/60 p-2 rounded-xl border border-orange-200/90 flex flex-col items-center justify-center gap-1 hover:border-orange-400 hover:bg-orange-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <Bird size={15} strokeWidth={2.5} />
+            </div>
+            <span className="text-[10px] font-black text-orange-950 tracking-tight block truncate">
+              {language === 'bn' ? 'বাচ্চা দর' : 'Chicks'}
+            </span>
+          </Link>
+
+          {/* Row 5, Item 3: All Batches */}
+          <Link 
+            to="/batches"
+            className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/90 flex flex-col items-center justify-center gap-1 hover:border-slate-400 hover:bg-slate-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="w-8 h-8 bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
+              <Package size={15} strokeWidth={2.5} />
+            </div>
+            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight block truncate">
+              {language === 'bn' ? 'সব ব্যাচ' : 'Batches'}
+            </span>
+          </Link>
 
           {/* Row 5 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
           <Link
@@ -1403,6 +1576,7 @@ export default function Dashboard() {
       {/* 8. Unified Quick Daily Log Modal */}
       <QuickDailyLogModal
         isOpen={isQuickLogOpen}
+        initialTab={quickLogTab}
         onClose={() => setIsQuickLogOpen(false)}
         activeBatch={activeBatch}
         batches={categoryBatches}

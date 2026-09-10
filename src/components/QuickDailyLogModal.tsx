@@ -29,6 +29,7 @@ interface QuickDailyLogModalProps {
   activeBatch?: any;
   batches?: any[];
   farmType?: 'poultry' | 'cattle' | 'fish';
+  initialTab?: 'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales';
 }
 
 export default function QuickDailyLogModal({
@@ -39,7 +40,8 @@ export default function QuickDailyLogModal({
   defaultBatchId,
   activeBatch,
   batches: passedBatches,
-  farmType = 'poultry'
+  farmType = 'poultry',
+  initialTab = 'all'
 }: QuickDailyLogModalProps) {
   const { currentUser, isDemoUser } = useAuth();
   const { language } = useLanguage();
@@ -50,7 +52,13 @@ export default function QuickDailyLogModal({
   const [saving, setSaving] = useState(false);
 
   // Active section / tab to keep the form ultra-fast and simple
-  const [activeTab, setActiveTab] = useState<'all' | 'feed' | 'mortality' | 'weight' | 'expense' | 'sales'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales'>(initialTab || 'all');
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab || 'all');
+    }
+  }, [isOpen, initialTab]);
 
   // 1. Feed inputs
   const [feedType, setFeedType] = useState('Starter / প্রাথমিক');
@@ -64,6 +72,7 @@ export default function QuickDailyLogModal({
 
   // 3. Weight & Production
   const [avgWeightGram, setAvgWeightGram] = useState<string>('');
+  const [waterLiters, setWaterLiters] = useState<string>('');
   const [eggCount, setEggCount] = useState<string>('');
   const [milkLiter, setMilkLiter] = useState<string>('');
 
@@ -133,7 +142,7 @@ export default function QuickDailyLogModal({
 
     const hasFeed = (Number(feedBags) > 0 || Number(feedKg) > 0);
     const hasMortality = Number(mortalityCount) > 0;
-    const hasWeight = Number(avgWeightGram) > 0 || Number(eggCount) > 0 || Number(milkLiter) > 0;
+    const hasWeight = Number(avgWeightGram) > 0 || Number(waterLiters) > 0 || Number(eggCount) > 0 || Number(milkLiter) > 0;
     const hasMedicine = medicineName.trim().length > 0;
     const hasExpense = Number(expenseAmount) > 0;
     const hasSales = Number(saleTotalAmount) > 0;
@@ -200,6 +209,7 @@ export default function QuickDailyLogModal({
           batchId: selectedBatchId,
           date: logDate,
           avgWeightGram: Number(avgWeightGram) || 0,
+          waterLiters: Number(waterLiters) || 0,
           eggCount: Number(eggCount) || 0,
           milkLiter: Number(milkLiter) || 0,
           updatedAt: new Date().toISOString()
@@ -301,6 +311,7 @@ export default function QuickDailyLogModal({
       setMortalityCount('');
       setMortalityReason('');
       setAvgWeightGram('');
+      setWaterLiters('');
       setEggCount('');
       setMilkLiter('');
       setMedicineName('');
@@ -372,7 +383,7 @@ export default function QuickDailyLogModal({
                 )}
                 {batches.map(b => (
                   <option key={b.id} value={b.id}>
-                    {b.batchName} ({b.totalChicks} {b.farmType === 'poultry' ? 'পাখি' : b.farmType === 'cattle' ? 'পশু' : 'মাছ'})
+                    {b.batchName} {b.status === 'completed' ? (b.endDate ? `[সমাপ্ত: ${b.endDate}]` : '[সমাপ্ত]') : ''} ({b.totalChicks} {b.farmType === 'cattle' ? 'পশু' : b.farmType === 'fish' ? 'মাছ' : 'পাখি'})
                   </option>
                 ))}
               </select>
@@ -416,6 +427,17 @@ export default function QuickDailyLogModal({
               }`}
             >
               🥣 {language === 'bn' ? 'খাদ্য' : 'Feed'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('water')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all flex items-center gap-1 ${
+                activeTab === 'water' 
+                  ? 'bg-cyan-600 text-white shadow-xs' 
+                  : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-200'
+              }`}
+            >
+              💧 {language === 'bn' ? 'পানি পান' : 'Water'}
             </button>
             <button
               type="button"
@@ -581,6 +603,74 @@ export default function QuickDailyLogModal({
             </div>
           )}
 
+          {/* Dedicated Section: Water Intake (পানি পান) */}
+          {activeTab === 'water' && (
+            <div className="bg-gradient-to-br from-cyan-50 via-sky-50 to-white border-2 border-cyan-400 rounded-xl p-3.5 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-cyan-950 flex items-center gap-1.5">
+                  <span className="w-6 h-6 rounded-lg bg-cyan-600 text-white flex items-center justify-center text-xs">💧</span>
+                  {language === 'bn' ? 'দৈনিক পানি পানের হিসাব ও অনুপাত' : 'Daily Water Intake & Ratio'}
+                </span>
+                <span className="text-[10px] font-bold text-cyan-800 bg-cyan-100 px-2 py-0.5 rounded-full">
+                  {language === 'bn' ? 'পানি ও খাদ্য ট্র্যাকিং' : 'Water Tracking'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-white p-2.5 rounded-xl border border-cyan-200">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    💧 {language === 'bn' ? 'আজকের পানি পান (লিটার)' : 'Today Water (Liters)'}
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="যেমন: ১২০ লিটার"
+                    value={waterLiters}
+                    onChange={(e) => setWaterLiters(e.target.value)}
+                    className="w-full bg-cyan-50/50 border border-cyan-300 rounded-lg px-3 py-1.5 text-sm font-black text-cyan-900 focus:bg-white"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {language === 'bn' ? 'ফ্লকের সারা দিনে পান করা মোট পানি' : 'Total water consumed by flock today'}
+                  </p>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-amber-200">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    🥣 {language === 'bn' ? 'আজকের খাদ্য (কেজি)' : 'Today Feed (KG)'}
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="যেমন: ৫০ বা ৬০ কেজি"
+                    value={feedKg}
+                    onChange={(e) => setFeedKg(e.target.value)}
+                    className="w-full bg-amber-50/50 border border-amber-300 rounded-lg px-3 py-1.5 text-sm font-black text-amber-950 focus:bg-white"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {language === 'bn' ? 'অনুপাত যাচাইয়ের জন্য খাবার লিখুন' : 'Enter feed to evaluate water ratio'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Live Ratio Box */}
+              {Number(waterLiters) > 0 && (Number(feedKg) > 0 || Number(feedBags) > 0) && (
+                <div className="bg-cyan-100/80 border border-cyan-300 rounded-xl p-2.5 text-xs text-cyan-950 flex items-center justify-between font-medium">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    💧 <strong>{language === 'bn' ? 'লাইভ অনুপাত:' : 'Live Ratio:'}</strong>{' '}
+                    <span className="text-sm font-black text-cyan-900">
+                      {(Number(waterLiters) / (Number(feedKg) || (Number(feedBags) * 50))).toFixed(2)} : 1
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-black text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-cyan-200">
+                    {language === 'bn' ? 'আদর্শ স্বাভাবিক মাত্রা ১.৮ : ১ থেকে ২.০ : ১' : 'Standard 1.8:1 to 2.0:1'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Section 3: Weight & Production (ওজন ও উৎপাদন) */}
           {(activeTab === 'all' || activeTab === 'weight') && (
             <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3 space-y-2">
@@ -593,7 +683,7 @@ export default function QuickDailyLogModal({
                   {language === 'bn' ? 'FCR হিসাবের জন্য' : 'For live FCR'}
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
                     {language === 'bn' ? 'গড় ওজন (গ্রাম)' : 'Avg Weight (gm)'}
@@ -609,6 +699,20 @@ export default function QuickDailyLogModal({
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                    {language === 'bn' ? 'পানি পান (লিটার)' : 'Water Intake (L)'}
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="যেমন: ১২০ লিটার"
+                    value={waterLiters}
+                    onChange={(e) => setWaterLiters(e.target.value)}
+                    className="w-full bg-white border border-cyan-300 rounded-lg px-2.5 py-1 text-xs font-bold text-cyan-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
                     {language === 'bn' ? 'ডিম সংগ্রহ (পিস)' : 'Egg Collection (pcs)'}
                   </label>
                   <input
@@ -620,7 +724,7 @@ export default function QuickDailyLogModal({
                     className="w-full bg-white border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800"
                   />
                 </div>
-                <div className="col-span-2 sm:col-span-1">
+                <div>
                   <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
                     {language === 'bn' ? 'দুধ উৎপাদন (লিটার)' : 'Milk (Liters)'}
                   </label>
@@ -634,6 +738,19 @@ export default function QuickDailyLogModal({
                   />
                 </div>
               </div>
+
+              {/* Water to Feed Ratio Quick Evaluation */}
+              {Number(waterLiters) > 0 && (Number(feedKg) > 0 || Number(feedBags) > 0) && (
+                <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-1.5 text-[10px] text-cyan-900 flex items-center justify-between font-medium">
+                  <span>
+                    💧 <strong>{language === 'bn' ? 'পানি ও খাদ্য অনুপাত' : 'Water-to-Feed Ratio'}:</strong>{' '}
+                    {(Number(waterLiters) / (Number(feedKg) || (Number(feedBags) * 50))).toFixed(2)} : 1
+                  </span>
+                  <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-1.5 py-0.5 rounded">
+                    {language === 'bn' ? 'আদর্শ স্বাভাবিক মাত্রা ১.৮ : ১ থেকে ২.০ : ১' : 'Standard 1.8:1 to 2.0:1'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

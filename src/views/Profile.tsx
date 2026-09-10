@@ -3,9 +3,9 @@ import { doc, getDoc, setDoc, updateDoc, collection, query, where, deleteDoc } f
 import { sendPasswordResetEmail, deleteUser, updatePassword } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { useLanguage, Language } from '../contexts/LanguageContext';
+import { useLanguage, Language, SUPPORTED_COUNTRIES } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff, Coins } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -14,7 +14,17 @@ import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 
 export default function Profile() {
   const { currentUser, logout, isDemoUser } = useAuth();
-  const { language: currentLanguage, setLanguage: setGlobalLanguage, t } = useLanguage();
+  const { 
+    language: currentLanguage, 
+    setLanguage: setGlobalLanguage, 
+    country: currentCountry,
+    setCountry: setGlobalCountry,
+    currency: currentCurrency,
+    setCurrency: setGlobalCurrency,
+    currencySymbol: currentCurrencySymbol,
+    setCurrencySymbol: setGlobalCurrencySymbol,
+    t 
+  } = useLanguage();
   const { isPremium, isAdmin, userSubscription, openSubscriptionModal, config } = useSystemConfig();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -26,6 +36,9 @@ export default function Profile() {
   const [phone, setPhone] = useState('');
   const [farmName, setFarmName] = useState('');
   const [language, setLanguage] = useState<Language>(currentLanguage);
+  const [country, setCountry] = useState<string>(currentCountry || 'BD');
+  const [currency, setCurrency] = useState<string>(currentCurrency || 'BDT');
+  const [currencySymbol, setCurrencySymbol] = useState<string>(currentCurrencySymbol || '৳');
   const [showDeveloperSupport, setShowDeveloperSupport] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -40,7 +53,22 @@ export default function Profile() {
     setLanguage(currentLanguage);
   }, [currentLanguage]);
 
+  useEffect(() => {
+    if (currentCountry) setCountry(currentCountry);
+    if (currentCurrency) setCurrency(currentCurrency);
+    if (currentCurrencySymbol) setCurrencySymbol(currentCurrencySymbol);
+  }, [currentCountry, currentCurrency, currentCurrencySymbol]);
+
   const isDemo = Boolean(isDemoUser || currentUser?.uid === 'demo_khamari_user_1' || !auth.currentUser);
+
+  const handleCountryChange = (selectedCode: string) => {
+    setCountry(selectedCode);
+    const matched = SUPPORTED_COUNTRIES.find(c => c.code === selectedCode);
+    if (matched) {
+      setCurrency(matched.currency);
+      setCurrencySymbol(matched.symbol);
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -58,6 +86,9 @@ export default function Profile() {
         if (data.phone) setPhone(data.phone);
         if (data.farmName) setFarmName(data.farmName);
         if (data.language) setLanguage(data.language as Language);
+        if (data.country) setCountry(data.country);
+        if (data.currency) setCurrency(data.currency);
+        if (data.currencySymbol) setCurrencySymbol(data.currencySymbol);
         setLoading(false);
         return;
       }
@@ -70,6 +101,9 @@ export default function Profile() {
         if (data.phone) setPhone(data.phone);
         if (data.farmName) setFarmName(data.farmName);
         if (data.language) setLanguage(data.language);
+        if (data.country) setCountry(data.country);
+        if (data.currency) setCurrency(data.currency);
+        if (data.currencySymbol) setCurrencySymbol(data.currencySymbol);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -91,10 +125,16 @@ export default function Profile() {
           name,
           phone,
           farmName,
-          language
+          language,
+          country,
+          currency,
+          currencySymbol
         });
         setGlobalLanguage(language as Language);
-        toast.success(currentLanguage === 'en' ? 'Profile updated!' : 'প্রোফাইল আপডেট হয়েছে!');
+        setGlobalCountry(country);
+        setGlobalCurrency(currency);
+        setGlobalCurrencySymbol(currencySymbol);
+        toast.success(currentLanguage === 'en' ? 'Profile & settings updated!' : 'প্রোফাইল ও সেটিংস আপডেট হয়েছে!');
         setIsSubmitting(false);
         submitLock.current = false;
         return;
@@ -109,6 +149,9 @@ export default function Profile() {
         phone,
         farmName,
         language,
+        country,
+        currency,
+        currencySymbol,
         updatedAt: new Date().toISOString()
       };
 
@@ -118,6 +161,9 @@ export default function Profile() {
           phone,
           farmName,
           language,
+          country,
+          currency,
+          currencySymbol,
           updatedAt: new Date().toISOString()
         }));
       } else {
@@ -128,7 +174,10 @@ export default function Profile() {
       }
       
       setGlobalLanguage(language as Language);
-      toast.success(currentLanguage === 'en' ? 'Profile updated!' : 'প্রোফাইল আপডেট হয়েছে!');
+      setGlobalCountry(country);
+      setGlobalCurrency(currency);
+      setGlobalCurrencySymbol(currencySymbol);
+      toast.success(currentLanguage === 'en' ? 'Profile & settings updated!' : 'প্রোফাইল ও সেটিংস আপডেট হয়েছে!');
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.WRITE, `users/${currentUser.uid}`);
@@ -446,6 +495,66 @@ export default function Profile() {
             <option value="bn">{t('profile.bengali')}</option>
             <option value="en">{t('profile.english')}</option>
           </select>
+        </div>
+
+        {/* Country & Currency Settings for International & Local Users */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <Coins size={16} className="text-amber-600" />
+              <span>{t('profile.country')}</span>
+            </label>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+              {currency} ({currencySymbol})
+            </span>
+          </div>
+
+          <div>
+            <select
+              value={country}
+              onChange={(e) => handleCountryChange(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg p-2 text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
+            >
+              {SUPPORTED_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.flag} {language === 'bn' ? c.nameBn : c.nameEn} — ({c.currency} {c.symbol})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {t('profile.currencySymbol')}
+              </label>
+              <input
+                type="text"
+                value={currencySymbol}
+                onChange={(e) => setCurrencySymbol(e.target.value)}
+                maxLength={6}
+                className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
+                placeholder="৳ / $ / ₹"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {t('profile.currencyCode')}
+              </label>
+              <input
+                type="text"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                maxLength={6}
+                className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
+                placeholder="BDT / USD"
+              />
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            💡 {t('profile.countryDesc')}
+          </p>
         </div>
 
         <button disabled={isSubmitting} type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mt-6 flex items-center justify-center gap-2 disabled:bg-gray-400">

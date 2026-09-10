@@ -4,7 +4,7 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchParams } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, LineChart as ChartIcon } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -321,6 +321,9 @@ export default function Feed() {
     );
   };
 
+  const totalPurchasedBags = records.reduce((sum, r) => sum + Number(r.quantityBags || 0), 0);
+  const totalFeedCost = records.reduce((sum, r) => sum + Number(r.cost || 0), 0);
+
   return (
     <div className="space-y-4 pb-8">
       {/* Sponsor Feed Partner Spotlight */}
@@ -444,6 +447,7 @@ export default function Feed() {
                 batchId={currentSelectedBatch.id}
                 startDate={currentSelectedBatch.startDate}
                 totalChicks={currentSelectedBatch.totalChicks}
+                batchName={currentSelectedBatch.batchName}
               />
             );
           })()}
@@ -530,6 +534,70 @@ export default function Feed() {
               </button>
             </form>
           )}
+
+          {/* Feed Stock & Godown Inventory Summary Card */}
+          <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white rounded-2xl p-3.5 border border-amber-200/90 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold">
+                  <Wheat size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-850 leading-none">
+                    {language === 'bn' ? 'গোডাউন ফিড স্টক ও ইনভেন্টরি' : 'Feed Stock & Godown Inventory'}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    {language === 'bn' ? 'খাদ্য ক্রয়, ব্যবহার ও অবশিষ্ট মজুত' : 'Purchased, cost & recorded bags'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                {language === 'bn' ? 'স্টক সারাংশ' : 'Stock Summary'}
+              </span>
+            </div>
+
+            {/* 3 Metric Pills */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white p-2 rounded-xl border border-amber-200/70 text-center">
+                <span className="text-[9px] font-bold text-slate-500 block truncate">
+                  {language === 'bn' ? 'মোট কেনা খাদ্য' : 'Total Purchased'}
+                </span>
+                <p className="text-xs sm:text-sm font-black text-slate-850 mt-0.5">
+                  {totalPurchasedBags.toFixed(1)} <span className="text-[9px] font-bold text-slate-400">বস্তা</span>
+                </p>
+              </div>
+
+              <div className="bg-white p-2 rounded-xl border border-amber-200/70 text-center">
+                <span className="text-[9px] font-bold text-slate-500 block truncate">
+                  {language === 'bn' ? 'মোট খরচ' : 'Total Cost'}
+                </span>
+                <p className="text-xs sm:text-sm font-black text-orange-600 mt-0.5">
+                  ৳ {totalFeedCost.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="bg-white p-2 rounded-xl border border-amber-200/70 text-center">
+                <span className="text-[9px] font-bold text-slate-500 block truncate">
+                  {language === 'bn' ? 'মোট ওজন' : 'Total KG'}
+                </span>
+                <p className="text-xs sm:text-sm font-black text-amber-800 mt-0.5">
+                  {(totalPurchasedBags * 50).toLocaleString()} <span className="text-[9px] font-bold text-slate-400">কেজি</span>
+                </p>
+              </div>
+            </div>
+
+            {totalPurchasedBags > 0 && (
+              <div className="bg-amber-50/90 rounded-xl p-2 border border-amber-200/80 flex items-center justify-between text-[10px] text-amber-950 font-medium">
+                <span className="flex items-center gap-1">
+                  💡 {language === 'bn' ? 'প্রতি বস্তা গড় দর:' : 'Avg Cost / Bag:'}{' '}
+                  <strong>৳ {Math.round(totalFeedCost / totalPurchasedBags).toLocaleString()}</strong>
+                </span>
+                <span className="text-[9px] font-bold text-amber-800">
+                  {records.length} {language === 'bn' ? 'টি এন্ট্রি' : 'entries'}
+                </span>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-3">
             {records.map(record => {

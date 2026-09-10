@@ -5,9 +5,41 @@ import { db } from '../firebase';
 
 export type Language = 'bn' | 'en';
 
+export interface CountryOption {
+  code: string;
+  nameBn: string;
+  nameEn: string;
+  currency: string;
+  symbol: string;
+  flag: string;
+}
+
+export const SUPPORTED_COUNTRIES: CountryOption[] = [
+  { code: 'BD', nameBn: 'বাংলাদেশ', nameEn: 'Bangladesh', currency: 'BDT', symbol: '৳', flag: '🇧🇩' },
+  { code: 'IN', nameBn: 'ভারত (India)', nameEn: 'India', currency: 'INR', symbol: '₹', flag: '🇮🇳' },
+  { code: 'SA', nameBn: 'সৌদি আরব (Saudi Arabia)', nameEn: 'Saudi Arabia', currency: 'SAR', symbol: 'SAR', flag: '🇸🇦' },
+  { code: 'AE', nameBn: 'সংযুক্ত আরব আমিরাত (UAE)', nameEn: 'United Arab Emirates', currency: 'AED', symbol: 'AED', flag: '🇦🇪' },
+  { code: 'PK', nameBn: 'পাকিস্তান (Pakistan)', nameEn: 'Pakistan', currency: 'PKR', symbol: 'Rs', flag: '🇵🇰' },
+  { code: 'MY', nameBn: 'মালয়েশিয়া (Malaysia)', nameEn: 'Malaysia', currency: 'MYR', symbol: 'RM', flag: '🇲🇾' },
+  { code: 'OM', nameBn: 'ওমান (Oman)', nameEn: 'Oman', currency: 'OMR', symbol: 'OMR', flag: '🇴🇲' },
+  { code: 'QA', nameBn: 'কাতার (Qatar)', nameEn: 'Qatar', currency: 'QAR', symbol: 'QAR', flag: '🇶🇦' },
+  { code: 'KW', nameBn: 'কুয়েত (Kuwait)', nameEn: 'Kuwait', currency: 'KWD', symbol: 'KWD', flag: '🇰🇼' },
+  { code: 'US', nameBn: 'যুক্তরাষ্ট্র (USA)', nameEn: 'United States', currency: 'USD', symbol: '$', flag: '🇺🇸' },
+  { code: 'GB', nameBn: 'যুক্তরাজ্য (UK)', nameEn: 'United Kingdom', currency: 'GBP', symbol: '£', flag: '🇬🇧' },
+  { code: 'EU', nameBn: 'ইউরোপ (Europe)', nameEn: 'Europe', currency: 'EUR', symbol: '€', flag: '🇪🇺' },
+  { code: 'GLOBAL', nameBn: 'অন্যান্য দেশ (আন্তর্জাতিক)', nameEn: 'Other / International', currency: 'USD', symbol: '$', flag: '🌐' },
+];
+
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
+  country: string;
+  setCountry: (countryCode: string) => void;
+  currency: string;
+  setCurrency: (curr: string) => void;
+  currencySymbol: string;
+  setCurrencySymbol: (sym: string) => void;
+  formatMoney: (amount: number | string) => string;
   t: (key: string) => string;
 }
 
@@ -34,6 +66,11 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.appLanguage': 'অ্যাপের ভাষা',
     'profile.bengali': 'বাংলা',
     'profile.english': 'English',
+    'profile.country': 'দেশ ও মুদ্রা',
+    'profile.countryDesc': 'আপনার দেশ ও মুদ্রা নির্বাচন করুন, যাতে সমস্ত খরচ ও বিক্রির হিসাব আপনার স্থানীয় মুদ্রায় দেখা যায়।',
+    'profile.currencySymbol': 'মুদ্রার প্রতীক',
+    'profile.currencyCode': 'মুদ্রা কোড',
+    'profile.internationalNotice': 'অন্য দেশের খামারিরা সহজে নিজস্ব মুদ্রা ও ভাষা ব্যবহার করতে পারবেন।',
     'profile.save': 'সেভ করুন',
     'profile.saving': 'সেভ হচ্ছে...',
     'profile.support': 'সাহায্য ও সাপোর্ট',
@@ -404,6 +441,11 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.appLanguage': 'App Language',
     'profile.bengali': 'বাংলা',
     'profile.english': 'English',
+    'profile.country': 'Country & Currency',
+    'profile.countryDesc': 'Select your country and currency so all farm costs and sales appear in your local currency.',
+    'profile.currencySymbol': 'Currency Symbol',
+    'profile.currencyCode': 'Currency Code',
+    'profile.internationalNotice': 'Farmers from other countries can easily use their local currency and language.',
     'profile.save': 'Save Changes',
     'profile.saving': 'Saving...',
     'profile.support': 'Help & Support',
@@ -758,6 +800,13 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType>({
   language: 'bn',
   setLanguage: () => {},
+  country: 'BD',
+  setCountry: () => {},
+  currency: 'BDT',
+  setCurrency: () => {},
+  currencySymbol: '৳',
+  setCurrencySymbol: () => {},
+  formatMoney: (val) => `৳${val}`,
   t: (key: string) => key,
 });
 
@@ -772,6 +821,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return (saved === 'en' || saved === 'bn') ? saved : 'bn';
   });
 
+  const [country, setCountryState] = useState<string>(() => {
+    return localStorage.getItem('appCountry') || 'BD';
+  });
+
+  const [currency, setCurrencyState] = useState<string>(() => {
+    return localStorage.getItem('appCurrency') || 'BDT';
+  });
+
+  const [currencySymbol, setCurrencySymbolState] = useState<string>(() => {
+    return localStorage.getItem('appCurrencySymbol') || '৳';
+  });
+
   // Then check Firestore user preferences (only for authenticated real users)
   useEffect(() => {
     const fetchUserLang = async () => {
@@ -779,15 +840,27 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const docRef = doc(db, 'users', currentUser.uid);
         const snap = await getDoc(docRef);
-        if (snap.exists() && snap.data().language) {
-          const userLang = snap.data().language;
-          if (userLang === 'bn' || userLang === 'en') {
-            setLanguageState(userLang as Language);
-            localStorage.setItem('appLanguage', userLang);
+        if (snap.exists()) {
+          const uData = snap.data();
+          if (uData.language === 'bn' || uData.language === 'en') {
+            setLanguageState(uData.language as Language);
+            localStorage.setItem('appLanguage', uData.language);
+          }
+          if (uData.country) {
+            setCountryState(uData.country);
+            localStorage.setItem('appCountry', uData.country);
+          }
+          if (uData.currency) {
+            setCurrencyState(uData.currency);
+            localStorage.setItem('appCurrency', uData.currency);
+          }
+          if (uData.currencySymbol) {
+            setCurrencySymbolState(uData.currencySymbol);
+            localStorage.setItem('appCurrencySymbol', uData.currencySymbol);
           }
         }
       } catch (err) {
-        console.warn('User language fetch warning:', err);
+        console.warn('User language & country fetch warning:', err);
       }
     };
     fetchUserLang();
@@ -798,12 +871,53 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('appLanguage', lang);
   };
 
+  const setCountry = (cCode: string) => {
+    const matched = SUPPORTED_COUNTRIES.find(c => c.code === cCode);
+    setCountryState(cCode);
+    localStorage.setItem('appCountry', cCode);
+    if (matched) {
+      setCurrencyState(matched.currency);
+      localStorage.setItem('appCurrency', matched.currency);
+      setCurrencySymbolState(matched.symbol);
+      localStorage.setItem('appCurrencySymbol', matched.symbol);
+    }
+  };
+
+  const setCurrency = (curr: string) => {
+    setCurrencyState(curr);
+    localStorage.setItem('appCurrency', curr);
+  };
+
+  const setCurrencySymbol = (sym: string) => {
+    setCurrencySymbolState(sym);
+    localStorage.setItem('appCurrencySymbol', sym);
+  };
+
+  const formatMoney = (amount: number | string): string => {
+    const num = typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
+    if (language === 'bn') {
+      return `${currencySymbol}${num.toLocaleString('bn-BD')}`;
+    }
+    return `${currencySymbol}${num.toLocaleString('en-US')}`;
+  };
+
   const t = (key: string): string => {
     return translations[language][key] || key;
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ 
+      language, 
+      setLanguage, 
+      country, 
+      setCountry, 
+      currency, 
+      setCurrency, 
+      currencySymbol, 
+      setCurrencySymbol, 
+      formatMoney, 
+      t 
+    }}>
       {children}
     </LanguageContext.Provider>
   );

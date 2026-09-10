@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon } from 'lucide-react';
+import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
@@ -157,14 +157,20 @@ const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string,
 
 export default function Batches() {
   const navigate = useNavigate();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
   const [batches, setBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
-  const [completeBatchId, setCompleteBatchId] = useState<string | null>(null);
+
+  // Complete batch state with date
+  const [completeBatchItem, setCompleteBatchItem] = useState<any | null>(null);
+  const [completionDate, setCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // Delete batch state with cascade protection
+  const [deleteBatchItem, setDeleteBatchItem] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Category filter state ('all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare')
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare'>(() => {
@@ -295,32 +301,50 @@ export default function Batches() {
   };
 
   const markCompleted = async () => {
-    if(!completeBatchId) return;
+    if (!completeBatchItem) return;
+    const targetId = completeBatchItem.id;
+    const selectedEndDate = completionDate || new Date().toISOString().split('T')[0];
     try {
       if (isDemoUser) {
-        demoStore.saveBatch({ id: completeBatchId, status: 'completed' } as any);
-        toast.success(t('batches.completeSuccess'));
-        setCompleteBatchId(null);
+        demoStore.saveBatch({ 
+          id: targetId, 
+          status: 'completed',
+          endDate: selectedEndDate,
+          completedAt: new Date().toISOString()
+        } as any);
+        toast.success(
+          language === 'bn' 
+            ? `ব্যাচটি সফলভাবে সমাপ্ত করা হয়েছে (${new Date(selectedEndDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` 
+            : t('batches.completeSuccess')
+        );
+        setCompleteBatchItem(null);
+        fetchBatches();
         return;
       }
 
-      const batchRef = doc(db, 'batches', completeBatchId);
+      const batchRef = doc(db, 'batches', targetId);
       await offlineSafeDocWrite(updateDoc(batchRef, { 
         status: 'completed',
+        endDate: selectedEndDate,
+        completedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }));
-      toast.success(t('batches.completeSuccess'));
-      setCompleteBatchId(null);
+      toast.success(
+        language === 'bn' 
+          ? `ব্যাচটি সফলভাবে সমাপ্ত করা হয়েছে (${new Date(selectedEndDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` 
+          : t('batches.completeSuccess')
+      );
+      setCompleteBatchItem(null);
       fetchBatches();
     } catch (error) {
       toast.error(t('batches.updateError'));
-      handleFirestoreError(error, OperationType.UPDATE, `batches/${completeBatchId}`);
-      setCompleteBatchId(null);
+      handleFirestoreError(error, OperationType.UPDATE, `batches/${targetId}`);
+      setCompleteBatchItem(null);
     }
   };
 
-  const handleDelete = (id: string) => {
-    setDeleteId(id);
+  const handleDelete = (batch: any) => {
+    setDeleteBatchItem(batch);
   };
 
   const calculateAge = (startDate: string) => {
@@ -331,22 +355,80 @@ export default function Batches() {
   };
 
   const executeDelete = async () => {
-    if (!deleteId) return;
-    const targetId = deleteId;
-    setDeleteId(null);
+    if (!deleteBatchItem) return;
+    const targetId = deleteBatchItem.id;
+    setIsDeleting(true);
     try {
       if (isDemoUser) {
         demoStore.deleteBatch(targetId);
-        toast.success(t('batches.delSuccess'), { duration: 3000 });
+        // Clear active batch if it was the deleted one
+        ['poultry', 'cattle', 'fish'].forEach(ft => {
+          if (localStorage.getItem(`selected_batch_id_${ft}`) === targetId) {
+            localStorage.removeItem(`selected_batch_id_${ft}`);
+          }
+        });
+        toast.success(
+          language === 'bn'
+            ? 'ব্যাচ এবং এর সাথে সম্পর্কিত সকল হিসাব (খাবার, ঔষধ, খরচ, বিক্রি) মুছে ফেলা হয়েছে'
+            : t('batches.delSuccess'), 
+          { duration: 3500 }
+        );
+        setDeleteBatchItem(null);
+        fetchBatches();
         return;
       }
 
+      // 1. Delete main batch doc
       await offlineSafeDocWrite(deleteDoc(doc(db, 'batches', targetId)));
-      toast.success(t('batches.delSuccess'), { duration: 3000 });
+
+      // 2. Cascade delete associated documents across all collections
+      const collectionsToCascade = [
+        'feed_records',
+        'medicine',
+        'medicine_records',
+        'expenses',
+        'sales',
+        'mortality',
+        'dues'
+      ];
+
+      for (const collName of collectionsToCascade) {
+        try {
+          const q = query(
+            collection(db, collName),
+            where('userId', '==', currentUser?.uid),
+            where('batchId', '==', targetId)
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+            await Promise.all(deletePromises);
+          }
+        } catch (e) {
+          console.warn(`Cascade delete error on ${collName}:`, e);
+        }
+      }
+
+      // Reset active batch from localStorage if deleted
+      ['poultry', 'cattle', 'fish'].forEach(ft => {
+        if (localStorage.getItem(`selected_batch_id_${ft}`) === targetId) {
+          localStorage.removeItem(`selected_batch_id_${ft}`);
+        }
+      });
+
+      toast.success(
+        language === 'bn'
+          ? 'ব্যাচ এবং এর সকল তথ্য ও হিসাব স্থায়ীভাবে মুছে ফেলা হয়েছে'
+          : t('batches.delSuccess'),
+        { duration: 3500 }
+      );
+      setDeleteBatchItem(null);
       fetchBatches();
     } catch (error) {
       toast.error(t('batches.delError'));
       handleFirestoreError(error, OperationType.DELETE, 'batches');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -782,9 +864,13 @@ export default function Batches() {
                     <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${
                       batch.status === 'active' 
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                        : 'bg-purple-50 text-purple-800 border-purple-200'
                     }`}>
-                      {batch.status === 'active' ? (language === 'bn' ? 'সক্রিয়' : t('batches.active')) : (language === 'bn' ? 'সমাপ্ত' : t('batches.completed'))}
+                      {batch.status === 'active' 
+                        ? (language === 'bn' ? 'সক্রিয়' : t('batches.active')) 
+                        : (language === 'bn' 
+                            ? `সমাপ্ত ${batch.endDate ? `(${new Date(batch.endDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}` 
+                            : `Completed ${batch.endDate || ''}`)}
                     </span>
                   </div>
 
@@ -794,16 +880,20 @@ export default function Batches() {
                   
                   <p className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
                     <span>{language === 'bn' ? 'শুরু:' : t('batches.started')} {new Date(batch.startDate).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    {batch.status === 'active' && (
+                    {batch.status === 'active' ? (
                       <span className="text-emerald-700 font-black">
                         • {language === 'bn' ? 'বয়স:' : t('dashboard.age')} {calculateAge(batch.startDate)} {language === 'bn' ? 'দিন' : t('dashboard.days')}
+                      </span>
+                    ) : (
+                      <span className="text-purple-700 font-black bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        • {language === 'bn' ? 'সমাপ্তির তারিখ:' : 'End Date:'} {batch.endDate ? new Date(batch.endDate).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : (language === 'bn' ? 'সমাপ্ত' : 'Completed')}
                       </span>
                     )}
                   </p>
                 </div>
 
                 <button
-                  onClick={() => handleDelete(batch.id)}
+                  onClick={() => handleDelete(batch)}
                   className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors cursor-pointer absolute top-3 right-3"
                   title="Delete Batch"
                 >
@@ -833,6 +923,7 @@ export default function Batches() {
                     batchId={batch.id} 
                     startDate={batch.startDate} 
                     totalChicks={Number(batch.totalChicks) || 0} 
+                    batchName={batch.batchName}
                   />
                 </div>
               )}
@@ -865,11 +956,42 @@ export default function Batches() {
                   </div>
 
                   <button 
-                    onClick={() => setCompleteBatchId(batch.id)} 
-                    className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setCompleteBatchItem(batch);
+                      setCompletionDate(new Date().toISOString().split('T')[0]);
+                    }} 
+                    className="text-xs font-bold text-slate-500 hover:text-purple-700 px-2.5 py-1.5 rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
                   >
-                    {language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}
+                    <CheckCircle2 size={13} className="text-purple-600" />
+                    <span>{language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}</span>
                   </button>
+                </div>
+              )}
+
+              {batch.status === 'completed' && (
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-150 bg-slate-50/60 -mx-3.5 -mb-3.5 px-3.5 py-2 rounded-b-2xl">
+                  <span className="text-[11px] font-bold text-purple-800 flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-purple-600" />
+                    {language === 'bn' 
+                      ? `ব্যাচ সমাপ্ত ${batch.endDate ? `(${new Date(batch.endDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}` 
+                      : 'Completed & Archived'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleActivateOnDashboard(batch)}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <LayoutDashboard size={12} />
+                      <span>{language === 'bn' ? 'রিপোর্ট দেখুন' : 'View Report'}</span>
+                    </button>
+                    <button
+                      onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
+                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <ChartIcon size={12} />
+                      <span>{language === 'bn' ? 'FCR' : 'FCR'}</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -897,27 +1019,153 @@ export default function Batches() {
       </div>
       )}
 
-      <ConfirmModal 
-        isOpen={!!completeBatchId}
-        title={t('batches.confirmCompleteTitle')}
-        message={t('batches.confirmCompleteMsg')}
-        confirmText={language === 'bn' ? 'হ্যাঁ, সম্পন্ন করুন' : 'Complete'}
-        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
-        confirmVariant="primary"
-        onConfirm={markCompleted}
-        onCancel={() => setCompleteBatchId(null)}
-      />
-    
-      <ConfirmModal 
-        isOpen={!!deleteId}
-        title={t('common.confirmDelete')}
-        message={t('common.confirmDeleteMsg')}
-        confirmText={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
-        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
-        confirmVariant="danger"
-        onConfirm={executeDelete}
-        onCancel={() => setDeleteId(null)}
-      />
+      {/* Dedicated Batch Complete Modal with Date Picker */}
+      {completeBatchItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-purple-200 space-y-4">
+            <div className="flex items-start justify-between border-b border-slate-150 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    {language === 'bn' ? 'ব্যাচ সমাপ্তি নিশ্চিতকরণ' : 'Confirm Batch Completion'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold mt-0.5">
+                    {completeBatchItem.batchName} ({language === 'bn' ? 'শুরু:' : 'Started:'} {new Date(completeBatchItem.startDate).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCompleteBatchItem(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-purple-50/80 border border-purple-200 rounded-xl p-3.5 space-y-2.5">
+              <label className="block text-xs font-black text-purple-950">
+                📅 {language === 'bn' ? 'সমাপ্তির তারিখ নির্বাচন করুন:' : 'Select Completion / End Date:'}
+              </label>
+              <input
+                type="date"
+                value={completionDate}
+                onChange={(e) => setCompletionDate(e.target.value)}
+                className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-850 shadow-2xs focus:ring-2 focus:ring-purple-500"
+              />
+              <div className="text-[11px] text-purple-900 space-y-1 font-medium leading-relaxed bg-white/80 p-2.5 rounded-lg border border-purple-150">
+                <p className="font-bold text-purple-950">
+                  ℹ️ {language === 'bn' ? 'ব্যাচ সমাপ্তির সুবিধা:' : 'Completion benefits:'}
+                </p>
+                <p>
+                  • {language === 'bn' 
+                    ? 'ব্যাচের সকল খাদ্য, ঔষধ, মৃত্যু, আয়-ব্যয় এবং বিক্রয় এর হিসাব সম্পূর্ণ সংরক্ষিত থাকবে।' 
+                    : 'All records (feed, medicine, sales, expenses) remain completely preserved.'}
+                </p>
+                <p>
+                  • {language === 'bn' 
+                    ? 'ভবিষ্যতে রিপোর্ট ও অন্যান্য ব্যাচের সাথে তুলনা করার সময় এই ব্যাচটি সব তথ্যের সাথে প্রদর্শিত হবে।' 
+                    : 'The batch remains accessible forever for historical reports & comparisons.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setCompleteBatchItem(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                {language === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={markCompleted}
+                className="px-4 py-2 text-xs font-black text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 size={14} />
+                <span>{language === 'bn' ? 'হ্যাঁ, ব্যাচটি সমাপ্ত করুন' : 'Confirm Complete'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prominent Red Warning Modal for Batch Cascade Deletion */}
+      {deleteBatchItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border-2 border-rose-300 space-y-4">
+            <div className="flex items-start justify-between border-b border-rose-150 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={22} className="text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-rose-950 text-base">
+                    {language === 'bn' ? 'ব্যাচ ও সকল তথ্য মুছে ফেলা' : 'Delete Batch & All Records'}
+                  </h3>
+                  <p className="text-xs text-rose-700 font-bold mt-0.5">
+                    "{deleteBatchItem.batchName}"
+                  </p>
+                </div>
+              </div>
+              <button
+                disabled={isDeleting}
+                onClick={() => setDeleteBatchItem(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 space-y-2 text-xs text-rose-950 leading-relaxed font-medium">
+              <p className="font-bold text-rose-900">
+                ⚠️ {language === 'bn' 
+                  ? 'আপনি কি নিশ্চিত যে আপনি এই ব্যাচটি সম্পূর্ণ মুছে ফেলতে চান?' 
+                  : 'Are you sure you want to permanently delete this batch?'}
+              </p>
+              <p className="text-rose-800">
+                {language === 'bn' 
+                  ? 'সতর্কতা: এই ব্যাচটি ডিলিট করলে এর সাথে যুক্ত নিচের সকল তথ্য সম্পূর্ণ ও স্থায়ীভাবে ডেটাবেস থেকে মুছে যাবে এবং তা আর কখনোই ফিরিয়ে আনা সম্ভব হবে না:'
+                  : 'Warning: Deleting this batch will permanently remove all associated records from the database:'}
+              </p>
+              <ul className="list-disc list-inside space-y-1 font-bold text-rose-900 pl-1 text-[11px] bg-white/70 p-2.5 rounded-lg border border-rose-200/70">
+                <li>{language === 'bn' ? 'খাদ্য ও বস্তার হিসাব (Feed records)' : 'All feed & bags records'}</li>
+                <li>{language === 'bn' ? 'ঔষধ ও ভ্যাকসিনের হিসাব (Medicine records)' : 'All medicine & vaccine logs'}</li>
+                <li>{language === 'bn' ? 'দৈনিক মৃত্যুর হিসাব (Mortality records)' : 'All mortality entries'}</li>
+                <li>{language === 'bn' ? 'খরচের ভাউচার ও হিসাব (Expenses)' : 'All expense records'}</li>
+                <li>{language === 'bn' ? 'বিক্রয় ও বাকি খাতার এন্ট্রি (Sales & Dues)' : 'All sales and associated dues'}</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteBatchItem(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              >
+                {language === 'bn' ? 'না, বাতিল' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={executeDelete}
+                className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                <span>
+                  {isDeleting 
+                    ? (language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...') 
+                    : (language === 'bn' ? 'হ্যাঁ, সকল তথ্যসহ মুছুন' : 'Yes, Delete Everything')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
