@@ -73,6 +73,15 @@ export default function StoreDirectory() {
     currentUser?.email === 'admin@digitalfarm.pro' ||
     (currentUser as any)?.role === 'admin';
 
+  // Track IDs of stores created by this user/device for robust ownership recognition
+  const [myCreatedStoreIds, setMyCreatedStoreIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('my_created_stores') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
   const [stores, setStores] = useState<DemoStoreListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -252,7 +261,9 @@ export default function StoreDirectory() {
 
     try {
       const storePayload = {
-        userId: currentUser.uid,
+        userId: currentUser?.uid || (isDemoUser ? 'demo_user' : 'guest_user'),
+        userEmail: currentUser?.email || '',
+        userPhone: currentUser?.phoneNumber || phone.trim(),
         country: country || 'BD',
         shopName: shopName.trim(),
         ownerName: ownerName.trim() || shopName.trim(),
@@ -273,7 +284,16 @@ export default function StoreDirectory() {
       };
 
       if (isDemoUser) {
-        demoStore.saveStoreListing(editingStoreId ? { ...storePayload, id: editingStoreId } : storePayload);
+        const saved = demoStore.saveStoreListing(editingStoreId ? { ...storePayload, id: editingStoreId } : storePayload);
+        if (saved?.id) {
+          setMyCreatedStoreIds(prev => {
+            const next = prev.includes(saved.id) ? prev : [...prev, saved.id];
+            try {
+              localStorage.setItem('my_created_stores', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
       } else {
         if (editingStoreId) {
           await offlineSafeDocWrite(
@@ -283,12 +303,21 @@ export default function StoreDirectory() {
             })
           );
         } else {
-          await offlineSafeDocWrite(
+          const docRef: any = await offlineSafeDocWrite(
             addDoc(collection(db, 'store_listings'), {
               ...storePayload,
               createdAt: new Date().toISOString()
             })
           );
+          if (docRef?.id) {
+            setMyCreatedStoreIds(prev => {
+              const next = prev.includes(docRef.id) ? prev : [...prev, docRef.id];
+              try {
+                localStorage.setItem('my_created_stores', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }
         }
       }
 
@@ -336,7 +365,7 @@ export default function StoreDirectory() {
     }
   };
 
-  // Delete Store
+  // Delete Store (Advertiser / Owner or Master Admin)
   const handleDeleteStore = async (storeId: string) => {
     if (!window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত এই দোকানটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this store listing?')) {
       return;
@@ -344,6 +373,14 @@ export default function StoreDirectory() {
 
     try {
       demoStore.deleteStoreListing(storeId);
+      setMyCreatedStoreIds(prev => {
+        const next = prev.filter(id => id !== storeId);
+        try {
+          localStorage.setItem('my_created_stores', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
       if (!isDemoUser) {
         try {
           await deleteDoc(doc(db, 'store_listings', storeId));
@@ -772,7 +809,14 @@ export default function StoreDirectory() {
           </div>
         ) : (
           filteredStores.map((store) => {
-            const isOwner = currentUser?.uid === store.userId || isMasterAdmin;
+            const isDirectOwner = Boolean(
+              (currentUser && store.userId && currentUser.uid === store.userId) ||
+              (currentUser?.email && (store as any).userEmail && currentUser.email === (store as any).userEmail) ||
+              (currentUser?.phoneNumber && store.phone && (store.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(store.phone))) ||
+              myCreatedStoreIds.includes(store.id) ||
+              (isDemoUser && (store.userId === 'demo_user' || store.userId === 'demo_khamari_user_1' || store.id?.startsWith('store_my_')))
+            );
+            const isOwner = isDirectOwner || isMasterAdmin;
             const displayDist = getDistrictDisplayName(store.district, language);
             const displayCountry = store.country ? getCountryDisplayName(store.country, language) : '';
 
@@ -826,6 +870,16 @@ export default function StoreDirectory() {
                             <span>{displayCountry}</span>
                           </span>
                         )}
+                        {isOwner && (
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border ${
+                            isMasterAdmin && !isDirectOwner
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : 'bg-amber-50 text-amber-900 border-amber-200'
+                          }`}>
+                            {isMasterAdmin && !isDirectOwner ? <Crown size={10} className="text-rose-600" /> : <CheckCircle2 size={10} className="text-emerald-600" />}
+                            <span>{isDirectOwner ? (language === 'bn' ? 'আপনার দোকান' : 'Your Store') : (language === 'bn' ? 'মাস্টার এডমিন' : 'Master Admin')}</span>
+                          </span>
+                        )}
                       </div>
 
                       {store.ownerName && (
@@ -867,11 +921,11 @@ export default function StoreDirectory() {
                         <button
                           type="button"
                           onClick={() => handleDeleteStore(store.id)}
-                          className="flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg transition-colors cursor-pointer text-[10.5px] font-black"
-                          title={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+                          className="flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg transition-colors cursor-pointer text-[10.5px] font-black active:scale-95"
+                          title={isMasterAdmin && !isDirectOwner ? (language === 'bn' ? 'মাস্টার এডমিন: দোকান ডিলিট করুন' : 'Master Admin: Delete Store') : (language === 'bn' ? 'দোকান মুছে ফেলুন' : 'Delete Store')}
                         >
                           <Trash2 size={13} />
-                          <span>{language === 'bn' ? 'মুছুন' : 'Delete'}</span>
+                          <span>{isMasterAdmin && !isDirectOwner ? (language === 'bn' ? 'এডমিন মুছুন' : 'Admin Del') : (language === 'bn' ? 'মুছুন' : 'Delete')}</span>
                         </button>
                       </>
                     )}

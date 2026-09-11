@@ -387,9 +387,49 @@ export default function Dashboard() {
       const age = calculateAge(batch.startDate);
       const aliveCount = Math.max(0, Number(batch.totalChicks || 0) - tMort);
 
-      const avgDaily = age > 0 ? Number((tFeedBags / age).toFixed(2)) : tFeedBags;
-      const remainingBags = Math.max(0, Math.round(tFeedBags * 0.3) || (age > 20 ? 4 : 8));
-      const daysLeft = avgDaily > 0 ? Math.max(1, Math.round(remainingBags / avgDaily)) : 6;
+      // Check realistic stock tracked in FCR & Stock Tracker
+      let feedPurchasedBags = tFeedBags;
+      let feedUsedBags = 0;
+      let remainingBags = 0;
+
+      const savedFeedIn = localStorage.getItem(`fcr_stock_in_${batch.id}`);
+      const savedFeedUsed = localStorage.getItem(`fcr_stock_used_${batch.id}`);
+
+      if (savedFeedIn !== null && savedFeedUsed !== null) {
+        const inKg = Number(savedFeedIn) || 0;
+        const usedKg = Number(savedFeedUsed) || 0;
+        feedPurchasedBags = Number((inKg / 50).toFixed(1));
+        feedUsedBags = Number((usedKg / 50).toFixed(1));
+        remainingBags = Math.max(0, Number(((inKg - usedKg) / 50).toFixed(1)));
+      } else {
+        // Fallback calculation if not manually adjusted in FCR tracker
+        feedPurchasedBags = tFeedBags;
+        const estCumKgPerBird = age <= 7 ? 0.16 : age <= 14 ? 0.52 : age <= 21 ? 1.25 : age <= 28 ? 2.35 : age <= 35 ? 3.75 : 4.8;
+        const estUsedKg = aliveCount * estCumKgPerBird;
+        feedUsedBags = Math.min(tFeedBags, Number((estUsedKg / 50).toFixed(1)));
+        remainingBags = Math.max(0, Number((tFeedBags - feedUsedBags).toFixed(1)));
+      }
+
+      // Calculate accurate current daily feed consumption rate (in bags)
+      let dailyGramsPerBird = 20;
+      if (batch.farmType === 'cattle') {
+        dailyGramsPerBird = 1500;
+      } else if (batch.farmType === 'fish') {
+        dailyGramsPerBird = 50;
+      } else {
+        // Standard poultry daily intake curve
+        if (age <= 7) dailyGramsPerBird = 25;
+        else if (age <= 14) dailyGramsPerBird = 50;
+        else if (age <= 21) dailyGramsPerBird = 85;
+        else if (age <= 28) dailyGramsPerBird = 125;
+        else if (age <= 35) dailyGramsPerBird = 155;
+        else dailyGramsPerBird = 175;
+      }
+
+      const dailyConsumptionKg = (aliveCount * dailyGramsPerBird) / 1000;
+      const dailyConsumptionBags = dailyConsumptionKg > 0 ? (dailyConsumptionKg / 50) : (age > 0 ? (tFeedBags / age) : 1);
+      const avgDaily = Number(dailyConsumptionBags.toFixed(2));
+      const daysLeft = dailyConsumptionBags > 0 ? Math.max(0, Math.floor(remainingBags / dailyConsumptionBags)) : 0;
 
       let calculatedFcr: number | undefined = undefined;
       const estimatedWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
@@ -409,8 +449,8 @@ export default function Dashboard() {
         aliveBirds: aliveCount,
         totalMortality: tMort,
         mortalityRate: mortRate,
-        feedBagsPurchased: tFeedBags + remainingBags,
-        feedBagsUsed: tFeedBags,
+        feedBagsPurchased: feedPurchasedBags,
+        feedBagsUsed: feedUsedBags,
         feedStockRemainingBags: remainingBags,
         avgDailyFeedBags: avgDaily,
         daysOfFeedLeft: daysLeft,

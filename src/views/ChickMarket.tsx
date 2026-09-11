@@ -23,6 +23,7 @@ import {
   ALL_64_DISTRICTS,
   getDistrictDisplayName
 } from '../utils/bangladeshDistricts';
+import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { 
   Bird, 
   Fish, 
@@ -53,15 +54,31 @@ import {
   HelpCircle,
   Truck,
   Syringe,
-  ChevronRight
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const ChickMarket: React.FC = () => {
   const { currentUser, isDemoUser } = useAuth();
   const { language, t } = useLanguage();
+  const { isAdmin: sysAdmin } = useSystemConfig();
 
-  const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
+  const isMasterAdmin = 
+    Boolean(sysAdmin) || 
+    currentUser?.email === 'skabusufian452@gmail.com' || 
+    currentUser?.email === 'admin@digitalfarm.pro' || 
+    (currentUser as any)?.role === 'admin';
+  const isAdmin = isMasterAdmin;
+
+  // Track IDs of ads created by this user/device for robust ownership recognition
+  const [myCreatedAdIds, setMyCreatedAdIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('my_created_chick_ads') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // State
   const [rates, setRates] = useState<DemoChickRate[]>([]);
@@ -173,7 +190,9 @@ export const ChickMarket: React.FC = () => {
     const finalWhatsApp = postForm.whatsappSameAsPhone ? postForm.phone.trim() : (postForm.whatsapp.trim() || postForm.phone.trim());
 
     const newAdData = {
-      userId: currentUser?.uid || 'guest_user',
+      userId: currentUser?.uid || (isDemoUser ? 'demo_user' : 'guest_user'),
+      userEmail: currentUser?.email || '',
+      userPhone: currentUser?.phoneNumber || postForm.phone.trim(),
       companyName: postForm.companyName.trim(),
       contactPerson: postForm.contactPerson.trim() || postForm.companyName.trim(),
       phone: postForm.phone.trim(),
@@ -190,23 +209,39 @@ export const ChickMarket: React.FC = () => {
       deliveryArea: postForm.deliveryArea.trim() || 'সমগ্র বাংলাদেশ',
       vaccineDetails: postForm.vaccineDetails.trim(),
       description: postForm.description.trim(),
-      isVerified: isAdmin ? true : false,
+      isVerified: isMasterAdmin ? true : false,
       isFeatured: false,
       status: 'available' as const,
       createdAt: new Date().toISOString()
     };
 
     try {
+      let createdAdId = '';
       if (isDemoUser) {
-        demoStore.saveChickListing(newAdData);
+        const saved = demoStore.saveChickListing(newAdData);
+        createdAdId = saved.id;
         setListings(demoStore.getChickListings());
       } else {
         try {
-          await addDoc(collection(db, 'chick_listings'), newAdData);
+          const docRef = await addDoc(collection(db, 'chick_listings'), newAdData);
+          createdAdId = docRef.id;
+          demoStore.saveChickListing({ ...newAdData, id: createdAdId });
+          setListings(prev => [{ id: createdAdId, ...newAdData } as DemoChickListing, ...prev]);
         } catch (err) {
-          demoStore.saveChickListing(newAdData);
+          const saved = demoStore.saveChickListing(newAdData);
+          createdAdId = saved.id;
           setListings(demoStore.getChickListings());
         }
+      }
+
+      if (createdAdId) {
+        setMyCreatedAdIds(prev => {
+          const next = prev.includes(createdAdId) ? prev : [...prev, createdAdId];
+          try {
+            localStorage.setItem('my_created_chick_ads', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
       }
 
       toast.success(language === 'bn' ? 'বাচ্চার বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে!' : 'Chick advertisement posted successfully!');
@@ -263,27 +298,40 @@ export const ChickMarket: React.FC = () => {
     }
   };
 
-  // Delete Listing (Admin or Owner)
+  // Delete Listing (Advertiser / Owner or Master Admin)
   const handleDeleteListing = async (listingId: string) => {
-    if (!window.confirm(language === 'bn' ? 'আপনি কি এই বাচ্চার বিজ্ঞাপনটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this ad?')) {
+    if (!window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত এই বাচ্চার বিজ্ঞাপনটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this chick ad?')) {
       return;
     }
 
     try {
-      if (isDemoUser) {
-        demoStore.deleteChickListing(listingId);
-        setListings(demoStore.getChickListings());
-      } else {
+      // 1. Delete from demoStore / localStorage
+      demoStore.deleteChickListing(listingId);
+
+      // 2. Remove from my locally tracked ads
+      setMyCreatedAdIds(prev => {
+        const next = prev.filter(id => id !== listingId);
+        try {
+          localStorage.setItem('my_created_chick_ads', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      // 3. Delete from Firestore if live
+      if (!isDemoUser) {
         try {
           await deleteDoc(doc(db, 'chick_listings', listingId));
         } catch (err) {
-          demoStore.deleteChickListing(listingId);
-          setListings(demoStore.getChickListings());
+          console.warn('Firestore doc delete note:', err);
         }
       }
-      toast.success(language === 'bn' ? 'বিজ্ঞাপন মুছে ফেলা হয়েছে' : 'Ad deleted');
+
+      // 4. Immediately remove from UI state
+      setListings(prev => prev.filter(ad => ad.id !== listingId));
+      toast.success(language === 'bn' ? 'বাচ্চার বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে' : 'Chick advertisement deleted successfully');
     } catch (err: any) {
-      toast.error('Could not delete');
+      console.error('Delete listing error:', err);
+      toast.error(language === 'bn' ? 'বিজ্ঞাপন মুছতে সমস্যা হয়েছে' : 'Could not delete ad');
     }
   };
 
@@ -538,7 +586,14 @@ export const ChickMarket: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredListings.map((ad) => {
-            const isOwner = currentUser && (currentUser.uid === ad.userId || currentUser.email === 'skabusufian452@gmail.com');
+            const isDirectOwner = Boolean(
+              (currentUser && ad.userId && currentUser.uid === ad.userId) ||
+              (currentUser?.email && (ad as any).userEmail && currentUser.email === (ad as any).userEmail) ||
+              (currentUser?.phoneNumber && ad.phone && (ad.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(ad.phone))) ||
+              myCreatedAdIds.includes(ad.id) ||
+              (isDemoUser && (ad.userId === 'demo_user' || ad.userId === 'demo_khamari_user_1' || ad.id?.startsWith('chick_my_') || ad.id?.startsWith('chick_ad_')))
+            );
+            const canManage = isDirectOwner || isMasterAdmin;
             return (
               <div 
                 key={ad.id}
@@ -571,15 +626,28 @@ export const ChickMarket: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Grade Chip */}
-                    <div className={`px-2.5 py-1 rounded-xl text-xs font-black uppercase shrink-0 border ${
-                      ad.grade === 'A' 
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs' 
-                        : ad.grade === 'B'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-purple-50 text-purple-800 border-purple-200'
-                    }`}>
-                      Grade {ad.grade}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Grade Chip */}
+                      <div className={`px-2.5 py-1 rounded-xl text-xs font-black uppercase border ${
+                        ad.grade === 'A' 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs' 
+                          : ad.grade === 'B'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-purple-50 text-purple-800 border-purple-200'
+                      }`}>
+                        Grade {ad.grade}
+                      </div>
+
+                      {canManage && (
+                        <span className={`text-[9.5px] font-black px-2 py-0.8 rounded-lg flex items-center gap-1 border ${
+                          isMasterAdmin && !isDirectOwner
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {isMasterAdmin && !isDirectOwner ? <Crown size={10} className="text-rose-600" /> : <CheckCircle2 size={10} className="text-emerald-600" />}
+                          <span>{isDirectOwner ? (language === 'bn' ? 'আপনার বিজ্ঞাপন' : 'Your Ad') : (language === 'bn' ? 'মাস্টার এডমিন' : 'Master Admin')}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -632,7 +700,7 @@ export const ChickMarket: React.FC = () => {
                   )}
                 </div>
 
-                {/* Action Buttons: Direct Call & WhatsApp Order */}
+                {/* Action Buttons: Direct Call, WhatsApp Order & Delete for Owner/Admin */}
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                   <a
                     href={`tel:${ad.phone}`}
@@ -651,14 +719,17 @@ export const ChickMarket: React.FC = () => {
                     <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ অর্ডার' : 'WhatsApp'}</span>
                   </button>
 
-                  {(isOwner || isAdmin) && (
+                  {canManage && (
                     <button
                       type="button"
                       onClick={() => handleDeleteListing(ad.id)}
-                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                      title={language === 'bn' ? 'বিজ্ঞাপন ডিলিট করুন' : 'Delete Ad'}
+                      className="flex items-center gap-1 px-2.5 py-2 text-rose-600 hover:text-white hover:bg-rose-600 bg-rose-50 border border-rose-200 rounded-xl transition-all cursor-pointer shrink-0 text-xs font-black active:scale-95"
+                      title={isMasterAdmin && !isDirectOwner 
+                        ? (language === 'bn' ? 'মাস্টার এডমিন: বিজ্ঞাপন ডিলিট করুন' : 'Master Admin: Delete Ad') 
+                        : (language === 'bn' ? 'বিজ্ঞাপন মুছে ফেলুন' : 'Delete Your Ad')}
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={14} />
+                      <span className="hidden xs:inline">{isMasterAdmin && !isDirectOwner ? (language === 'bn' ? 'এডমিন ডিলিট' : 'Admin Del') : (language === 'bn' ? 'মুছুন' : 'Delete')}</span>
                     </button>
                   )}
                 </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { query, collection, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +14,9 @@ import {
   Clock, 
   HelpCircle,
   Layers,
-  ChevronDown
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2
 } from 'lucide-react';
 import { demoStore } from '../utils/demoStore';
 
@@ -33,6 +35,46 @@ const formatNum = (val: number | string, lang: string, decimals = 1): string => 
   if (lang !== 'bn') return n;
   const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
   return String(n).replace(/[0-9]/g, d => bnDigits[Number(d)] || d);
+};
+
+// Daily standard feed consumption per bird (in grams) based on Cobb 500 / Ross 308 & standard research
+const getDailyFeedGrams = (type: 'broiler' | 'sonali' | 'layer' | 'deshi', day: number): number => {
+  const d = Math.max(1, day);
+  if (type === 'broiler') {
+    if (d === 1) return 15;
+    if (d === 2) return 18;
+    if (d === 3) return 23;
+    if (d === 4) return 28;
+    if (d === 5) return 34;
+    if (d === 6) return 40;
+    if (d === 7) return 46;
+    if (d <= 14) return Math.round(46 + (d - 7) * 8.3); // Day 14 -> ~104g
+    if (d <= 21) return Math.round(104 + (d - 14) * 6.5); // Day 21 -> ~150g
+    if (d <= 28) return Math.round(150 + (d - 21) * 2.8); // Day 28 -> ~170g
+    if (d <= 35) return Math.round(170 + (d - 28) * 2.3); // Day 35 -> ~186g
+    if (d <= 42) return Math.round(186 + (d - 35) * 2.0); // Day 42 -> ~200g
+    return 205;
+  } else if (type === 'sonali') {
+    if (d <= 7) return 6 + d;
+    if (d <= 14) return 13 + (d - 7);
+    if (d <= 21) return 20 + Math.round((d - 14) * 1.1);
+    if (d <= 28) return 28 + Math.round((d - 21) * 1.1);
+    if (d <= 45) return 36 + Math.round((d - 28) * 0.9);
+    if (d <= 60) return 51 + Math.round((d - 45) * 0.9);
+    return 70;
+  } else if (type === 'layer') {
+    if (d <= 14) return Math.round(12 + (d * 0.85));
+    if (d <= 28) return Math.round(24 + (d - 14) * 0.7);
+    if (d <= 56) return Math.round(34 + (d - 28) * 0.55);
+    if (d <= 112) return Math.round(50 + (d - 56) * 0.45);
+    return 115;
+  } else {
+    // Deshi
+    if (d <= 14) return Math.round(10 + d * 0.8);
+    if (d <= 30) return Math.round(21 + (d - 14) * 0.6);
+    if (d <= 60) return Math.round(31 + (d - 30) * 0.7);
+    return 65;
+  }
 };
 
 export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batchName }: PoultryFeedPlanProps) {
@@ -64,6 +106,23 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
   };
 
   const ageDays = calculateAge(startDate);
+
+  const [showFullSchedule, setShowFullSchedule] = useState(false);
+  const [scheduleWeekFilter, setScheduleWeekFilter] = useState<'all' | 'w1' | 'w2' | 'w3' | 'w4' | 'w5+'>('all');
+
+  // Read actual remaining stock from Stock Tracker (FCR card)
+  const stockRemainingKg = useMemo(() => {
+    const savedIn = localStorage.getItem(`fcr_stock_in_${batchId}`);
+    const savedUsed = localStorage.getItem(`fcr_stock_used_${batchId}`);
+    if (savedIn !== null && savedUsed !== null) {
+      const inKg = Number(savedIn) || 0;
+      const usedKg = Number(savedUsed) || 0;
+      return Math.max(0, inKg - usedKg);
+    }
+    return null;
+  }, [batchId]);
+
+  const stockRemainingBags = stockRemainingKg !== null ? Number((stockRemainingKg / bagWeightKg).toFixed(1)) : null;
 
   // Sync mortality changes in real time
   useEffect(() => {
@@ -108,10 +167,6 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
       setLoading(false);
     }
   }, [batchId, currentUser, isDemoUser]);
-
-  if (loading) {
-    return <div className="text-xs text-slate-400 italic p-2">{language === 'bn' ? 'খাদ্য ও বস্তার হিসাব প্রস্তুত করা হচ্ছে...' : 'Preparing feed calculation...'}</div>;
-  }
 
   // Active Bird Count
   const liveChicks = Math.max(0, totalChicks - totalMortality);
@@ -230,6 +285,46 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
   const weeklyBagsFloat = weeklyFeedKg / bagWeightKg;
   const weeklyFullBags = Math.floor(weeklyBagsFloat);
   const weeklyRemKg = Math.round((weeklyFeedKg % bagWeightKg) * 10) / 10;
+
+  // Max batch duration based on breed
+  const maxDays = birdType === 'broiler' ? 42 : birdType === 'sonali' ? 60 : birdType === 'layer' ? 90 : 50;
+
+  // Day-by-Day exact feed schedule list
+  const dailyScheduleList = useMemo(() => {
+    const list = [];
+    for (let d = 1; d <= maxDays; d++) {
+      if (scheduleWeekFilter === 'w1' && (d < 1 || d > 7)) continue;
+      if (scheduleWeekFilter === 'w2' && (d < 8 || d > 14)) continue;
+      if (scheduleWeekFilter === 'w3' && (d < 15 || d > 21)) continue;
+      if (scheduleWeekFilter === 'w4' && (d < 22 || d > 28)) continue;
+      if (scheduleWeekFilter === 'w5+' && d < 29) continue;
+
+      const gramsPerBird = getDailyFeedGrams(birdType, d);
+      const totalKg = (liveChicks * gramsPerBird) / 1000;
+      const bags = totalKg / bagWeightKg;
+
+      let stage = language === 'bn' ? 'স্টার্টার' : 'Starter';
+      if (birdType === 'broiler') {
+        if (d > 28) stage = language === 'bn' ? 'ফিনিশার' : 'Finisher';
+        else if (d > 14) stage = language === 'bn' ? 'গ্রোয়ার' : 'Grower';
+      } else if (birdType === 'sonali') {
+        if (d > 45) stage = language === 'bn' ? 'ফিনিশার' : 'Finisher';
+        else if (d > 21) stage = language === 'bn' ? 'গ্রোয়ার' : 'Grower';
+      } else if (birdType === 'layer') {
+        if (d > 56) stage = language === 'bn' ? 'লেয়ার ফেজ' : 'Layer';
+        else if (d > 28) stage = language === 'bn' ? 'গ্রোয়ার' : 'Grower';
+      }
+
+      list.push({
+        day: d,
+        gramsPerBird,
+        totalKg,
+        bags,
+        stage
+      });
+    }
+    return list;
+  }, [birdType, liveChicks, bagWeightKg, scheduleWeekFilter, language, maxDays]);
 
   return (
     <div className="mt-4 p-4.5 bg-gradient-to-br from-indigo-50/90 via-blue-50/40 to-amber-50/30 rounded-2xl border border-indigo-200/80 font-sans space-y-3.5 shadow-xs transition-all duration-300">
@@ -351,43 +446,193 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
           </div>
         </div>
 
-        {/* Card 2: 7-Day Weekly Stock Plan (কত বস্তা কিনতে হবে) */}
-        <div className="bg-white p-3.5 rounded-2xl border-2 border-emerald-500/30 shadow-xs text-left relative overflow-hidden">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
-              <Calendar size={13} className="text-emerald-600" />
-              {language === 'bn' ? '১ সপ্তাহের প্রয়োজনীয় স্টক' : '7-Day Feed Purchase Plan'}
-            </span>
-            <span className="text-[9px] font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
-              {language === 'bn' ? '৭ দিনের জন্য' : 'For 7 Days'}
-            </span>
-          </div>
-
-          {/* KG display */}
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-black text-emerald-950 font-sans tracking-tight">
-              {formatNum(weeklyFeedKg, language, 1)}
-            </span>
-            <span className="text-sm font-bold text-emerald-700">
-              {language === 'bn' ? 'কেজি' : 'KG'}
-            </span>
-          </div>
-
-          {/* Bags (বস্তা) display */}
-          <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                🛍️ {formatNum(weeklyBagsFloat, language, 1)} {language === 'bn' ? 'বস্তা লাগবে' : 'Bags Required'}
+        {/* Card 2: 7-Day Weekly Demand Plan (পরবর্তী ৭ দিনের মোট খাদ্য চাহিদা) */}
+        <div className="bg-white p-3.5 rounded-2xl border-2 border-emerald-500/30 shadow-xs text-left relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                <Calendar size={13} className="text-emerald-600" />
+                {language === 'bn' ? 'পরবর্তী ৭ দিনের মোট চাহিদা' : 'Next 7-Day Feed Demand'}
               </span>
-              <span className="text-[10px] font-bold text-slate-500">
-                ({weeklyFullBags > 0 
-                  ? (language === 'bn' ? `${formatNum(weeklyFullBags, language, 0)} বস্তা ${weeklyRemKg > 0 ? `+ ${formatNum(weeklyRemKg, language, 0)} কেজি` : ''}` : `${weeklyFullBags} bags ${weeklyRemKg > 0 ? `+ ${weeklyRemKg}kg` : ''}`)
-                  : (language === 'bn' ? `${formatNum(weeklyRemKg, language, 1)} কেজি` : `${weeklyRemKg} kg`)})
+              <span className="text-[9px] font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                {language === 'bn' ? 'চাহিদা (Demand)' : 'Demand'}
               </span>
             </div>
+
+            {/* KG display */}
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-950 font-sans tracking-tight">
+                {formatNum(weeklyFeedKg, language, 1)}
+              </span>
+              <span className="text-sm font-bold text-emerald-700">
+                {language === 'bn' ? 'কেজি' : 'KG'}
+              </span>
+            </div>
+
+            {/* Bags (বস্তা) display */}
+            <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                  🛍️ {formatNum(weeklyBagsFloat, language, 1)} {language === 'bn' ? 'বস্তা লাগবে' : 'Bags Required'}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500">
+                  ({weeklyFullBags > 0 
+                    ? (language === 'bn' ? `${formatNum(weeklyFullBags, language, 0)} বস্তা ${weeklyRemKg > 0 ? `+ ${formatNum(weeklyRemKg, language, 0)} কেজি` : ''}` : `${weeklyFullBags} bags ${weeklyRemKg > 0 ? `+ ${weeklyRemKg}kg` : ''}`)
+                    : (language === 'bn' ? `${formatNum(weeklyRemKg, language, 1)} কেজি` : `${weeklyRemKg} kg`)})
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Real Stock Reconciliation against demand if available */}
+          {stockRemainingBags !== null && (
+            <div className="mt-2 pt-1.5 border-t border-emerald-100 space-y-1 bg-emerald-50/70 p-2 rounded-xl text-[10px]">
+              <div className="flex justify-between items-center text-slate-700 font-bold">
+                <span>{language === 'bn' ? '📦 বর্তমান স্টক:' : 'Current Stock:'}</span>
+                <span className="font-black text-emerald-900 bg-white px-1.5 py-0.5 rounded border border-emerald-200">
+                  {formatNum(stockRemainingBags, language, 1)} {language === 'bn' ? 'বস্তা' : 'bags'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-700 font-bold">
+                <span>{language === 'bn' ? '⚖️ আগামী ৭ দিনের স্থিতি:' : '7-Day Net:'}</span>
+                <span className={`font-black px-1.5 py-0.5 rounded ${weeklyBagsFloat > stockRemainingBags ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900'}`}>
+                  {weeklyBagsFloat > stockRemainingBags 
+                    ? (language === 'bn' 
+                        ? `আরও প্রায় ${formatNum(weeklyBagsFloat - stockRemainingBags, language, 1)} বস্তা প্রয়োজন` 
+                        : `Approx ${formatNum(weeklyBagsFloat - stockRemainingBags, 'en', 1)} more bags needed`)
+                    : (language === 'bn' ? 'পর্যাপ্ত মজুত আছে' : 'Sufficient stock')}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
+      </div>
+
+      {/* 📅 1 din theke last din porjonto full schedule toggle & table */}
+      <div className="bg-white rounded-2xl border border-indigo-200 p-3 shadow-xs space-y-2.5 text-left">
+        <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-indigo-100 text-indigo-700 shrink-0">
+              <Calendar size={17} />
+            </div>
+            <div>
+              <h5 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                {language === 'bn' ? '📅 ১ দিন থেকে শেষ দিন পর্যন্ত দৈনিক খাদ্য তালিকা' : '📅 Full Daily Feed Chart (Day 1 to End)'}
+                <span className="text-[9px] font-extrabold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded border border-amber-300">
+                  {language === 'bn' ? 'অটোমেটিক' : 'Automatic'}
+                </span>
+              </h5>
+              <p className="text-[10px] text-slate-500 font-bold">
+                {language === 'bn' ? `খামারের ${formatNum(liveChicks, language, 0)}টি বাচ্চার বয়স অনুযায়ী দৈনিক খাদ্য ও বস্তা` : `Daily feed & bags calculation for ${liveChicks} birds`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowFullSchedule(!showFullSchedule)}
+            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0"
+          >
+            <span>{showFullSchedule ? (language === 'bn' ? 'তালিকা বন্ধ করুন' : 'Hide Chart') : (language === 'bn' ? 'পূর্ণাঙ্গ তালিকা দেখুন' : 'View Full Chart')}</span>
+            {showFullSchedule ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+
+        {/* Expandable Daily Table */}
+        {showFullSchedule && (
+          <div className="space-y-2 pt-2 border-t border-indigo-100">
+            {/* Week Filter Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-[10px] font-extrabold">
+              {[
+                { id: 'all', label: language === 'bn' ? 'সব দিন' : 'All Days' },
+                { id: 'w1', label: language === 'bn' ? '১ম সপ্তাহ (১-৭)' : 'Week 1 (1-7)' },
+                { id: 'w2', label: language === 'bn' ? '২য় সপ্তাহ (৮-১৪)' : 'Week 2 (8-14)' },
+                { id: 'w3', label: language === 'bn' ? '৩য় সপ্তাহ (১৫-২১)' : 'Week 3 (15-21)' },
+                { id: 'w4', label: language === 'bn' ? '৪র্থ সপ্তাহ (২২-২৮)' : 'Week 4 (22-28)' },
+                { id: 'w5+', label: language === 'bn' ? '৫ম সপ্তাহ+ (২৯-৪২)' : 'Week 5+ (29-42)' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setScheduleWeekFilter(tab.id as any)}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border ${
+                    scheduleWeekFilter === tab.id
+                      ? 'bg-indigo-700 text-white border-indigo-700 shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Scrollable Table */}
+            <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-[11px] text-left border-collapse">
+                <thead className="bg-slate-100/95 sticky top-0 text-[10px] font-black text-slate-700 uppercase border-b border-slate-200 z-10">
+                  <tr>
+                    <th className="py-2 px-2 text-center">{language === 'bn' ? 'বয়স' : 'Age'}</th>
+                    <th className="py-2 px-2">{language === 'bn' ? 'পর্যায়' : 'Stage'}</th>
+                    <th className="py-2 px-2 text-right">{language === 'bn' ? 'প্রতি পাখি' : 'Per Bird'}</th>
+                    <th className="py-2 px-2 text-right">{language === 'bn' ? `মোট খাবার (${formatNum(liveChicks, language, 0)}টি)` : 'Total Feed'}</th>
+                    <th className="py-2 px-2 text-right">{language === 'bn' ? 'বস্তার হিসাব' : 'Bags'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dailyScheduleList.map((item) => {
+                    const isToday = item.day === ageDays;
+                    return (
+                      <tr 
+                        key={item.day} 
+                        className={`transition-colors font-medium ${
+                          isToday 
+                            ? 'bg-amber-100/90 font-black text-amber-950 border-l-4 border-l-amber-600' 
+                            : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <td className="py-1.5 px-2 text-center font-bold">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-black ${isToday ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                            {language === 'bn' ? `দিন ${formatNum(item.day, language, 0)}` : `Day ${item.day}`}
+                          </span>
+                          {isToday && (
+                            <span className="block text-[8.5px] font-black text-amber-800 uppercase tracking-tighter">
+                              {language === 'bn' ? 'আজকের বয়স' : 'Today'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 px-2 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                            item.stage === 'স্টার্টার' || item.stage === 'Starter' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                            item.stage === 'গ্রোয়ার' || item.stage === 'Grower' ? 'bg-purple-50 text-purple-800 border border-purple-200' :
+                            'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {item.stage}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-800">
+                          {formatNum(item.gramsPerBird, language, 0)} {language === 'bn' ? 'গ্রাম' : 'g'}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-mono font-black text-indigo-950">
+                          {formatNum(item.totalKg, language, 1)} {language === 'bn' ? 'কেজি' : 'kg'}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-600">
+                          {formatNum(item.bags, language, 2)} {language === 'bn' ? 'বস্তা' : 'bags'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-[10px] text-slate-500 font-semibold italic text-center">
+              {language === 'bn' 
+                ? '* দ্রষ্টব্য: এটি আদর্শ পোল্ট্রি পুষ্টি ও আন্তর্জাতিক ব্রয়লার চার্ট (Cobb 500 / Ross 308) অনুযায়ী নিখুঁত দৈনিক গণনা। আবহাওয়া ও ওজনের ভিত্তিতে সামান্য তারতম্য হতে পারে।'
+                : '* Note: Calculated according to standard international poultry nutrition charts (Cobb 500 / Ross 308).'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Input section to tweak by bird weight */}

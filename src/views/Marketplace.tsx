@@ -66,9 +66,13 @@ import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 export default function Marketplace() {
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
-  const { hasAccess, openSubscriptionModal } = useSystemConfig();
+  const { hasAccess, openSubscriptionModal, isAdmin: sysAdmin } = useSystemConfig();
 
-  const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
+  const isAdmin = 
+    Boolean(sysAdmin) || 
+    currentUser?.email === 'skabusufian452@gmail.com' || 
+    currentUser?.email === 'admin@digitalfarm.pro' || 
+    (currentUser as any)?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState<'posts' | 'buyers'>('posts');
 
