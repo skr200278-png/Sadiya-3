@@ -363,7 +363,7 @@ export default function StoreDirectory() {
   const handleShareStore = (store: DemoStoreListing) => {
     const locDistrict = getDistrictDisplayName(store.district, language);
     const locCountry = store.country ? getCountryDisplayName(store.country, language) : '';
-    const text = `🏪 *${store.shopName}*\n📍 ${language === 'bn' ? 'এলাকা' : 'Location'}: ${store.address}, ${store.upazila ? store.upazila + ', ' : ''}${locDistrict}${locCountry ? ` (${locCountry})` : ''}\n📞 ${language === 'bn' ? 'মোবাইল' : 'Mobile'}: ${store.phone}\n🌾 ${language === 'bn' ? 'ব্র্যান্ডসমূহ' : 'Brands'}: ${store.availableBrands || (language === 'bn' ? 'পোল্ট্রি ও ক্যাটল ফিড' : 'Feed & Medicine')}\n🚚 ${language === 'bn' ? 'হোম ডেলিভারি' : 'Delivery'}: ${store.hasHomeDelivery ? (language === 'bn' ? 'হ্যাঁ, খামারে পৌঁছানো হয়' : 'Yes, Farm delivery available') : (language === 'bn' ? 'দোকান থেকে সংগ্রহ' : 'In-store collection')}\n\n${language === 'bn' ? 'ডিজিটাল খামার প্রো থেকে সংগৃহীত।' : 'Shared from Digital Khamar Pro.'}`;
+    const text = `🏪 *${store.shopName}*\n📍 ${language === 'bn' ? 'এলাকা' : 'Location'}: ${store.address}, ${store.upazila ? store.upazila + ', ' : ''}${locDistrict}${locCountry ? ` (${locCountry})` : ''}\n📞 ${language === 'bn' ? 'মোবাইল' : 'Mobile'}: ${store.phone}\n🌾 ${language === 'bn' ? 'ব্র্যান্ডসমূহ' : 'Brands'}: ${store.availableBrands || (language === 'bn' ? 'পোল্ট্রি ও ক্যাটল ফিড' : 'Feed & Medicine')}\n🚚 ${language === 'bn' ? 'হোম ডেলিভারি' : 'Delivery'}: ${store.hasHomeDelivery ? (language === 'bn' ? 'হ্যাঁ, খামারে পৌঁছানো হয়' : 'Yes, Farm delivery available') : (language === 'bn' ? 'দোকান থেকে সংগ্রহ' : 'In-store collection')}\n\n${language === 'bn' ? 'ফার্ম ম্যানেজার থেকে সংগৃহীত।' : 'Shared from Farm Manager.'}`;
     
     if (navigator.share) {
       navigator.share({
@@ -991,8 +991,8 @@ export default function StoreDirectory() {
         </div>
         <p className="text-[10px] sm:text-[11px] text-amber-950/90 leading-relaxed font-medium">
           {language === 'bn' 
-            ? 'ডিজিটাল খামার প্রো শুধুমাত্র সরাসরি যোগাযোগের মাধ্যম। ফিড ও ঔষধ ক্রয়ের সময় পণ্যের মেয়াদ, গুণগত মান এবং মূল্য সরাসরি দোকানদারের সাথে যাচাই করে লেনদেন করুন।'
-            : 'Digital Farm Pro only facilitates direct connections. Please verify product expiry, brand authenticity, and prices directly before finalizing transactions.'}
+            ? 'ফার্ম ম্যানেজার শুধুমাত্র সরাসরি যোগাযোগের মাধ্যম। ফিড ও ঔষধ ক্রয়ের সময় পণ্যের মেয়াদ, গুণগত মান এবং মূল্য সরাসরি দোকানদারের সাথে যাচাই করে লেনদেন করুন।'
+            : 'Farm Manager only facilitates direct connections. Please verify product expiry, brand authenticity, and prices directly before finalizing transactions.'}
         </p>
       </div>
 

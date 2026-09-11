@@ -135,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setLogoSrc('');
                   }
                 }}
-                alt="Digital Farm Logo" 
+                alt="Farm Manager Logo" 
                 className="w-32 h-32 mx-auto drop-shadow-2xl mb-4 rounded-3xl object-cover bg-white p-2 border-2 border-white/80 shadow-2xl" 
               />
             ) : (

@@ -63,9 +63,9 @@ export default defineConfig(({mode}) => {
         manifest: {
           id: './',
           start_url: './',
-          name: 'Digital Farm App',
-          short_name: 'Digital Farm',
-          description: 'A comprehensive business management application for various types of farms.',
+          name: 'Farm Manager',
+          short_name: 'Farm Manager',
+          description: 'Farm Manager - Comprehensive poultry, livestock, and fishery farm management system',
           theme_color: '#15803d',
           background_color: '#ffffff',
           display: 'standalone',

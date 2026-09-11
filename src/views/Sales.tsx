@@ -421,7 +421,7 @@ export default function Sales() {
           buyerName: normalizedBuyerName,
           buyerPhone: buyerPhone.trim(),
           notes: notes.trim(),
-          dueRecordId: createdDueId,
+          ...(createdDueId ? { dueRecordId: createdDueId } : {}),
           createdAt: new Date().toISOString()
         };
 
@@ -479,7 +479,7 @@ export default function Sales() {
         buyerName: normalizedBuyerName,
         buyerPhone: buyerPhone.trim(),
         notes: notes.trim(),
-        dueRecordId: createdDueId,
+        ...(createdDueId ? { dueRecordId: createdDueId } : {}),
         createdAt: new Date().toISOString()
       };
 

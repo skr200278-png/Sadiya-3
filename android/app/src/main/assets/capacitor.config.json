@@ -1,6 +1,6 @@
 {
 	"appId": "com.khamarpro.app",
-	"appName": "KhamarPro",
+	"appName": "Farm Manager",
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https"

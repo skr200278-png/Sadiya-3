@@ -1004,7 +1004,7 @@ export default function Dashboard() {
               to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`} 
               className="text-amber-700 hover:text-amber-800 flex items-center gap-1 font-black transition-colors"
             >
-              <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
+              <span>{language === 'bn' ? 'FCR ও স্টক' : 'FCR & Stock'}</span>
               <ChevronRight size={12} />
             </Link>
           </div>
@@ -1141,7 +1141,7 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 4, Item 1: FCR Graph */}
+          {/* Row 4, Item 1: FCR Graph & Stock */}
           <Link 
             to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
             className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/90 flex flex-col items-center justify-center gap-1 hover:border-amber-400 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer"
@@ -1150,7 +1150,7 @@ export default function Dashboard() {
               <BarChart2 size={15} strokeWidth={2.5} />
             </div>
             <span className="text-[10px] font-black text-amber-850 tracking-tight block truncate">
-              {language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}
+              {language === 'bn' ? 'FCR ও স্টক' : 'FCR & Stock'}
             </span>
           </Link>
 

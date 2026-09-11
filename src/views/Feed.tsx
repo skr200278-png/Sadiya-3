@@ -223,7 +223,7 @@ export default function Feed() {
           amountPaid: paidVal,
           personName: normalizedPersonName,
           details,
-          dueRecordId: createdDueId,
+          ...(createdDueId ? { dueRecordId: createdDueId } : {}),
           createdAt: new Date().toISOString()
         };
         demoStore.saveFeedRecord(newRecord);
@@ -277,7 +277,7 @@ export default function Feed() {
         amountPaid: paidVal,
         personName: normalizedPersonName,
         details,
-        dueRecordId: createdDueId,
+        ...(createdDueId ? { dueRecordId: createdDueId } : {}),
         createdAt: new Date().toISOString()
       };
 
@@ -373,7 +373,7 @@ export default function Feed() {
             }`}
           >
             <ChartIcon size={14} />
-            <span>{language === 'bn' ? '📉 FCR গ্রাফ' : 'FCR Graph'}</span>
+            <span>{language === 'bn' ? '📉 FCR ও স্টক' : 'FCR & Stock'}</span>
           </button>
 
           <button
@@ -426,6 +426,9 @@ export default function Feed() {
                 totalFeedConsumedKg={totalFeedKg}
                 totalFeedCost={totalFeedCost}
                 currentBirdCount={currentBirds}
+                activeBatches={activeBatches}
+                onBatchChange={handleBatchChange}
+                batchRecords={batchRecords}
               />
             );
           })()}

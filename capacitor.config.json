@@ -1,6 +1,6 @@
 {
   "appId": "com.khamarpro.app",
-  "appName": "Digital Farm",
+  "appName": "Farm Manager",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {

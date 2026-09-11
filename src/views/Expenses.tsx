@@ -169,7 +169,7 @@ export default function Expenses() {
           amountPaid: paidVal,
           personName: normalizedPersonName,
           details,
-          dueRecordId: createdDueId,
+          ...(createdDueId ? { dueRecordId: createdDueId } : {}),
           createdAt: new Date().toISOString()
         };
         demoStore.saveExpense(newRecord);
@@ -219,7 +219,7 @@ export default function Expenses() {
         amountPaid: paidVal,
         personName: normalizedPersonName,
         details,
-        dueRecordId: createdDueId,
+        ...(createdDueId ? { dueRecordId: createdDueId } : {}),
         createdAt: new Date().toISOString()
       };
 

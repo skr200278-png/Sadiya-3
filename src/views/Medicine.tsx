@@ -173,7 +173,7 @@ export default function Medicine() {
           amountPaid: paidVal,
           personName: normalizedPersonName,
           details,
-          dueRecordId: createdDueId,
+          ...(createdDueId ? { dueRecordId: createdDueId } : {}),
           createdAt: new Date().toISOString()
         };
         demoStore.saveMedicineRecord(newRecord);
@@ -228,7 +228,7 @@ export default function Medicine() {
         amountPaid: paidVal,
         personName: normalizedPersonName,
         details,
-        dueRecordId: createdDueId,
+        ...(createdDueId ? { dueRecordId: createdDueId } : {}),
         createdAt: new Date().toISOString()
       };
 
