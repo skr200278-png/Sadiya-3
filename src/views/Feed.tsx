@@ -58,6 +58,8 @@ export default function Feed() {
     if (batch) {
       const fType = batch.farmType || 'poultry';
       setFarmType(fType);
+      localStorage.setItem(`selected_batch_id_${fType}`, id);
+      localStorage.setItem('selected_farm_type', fType);
       if (fType === 'cattle') {
         setFeedType(t('feed.cattleOption'));
       } else if (fType === 'fish') {
@@ -99,9 +101,11 @@ export default function Feed() {
         const batches = demoStore.getBatches().filter(b => b.status === 'active');
         setActiveBatches(batches);
         if (batches.length > 0 && !batchId) {
-          setBatchId(batches[0].id);
-          const b = batches[0];
-          setFarmType(b.farmType || 'poultry');
+          const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
+          const savedId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
+          const matched = batches.find(b => b.id === savedId) || batches[0];
+          setBatchId(matched.id);
+          setFarmType(matched.farmType || 'poultry');
         }
         const fetchedRecords = demoStore.getFeedRecords();
         setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -115,9 +119,12 @@ export default function Feed() {
       const batchSnap = await fastGetDocs(batchesQuery);
       const batches: any[] = batchSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setActiveBatches(batches);
-      if(batches.length > 0) {
-        setBatchId(batches[0].id);
-        const b = batches[0];
+      if (batches.length > 0) {
+        const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
+        const savedId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
+        const matched = batches.find(b => b.id === savedId) || batches[0];
+        setBatchId(matched.id);
+        const b = matched;
         setFarmType(b.farmType || 'poultry');
         if (b.farmType === 'cattle') setFeedType('দানা/ভুষি (Cattle/Goat)');
         else if (b.farmType === 'fish') setFeedType('ভাসমান খাবার (Fish)');
@@ -415,15 +422,33 @@ export default function Feed() {
           {(() => {
             const currentSelectedBatch = activeBatches.find(b => b.id === batchId) || (activeBatches.length > 0 ? activeBatches[0] : null);
             const batchRecords = records.filter(r => r.batchId === batchId);
-            // Total bags to kg (each bag standard 50kg)
-            const totalFeedKg = batchRecords.reduce((sum, r) => sum + (Number(r.quantityBags || 0) * 50), 0);
+            // Total inward feed arrived at farm from purchase records (each bag standard 50kg)
+            const totalInwardFeedKg = batchRecords.reduce((sum, r) => sum + (Number(r.quantityBags || 0) * 50), 0);
             const totalFeedCost = batchRecords.reduce((sum, r) => sum + Number(r.cost || 0), 0);
             const currentBirds = currentSelectedBatch ? Number(currentSelectedBatch.totalChicks || 0) : 0;
+
+            // Compute actual consumed feed:
+            // Feed consumed must strictly represent real consumption (Total Inward - Stock Remaining)
+            const bId = currentSelectedBatch?.id || batchId;
+            const savedUsed = localStorage.getItem(`fcr_stock_used_${bId}`);
+            const savedRem = localStorage.getItem(`fcr_stock_rem_${bId}`);
+
+            let actualConsumedKg = totalInwardFeedKg;
+            if (currentSelectedBatch?.feedStockUsedKg !== undefined && Number(currentSelectedBatch.feedStockUsedKg) > 0) {
+              actualConsumedKg = Number(currentSelectedBatch.feedStockUsedKg);
+            } else if (savedUsed && Number(savedUsed) > 0) {
+              actualConsumedKg = Number(savedUsed);
+            } else if (currentSelectedBatch?.feedStockRemainingKg !== undefined) {
+              actualConsumedKg = Math.max(0, totalInwardFeedKg - Number(currentSelectedBatch.feedStockRemainingKg));
+            } else if (savedRem && !isNaN(Number(savedRem))) {
+              actualConsumedKg = Math.max(0, totalInwardFeedKg - Number(savedRem));
+            }
 
             return (
               <FcrCalculatorCard
                 selectedBatch={currentSelectedBatch}
-                totalFeedConsumedKg={totalFeedKg}
+                totalFeedPurchasedKg={totalInwardFeedKg}
+                totalFeedConsumedKg={actualConsumedKg}
                 totalFeedCost={totalFeedCost}
                 currentBirdCount={currentBirds}
                 activeBatches={activeBatches}
@@ -451,6 +476,7 @@ export default function Feed() {
                 startDate={currentSelectedBatch.startDate}
                 totalChicks={currentSelectedBatch.totalChicks}
                 batchName={currentSelectedBatch.batchName}
+                batch={currentSelectedBatch}
               />
             );
           })()}

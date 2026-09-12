@@ -55,8 +55,9 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
     : 0;
 
   // 2. Feed Stock Status
-  const isFeedLow = data.daysOfFeedLeft > 0 && data.daysOfFeedLeft <= 3;
-  const isFeedCritical = data.feedStockRemainingBags <= 1 && data.batchAgeDays > 5;
+  const isFeedEmpty = data.feedStockRemainingBags <= 0;
+  const isFeedLow = !isFeedEmpty && data.daysOfFeedLeft > 0 && data.daysOfFeedLeft <= 3;
+  const isFeedCritical = isFeedEmpty || (data.feedStockRemainingBags <= 1 && data.batchAgeDays > 5);
 
   // 3. Mortality Assessment
   const isHighMortality = data.mortalityRate > 4.5;
@@ -84,8 +85,8 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
               <h3 className="text-xs sm:text-sm font-extrabold text-slate-850 leading-none">
                 {isBn ? 'খামার ইনসাইটস ও বিশ্লেষণ' : 'Smart Farm Data Insights'}
               </h3>
-              {(isFeedLow || isHighMortality) && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+              {(isFeedEmpty || isFeedLow || isHighMortality) && (
+                <span className={`w-2 h-2 rounded-full ${isFeedEmpty ? 'bg-rose-600' : 'bg-amber-500'} animate-ping inline-block`} />
               )}
             </div>
             <p className="text-[10px] text-slate-400 font-medium mt-0.5">
@@ -109,23 +110,38 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
         
         {/* 1. Feed Inventory & Days Left Insight */}
         <div className={`p-2.5 rounded-xl border flex flex-col justify-between ${
-          isFeedLow || isFeedCritical 
+          isFeedEmpty
+            ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+            : isFeedLow || isFeedCritical 
             ? 'bg-amber-50/80 border-amber-300 text-amber-950' 
             : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
         }`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold flex items-center gap-1">
-              <Wheat size={12} className={isFeedLow ? 'text-amber-700' : 'text-emerald-700'} />
+              <Wheat size={12} className={isFeedEmpty ? 'text-rose-700' : isFeedLow ? 'text-amber-700' : 'text-emerald-700'} />
               {isBn ? 'খাদ্য মজুত পূর্বাভাস' : 'Feed Stock Forecast'}
             </span>
-            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-white/70">
+            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
+              isFeedEmpty
+                ? 'bg-rose-600 text-white shadow-xs'
+                : isFeedLow
+                ? 'bg-amber-600 text-white'
+                : 'bg-white/70 text-slate-800'
+            }`}>
               {data.feedStockRemainingBags > 0 
                 ? `${data.feedStockRemainingBags} ${isBn ? 'বস্তা বাকি' : 'bags left'}`
-                : (isBn ? 'মজুত শূন্য' : 'No stock')}
+                : (isBn ? 'মজুত শূন্য (০ বস্তা)' : 'No stock (0 bags)')}
             </span>
           </div>
           <p className="text-xs font-bold leading-relaxed">
-            {data.daysOfFeedLeft > 0 ? (
+            {isFeedEmpty ? (
+              <span className="text-rose-800 font-extrabold flex items-center gap-1">
+                <AlertTriangle size={12} className="shrink-0 text-rose-600" />
+                {isBn 
+                  ? 'খাবার শেষ! স্টকে কোনো খাদ্য অবশিষ্ট নেই (০ দিন চলবে)। মুরগিকে সুস্থ রাখতে অবিলম্বে নতুন খাদ্য কিনুন।' 
+                  : 'Out of feed! No stock remaining (0 days left). Reorder feed immediately.'}
+              </span>
+            ) : data.daysOfFeedLeft > 0 ? (
               <>
                 {isBn 
                   ? `বর্তমান খরচের হারে এই খাদ্য দিয়ে আর প্রায় ` 
@@ -138,7 +154,7 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
               isBn ? 'খাদ্য মজুতের তথ্য নিয়মিত আপডেট রাখুন।' : 'Keep your feed stock logs updated.'
             )}
           </p>
-          {isFeedLow && (
+          {!isFeedEmpty && isFeedLow && (
             <p className="text-[10px] font-bold text-amber-800 mt-1 flex items-center gap-1">
               <AlertTriangle size={11} className="shrink-0" />
               {isBn ? 'সতর্কতা: দ্রুত নতুন ফিড সংগ্রহের অর্ডার করুন।' : 'Warning: Reorder feed soon.'}

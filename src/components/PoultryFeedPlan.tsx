@@ -25,6 +25,7 @@ interface PoultryFeedPlanProps {
   startDate: string;
   totalChicks: number;
   batchName?: string;
+  batch?: any;
 }
 
 // Convert numbers to Bengali digits if language is 'bn'
@@ -77,7 +78,7 @@ const getDailyFeedGrams = (type: 'broiler' | 'sonali' | 'layer' | 'deshi', day: 
   }
 };
 
-export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batchName }: PoultryFeedPlanProps) {
+export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batchName, batch }: PoultryFeedPlanProps) {
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
   const [totalMortality, setTotalMortality] = useState(0);
@@ -110,18 +111,68 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
   const [showFullSchedule, setShowFullSchedule] = useState(false);
   const [scheduleWeekFilter, setScheduleWeekFilter] = useState<'all' | 'w1' | 'w2' | 'w3' | 'w4' | 'w5+'>('all');
 
-  // Read actual remaining stock from Stock Tracker (FCR card)
-  const stockRemainingKg = useMemo(() => {
-    const savedIn = localStorage.getItem(`fcr_stock_in_${batchId}`);
-    const savedUsed = localStorage.getItem(`fcr_stock_used_${batchId}`);
+  // Read actual remaining stock from Stock Tracker (FCR card) and batch
+  const [liveStockKg, setLiveStockKg] = useState<number | null>(() => {
+    let savedIn = (batch?.feedStockInKg !== undefined && batch?.feedStockInKg !== null)
+      ? String(batch.feedStockInKg)
+      : localStorage.getItem(`fcr_stock_in_${batchId}`);
+    let savedUsed = (batch?.feedStockUsedKg !== undefined && batch?.feedStockUsedKg !== null)
+      ? String(batch.feedStockUsedKg)
+      : localStorage.getItem(`fcr_stock_used_${batchId}`);
+
+    if ((savedIn === null || savedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
+      savedIn = localStorage.getItem('fcr_stock_in_default_batch');
+      savedUsed = localStorage.getItem('fcr_stock_used_default_batch');
+    }
+
     if (savedIn !== null && savedUsed !== null) {
       const inKg = Number(savedIn) || 0;
       const usedKg = Number(savedUsed) || 0;
-      return Math.max(0, inKg - usedKg);
+      return Math.max(0, Number((inKg - usedKg).toFixed(1)));
     }
     return null;
-  }, [batchId]);
+  });
 
+  useEffect(() => {
+    const readStock = () => {
+      let savedIn = (batch?.feedStockInKg !== undefined && batch?.feedStockInKg !== null)
+        ? String(batch.feedStockInKg)
+        : localStorage.getItem(`fcr_stock_in_${batchId}`);
+      let savedUsed = (batch?.feedStockUsedKg !== undefined && batch?.feedStockUsedKg !== null)
+        ? String(batch.feedStockUsedKg)
+        : localStorage.getItem(`fcr_stock_used_${batchId}`);
+
+      if ((savedIn === null || savedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
+        savedIn = localStorage.getItem('fcr_stock_in_default_batch');
+        savedUsed = localStorage.getItem('fcr_stock_used_default_batch');
+      }
+
+      if (savedIn !== null && savedUsed !== null) {
+        const inKg = Number(savedIn) || 0;
+        const usedKg = Number(savedUsed) || 0;
+        setLiveStockKg(Math.max(0, Number((inKg - usedKg).toFixed(1))));
+      } else {
+        setLiveStockKg(null);
+      }
+    };
+
+    readStock();
+
+    const handleFeedStockUpdate = (e: any) => {
+      if (!e.detail?.batchId || e.detail?.batchId === batchId || e.detail?.batchId === 'default_batch') {
+        if (e.detail?.remainingKg !== undefined) {
+          setLiveStockKg(Number(e.detail.remainingKg));
+        } else {
+          readStock();
+        }
+      }
+    };
+
+    window.addEventListener('feed_stock_updated', handleFeedStockUpdate);
+    return () => window.removeEventListener('feed_stock_updated', handleFeedStockUpdate);
+  }, [batchId, batch?.feedStockInKg, batch?.feedStockUsedKg]);
+
+  const stockRemainingKg = liveStockKg;
   const stockRemainingBags = stockRemainingKg !== null ? Number((stockRemainingKg / bagWeightKg).toFixed(1)) : null;
 
   // Sync mortality changes in real time
@@ -486,17 +537,35 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
 
           {/* Real Stock Reconciliation against demand if available */}
           {stockRemainingBags !== null && (
-            <div className="mt-2 pt-1.5 border-t border-emerald-100 space-y-1 bg-emerald-50/70 p-2 rounded-xl text-[10px]">
+            <div className={`mt-2 pt-1.5 border space-y-1 p-2 rounded-xl text-[10px] ${
+              stockRemainingBags <= 0 
+                ? 'bg-rose-50/90 border-rose-200' 
+                : 'bg-emerald-50/70 border-emerald-100'
+            }`}>
               <div className="flex justify-between items-center text-slate-700 font-bold">
                 <span>{language === 'bn' ? '📦 বর্তমান স্টক:' : 'Current Stock:'}</span>
-                <span className="font-black text-emerald-900 bg-white px-1.5 py-0.5 rounded border border-emerald-200">
-                  {formatNum(stockRemainingBags, language, 1)} {language === 'bn' ? 'বস্তা' : 'bags'}
+                <span className={`font-black px-1.5 py-0.5 rounded border ${
+                  stockRemainingBags <= 0
+                    ? 'text-rose-900 bg-white border-rose-300'
+                    : 'text-emerald-900 bg-white border-emerald-200'
+                }`}>
+                  {stockRemainingBags <= 0
+                    ? (language === 'bn' ? 'মজুত শূন্য (০ বস্তা)' : 'Out of stock (0 bags)')
+                    : `${formatNum(stockRemainingBags, language, 1)} ${language === 'bn' ? 'বস্তা' : 'bags'}`}
                 </span>
               </div>
               <div className="flex justify-between items-center text-slate-700 font-bold">
                 <span>{language === 'bn' ? '⚖️ আগামী ৭ দিনের স্থিতি:' : '7-Day Net:'}</span>
-                <span className={`font-black px-1.5 py-0.5 rounded ${weeklyBagsFloat > stockRemainingBags ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900'}`}>
-                  {weeklyBagsFloat > stockRemainingBags 
+                <span className={`font-black px-1.5 py-0.5 rounded ${
+                  stockRemainingBags <= 0
+                    ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                    : weeklyBagsFloat > stockRemainingBags 
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                    : 'bg-emerald-100 text-emerald-900'
+                }`}>
+                  {stockRemainingBags <= 0
+                    ? (language === 'bn' ? 'খাবার শেষ! জরুরি ফিড প্রয়োজন' : 'Out of stock! Feed needed urgently')
+                    : weeklyBagsFloat > stockRemainingBags 
                     ? (language === 'bn' 
                         ? `আরও প্রায় ${formatNum(weeklyBagsFloat - stockRemainingBags, language, 1)} বস্তা প্রয়োজন` 
                         : `Approx ${formatNum(weeklyBagsFloat - stockRemainingBags, 'en', 1)} more bags needed`)

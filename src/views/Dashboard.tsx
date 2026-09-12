@@ -266,6 +266,22 @@ export default function Dashboard() {
     }
   }, [currentUser, isDemoUser, selectedType]);
 
+  // Real-time synchronization when feed stock is adjusted in FCR & Stock card or Feed Plan
+  useEffect(() => {
+    const handleFeedStockUpdate = (e: any) => {
+      if (activeBatch && (!e.detail?.batchId || e.detail?.batchId === activeBatch.id || e.detail?.batchId === 'default_batch')) {
+        fetchBatchMetrics({
+          ...activeBatch,
+          feedStockInKg: e.detail?.inKg,
+          feedStockUsedKg: e.detail?.usedKg,
+          feedStockRemainingKg: e.detail?.remainingKg
+        });
+      }
+    };
+    window.addEventListener('feed_stock_updated', handleFeedStockUpdate);
+    return () => window.removeEventListener('feed_stock_updated', handleFeedStockUpdate);
+  }, [activeBatch]);
+
   const fetchActiveBatches = async () => {
     if (!currentUser) return;
     try {
@@ -392,15 +408,28 @@ export default function Dashboard() {
       let feedUsedBags = 0;
       let remainingBags = 0;
 
-      const savedFeedIn = localStorage.getItem(`fcr_stock_in_${batch.id}`);
-      const savedFeedUsed = localStorage.getItem(`fcr_stock_used_${batch.id}`);
+      // 1. Check direct batch properties from Firestore / demoStore
+      // 2. Check localStorage with batch.id
+      // 3. Fallback to default_batch key
+      let savedFeedIn = (batch.feedStockInKg !== undefined && batch.feedStockInKg !== null)
+        ? String(batch.feedStockInKg)
+        : localStorage.getItem(`fcr_stock_in_${batch.id}`);
+      let savedFeedUsed = (batch.feedStockUsedKg !== undefined && batch.feedStockUsedKg !== null)
+        ? String(batch.feedStockUsedKg)
+        : localStorage.getItem(`fcr_stock_used_${batch.id}`);
+
+      if ((savedFeedIn === null || savedFeedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
+        savedFeedIn = localStorage.getItem('fcr_stock_in_default_batch');
+        savedFeedUsed = localStorage.getItem('fcr_stock_used_default_batch');
+      }
 
       if (savedFeedIn !== null && savedFeedUsed !== null) {
         const inKg = Number(savedFeedIn) || 0;
         const usedKg = Number(savedFeedUsed) || 0;
         feedPurchasedBags = Number((inKg / 50).toFixed(1));
         feedUsedBags = Number((usedKg / 50).toFixed(1));
-        remainingBags = Math.max(0, Number(((inKg - usedKg) / 50).toFixed(1)));
+        const remKg = Math.max(0, Number((inKg - usedKg).toFixed(1)));
+        remainingBags = Number((remKg / 50).toFixed(1));
       } else {
         // Fallback calculation if not manually adjusted in FCR tracker
         feedPurchasedBags = tFeedBags;
@@ -429,15 +458,22 @@ export default function Dashboard() {
       const dailyConsumptionKg = (aliveCount * dailyGramsPerBird) / 1000;
       const dailyConsumptionBags = dailyConsumptionKg > 0 ? (dailyConsumptionKg / 50) : (age > 0 ? (tFeedBags / age) : 1);
       const avgDaily = Number(dailyConsumptionBags.toFixed(2));
-      const daysLeft = dailyConsumptionBags > 0 ? Math.max(0, Math.floor(remainingBags / dailyConsumptionBags)) : 0;
+      const daysLeft = (remainingBags > 0 && dailyConsumptionBags > 0) ? Math.max(0, Math.floor(remainingBags / dailyConsumptionBags)) : 0;
 
       let calculatedFcr: number | undefined = undefined;
       const estimatedWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
-      if (aliveCount > 0 && estimatedWeight > 0 && tFeedBags > 0) {
-        const totalFeedKg = tFeedBags * 50;
+      const actualUsedFeedKg = feedUsedBags > 0 ? feedUsedBags * 50 : tFeedBags * 50;
+
+      if (aliveCount > 0 && estimatedWeight > 0 && actualUsedFeedKg > 0) {
+        const initialUnitWeightKg = batch.farmType === 'cattle' ? 25 : batch.farmType === 'fish' ? 0.01 : 0.042;
+        const netGainPerUnitKg = Math.max(0.01, estimatedWeight - initialUnitWeightKg);
+        const totalNetMeatKg = aliveCount * netGainPerUnitKg;
         const totalLiveWeightKg = aliveCount * estimatedWeight;
-        if (totalLiveWeightKg > 0) {
-          calculatedFcr = Number((totalFeedKg / totalLiveWeightKg).toFixed(2));
+
+        if (totalNetMeatKg > 0) {
+          calculatedFcr = Number((actualUsedFeedKg / totalNetMeatKg).toFixed(2));
+        } else if (totalLiveWeightKg > 0) {
+          calculatedFcr = Number((actualUsedFeedKg / totalLiveWeightKg).toFixed(2));
         }
       }
 

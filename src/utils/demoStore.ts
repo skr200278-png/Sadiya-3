@@ -13,6 +13,10 @@ export interface DemoBatch {
   totalChicks: number;
   costPerChick: number;
   status: 'active' | 'completed';
+  feedStockInKg?: number;
+  feedStockUsedKg?: number;
+  feedStockRemainingKg?: number;
+  feedStockUpdatedAt?: string;
   createdAt: string;
   updatedAt?: string;
 }
