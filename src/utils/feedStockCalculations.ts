@@ -100,6 +100,34 @@ export const detectBirdType = (batchName?: string): PoultryBirdType => {
 };
 
 /**
+ * Detect full livestock sector, breed and display attributes from batch object
+ */
+export const detectLivestockType = (batch?: any): { sector: FarmSector; breed: string; labelBn: string; labelEn: string; icon: string } => {
+  if (!batch) return { sector: 'poultry', breed: 'broiler', labelBn: 'ব্রয়লার', labelEn: 'Broiler', icon: '🐔' };
+  
+  const farmType = (batch.farmType || 'poultry').toLowerCase();
+  const subBreed = (batch.subBreed || '').toLowerCase();
+  const name = (batch.batchName || '').toLowerCase();
+  
+  if (farmType === 'cattle' || subBreed.includes('cattle') || subBreed.includes('dairy') || subBreed.includes('fattening') || subBreed.includes('goat') || name.includes('গরু') || name.includes('ছাগল') || name.includes('গাভী') || name.includes('ষাঁড়') || name.includes('মোটাতাজা')) {
+    return { sector: 'cattle', breed: 'cattle', labelBn: 'গরু ও পশু', labelEn: 'Cattle/Goat', icon: '🐄' };
+  }
+  if (farmType === 'fish' || subBreed.includes('fish') || name.includes('মাছ') || name.includes('পুকুর') || name.includes('তেলাপিয়া') || name.includes('পাঙ্গাস') || name.includes('কার্প')) {
+    return { sector: 'fish', breed: 'fish', labelBn: 'মৎস্য খামার', labelEn: 'Fish/Fisheries', icon: '🐟' };
+  }
+  if (subBreed.includes('sonali') || name.includes('sonali') || name.includes('সোনালী') || name.includes('ককরেল')) {
+    return { sector: 'poultry', breed: 'sonali', labelBn: 'সোনালী মুরগি', labelEn: 'Sonali Chicken', icon: '🐥' };
+  }
+  if (subBreed.includes('layer') || name.includes('layer') || name.includes('লেয়ার') || name.includes('ডিম')) {
+    return { sector: 'poultry', breed: 'layer', labelBn: 'লেয়ার মুরগি', labelEn: 'Layer Chicken', icon: '🥚' };
+  }
+  if (subBreed.includes('duck') || subBreed.includes('quail') || subBreed.includes('deshi') || name.includes('দেশি') || name.includes('হাঁস') || name.includes('কোয়েল')) {
+    return { sector: 'poultry', breed: 'deshi', labelBn: 'দেশি / হাঁস / কোয়েল', labelEn: 'Deshi / Duck / Quail', icon: '🦆' };
+  }
+  return { sector: 'poultry', breed: 'broiler', labelBn: 'ব্রয়লার (Cobb 500 / Ross)', labelEn: 'Broiler (Cobb/Ross)', icon: '🐔' };
+};
+
+/**
  * Check if a manually entered feed consumed amount is physically impossible / abnormal
  */
 export const isFlockFeedInputAbnormal = (

@@ -3,11 +3,14 @@ import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X } from 'lucide-react';
+import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X, ClipboardList, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
 import BatchComparisonCard, { BatchSummaryStats } from '../components/BatchComparisonCard';
+import { BatchCompletionModal, BatchClosureReport } from '../components/BatchCompletionModal';
+import { CompletedBatchReportModal } from '../components/CompletedBatchReportModal';
+import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 import { demoStore } from '../utils/demoStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -164,9 +167,12 @@ export default function Batches() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
 
-  // Complete batch state with date
+  // Complete batch state with date & settlement
   const [completeBatchItem, setCompleteBatchItem] = useState<any | null>(null);
   const [completionDate, setCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [completingFinancials, setCompletingFinancials] = useState<any | null>(null);
+  const [viewReportBatch, setViewReportBatch] = useState<any | null>(null);
+  const [activeSopBatch, setActiveSopBatch] = useState<any | null>(null);
 
   // Delete batch state with cascade protection
   const [deleteBatchItem, setDeleteBatchItem] = useState<any | null>(null);
@@ -300,24 +306,94 @@ export default function Batches() {
     }
   };
 
-  const markCompleted = async () => {
+  const handleOpenCompleteModal = async (batch: any) => {
+    setCompleteBatchItem(batch);
+    setCompletionDate(new Date().toISOString().split('T')[0]);
+    try {
+      let tSales = 0;
+      let tFeed = 0;
+      let tMed = 0;
+      let tOther = 0;
+      let feedKg = 0;
+      let mort = 0;
+      const cChick = Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0);
+
+      if (isDemoUser) {
+        demoStore.getSales(batch.id).forEach(s => tSales += Number(s.totalAmount || 0));
+        demoStore.getExpenses(batch.id).forEach(e => tOther += Number(e.amount || 0));
+        demoStore.getFeedRecords(batch.id).forEach(f => {
+          tFeed += Number(f.cost || 0);
+          const fAny = f as any;
+          const bags = Number(fAny.quantityBags || fAny.bags || 0);
+          feedKg += Number(fAny.quantityKg || (bags * 50));
+        });
+        demoStore.getMedicineRecords(batch.id).forEach(m => tMed += Number(m.cost || 0));
+        demoStore.getMortalityRecords(batch.id).forEach(m => mort += Number(m.count || 0));
+      } else {
+        const [salesSnap, expSnap, feedSnap, medSnap, mortSnap] = await Promise.all([
+          fastGetDocs(query(collection(db, 'sales'), where('userId', '==', currentUser?.uid), where('batchId', '==', batch.id))),
+          fastGetDocs(query(collection(db, 'expenses'), where('userId', '==', currentUser?.uid), where('batchId', '==', batch.id))),
+          fastGetDocs(query(collection(db, 'feed_records'), where('userId', '==', currentUser?.uid), where('batchId', '==', batch.id))),
+          fastGetDocs(query(collection(db, 'medicine'), where('userId', '==', currentUser?.uid), where('batchId', '==', batch.id))),
+          fastGetDocs(query(collection(db, 'mortality'), where('userId', '==', currentUser?.uid), where('batchId', '==', batch.id)))
+        ]);
+        salesSnap.forEach(d => tSales += Number(d.data().totalAmount || 0));
+        expSnap.forEach(d => tOther += Number(d.data().amount || 0));
+        feedSnap.forEach(d => {
+          tFeed += Number(d.data().cost || 0);
+          feedKg += Number(d.data().quantityKg || (d.data().bags ? d.data().bags * 50 : 0));
+        });
+        medSnap.forEach(d => tMed += Number(d.data().cost || 0));
+        mortSnap.forEach(d => mort += Number(d.data().count || 0));
+      }
+
+      setCompletingFinancials({
+        totalSales: tSales,
+        feedCost: tFeed,
+        medCost: tMed,
+        otherCost: tOther,
+        chickCost: cChick,
+        mortalityCount: mort,
+        feedConsumedKg: feedKg
+      });
+    } catch (e) {
+      console.error('Error prefetching batch financials', e);
+    }
+  };
+
+  const handleConfirmCompleteBatch = async (report: BatchClosureReport) => {
     if (!completeBatchItem) return;
     const targetId = completeBatchItem.id;
-    const selectedEndDate = completionDate || new Date().toISOString().split('T')[0];
     try {
       if (isDemoUser) {
         demoStore.saveBatch({ 
+          ...completeBatchItem,
           id: targetId, 
           status: 'completed',
-          endDate: selectedEndDate,
-          completedAt: new Date().toISOString()
+          endDate: report.endDate,
+          completedAt: report.completedAt,
+          closureReport: report
         } as any);
+
+        if (report.feedSettlementAction === 'returned_to_stock' && report.returnedFeedBags > 0) {
+          demoStore.saveFeedRecord({
+            batchId: targetId,
+            feedType: 'উদ্বৃত্ত খাদ্য ফেরত (Returned to Stock)',
+            quantityKg: -report.returnedFeedKg,
+            bags: -report.returnedFeedBags,
+            cost: 0,
+            date: report.endDate,
+            details: `[স্টক ফেরত] ব্যাচ ${completeBatchItem.batchName} সমাপ্তি থেকে ${report.returnedFeedBags} বস্তা খাদ্য মূল গুদামে ফেরত যোগ হয়েছে।`
+          } as any);
+        }
+
         toast.success(
           language === 'bn' 
-            ? `ব্যাচটি সফলভাবে সমাপ্ত করা হয়েছে (${new Date(selectedEndDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` 
-            : t('batches.completeSuccess')
+            ? `ব্যাচটি সফলভাবে সমাপ্ত ও স্থায়ীভাবে সংরক্ষিত হয়েছে!` 
+            : 'Batch successfully completed and archived!'
         );
         setCompleteBatchItem(null);
+        setCompletingFinancials(null);
         fetchBatches();
         return;
       }
@@ -325,16 +401,33 @@ export default function Batches() {
       const batchRef = doc(db, 'batches', targetId);
       await offlineSafeDocWrite(updateDoc(batchRef, { 
         status: 'completed',
-        endDate: selectedEndDate,
-        completedAt: new Date().toISOString(),
+        endDate: report.endDate,
+        completedAt: report.completedAt,
+        closureReport: report,
         updatedAt: new Date().toISOString()
       }));
+
+      if (report.feedSettlementAction === 'returned_to_stock' && report.returnedFeedBags > 0) {
+        await offlineSafeDocWrite(addDoc(collection(db, 'feed_records'), {
+          userId: currentUser?.uid,
+          batchId: targetId,
+          feedType: 'উদ্বৃত্ত খাদ্য ফেরত (Returned to Stock)',
+          quantityKg: -report.returnedFeedKg,
+          bags: -report.returnedFeedBags,
+          cost: 0,
+          date: report.endDate,
+          details: `[স্টক ফেরত] ব্যাচ ${completeBatchItem.batchName} সমাপ্তি থেকে ${report.returnedFeedBags} বস্তা (${report.returnedFeedKg} কেজি) খাদ্য মূল গুদামে ফেরত যোগ হয়েছে।`,
+          createdAt: new Date().toISOString()
+        }));
+      }
+
       toast.success(
         language === 'bn' 
-          ? `ব্যাচটি সফলভাবে সমাপ্ত করা হয়েছে (${new Date(selectedEndDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` 
-          : t('batches.completeSuccess')
+          ? `ব্যাচটি সফলভাবে সমাপ্ত ও স্থায়ীভাবে সংরক্ষিত হয়েছে!` 
+          : 'Batch successfully completed and archived!'
       );
       setCompleteBatchItem(null);
+      setCompletingFinancials(null);
       fetchBatches();
     } catch (error) {
       toast.error(t('batches.updateError'));
@@ -953,14 +1046,22 @@ export default function Batches() {
                       <ChartIcon size={13} />
                       <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
                     </button>
+
+                    {batch.farmType === 'poultry' && (
+                      <button
+                        onClick={() => setActiveSopBatch(batch)}
+                        className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title={language === 'bn' ? 'দৈনিক কাজের শিডিউল ও এসওপি গাইড' : 'Daily SOP Schedule Guide'}
+                      >
+                        <ClipboardList size={13} className="text-teal-600" />
+                        <span>{language === 'bn' ? 'এসওপি গাইড' : 'SOP'}</span>
+                      </button>
+                    )}
                   </div>
 
                   <button 
-                    onClick={() => {
-                      setCompleteBatchItem(batch);
-                      setCompletionDate(new Date().toISOString().split('T')[0]);
-                    }} 
-                    className="text-xs font-bold text-slate-500 hover:text-purple-700 px-2.5 py-1.5 rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                    onClick={() => handleOpenCompleteModal(batch)} 
+                    className="text-xs font-bold text-slate-600 hover:text-purple-700 px-2.5 py-1.5 rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <CheckCircle2 size={13} className="text-purple-600" />
                     <span>{language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}</span>
@@ -976,13 +1077,21 @@ export default function Batches() {
                       ? `ব্যাচ সমাপ্ত ${batch.endDate ? `(${new Date(batch.endDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}` 
                       : 'Completed & Archived'}
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => setViewReportBatch(batch)}
+                      className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title={language === 'bn' ? 'চূড়ান্ত সমাপনী অডিট সার্টিফিকেট' : 'Audit Certificate'}
+                    >
+                      <Award size={12} className="text-amber-700" />
+                      <span>{language === 'bn' ? 'অডিট সার্টিফিকেট' : 'Certificate'}</span>
+                    </button>
                     <button
                       onClick={() => handleActivateOnDashboard(batch)}
                       className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <LayoutDashboard size={12} />
-                      <span>{language === 'bn' ? 'রিপোর্ট দেখুন' : 'View Report'}</span>
+                      <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
                     </button>
                     <button
                       onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
@@ -1019,76 +1128,40 @@ export default function Batches() {
       </div>
       )}
 
-      {/* Dedicated Batch Complete Modal with Date Picker */}
+      {/* Enhanced Batch Complete Modal with Feed & Inventory Settlement */}
       {completeBatchItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-purple-200 space-y-4">
-            <div className="flex items-start justify-between border-b border-slate-150 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                  <CheckCircle2 size={22} />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 text-base">
-                    {language === 'bn' ? 'ব্যাচ সমাপ্তি নিশ্চিতকরণ' : 'Confirm Batch Completion'}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-bold mt-0.5">
-                    {completeBatchItem.batchName} ({language === 'bn' ? 'শুরু:' : 'Started:'} {new Date(completeBatchItem.startDate).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })})
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setCompleteBatchItem(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X size={18} />
-              </button>
-            </div>
+        <BatchCompletionModal
+          batch={completeBatchItem}
+          isBn={language === 'bn'}
+          initialFinancials={completingFinancials}
+          onClose={() => {
+            setCompleteBatchItem(null);
+            setCompletingFinancials(null);
+          }}
+          onConfirmComplete={handleConfirmCompleteBatch}
+        />
+      )}
 
-            <div className="bg-purple-50/80 border border-purple-200 rounded-xl p-3.5 space-y-2.5">
-              <label className="block text-xs font-black text-purple-950">
-                📅 {language === 'bn' ? 'সমাপ্তির তারিখ নির্বাচন করুন:' : 'Select Completion / End Date:'}
-              </label>
-              <input
-                type="date"
-                value={completionDate}
-                onChange={(e) => setCompletionDate(e.target.value)}
-                className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-850 shadow-2xs focus:ring-2 focus:ring-purple-500"
-              />
-              <div className="text-[11px] text-purple-900 space-y-1 font-medium leading-relaxed bg-white/80 p-2.5 rounded-lg border border-purple-150">
-                <p className="font-bold text-purple-950">
-                  ℹ️ {language === 'bn' ? 'ব্যাচ সমাপ্তির সুবিধা:' : 'Completion benefits:'}
-                </p>
-                <p>
-                  • {language === 'bn' 
-                    ? 'ব্যাচের সকল খাদ্য, ঔষধ, মৃত্যু, আয়-ব্যয় এবং বিক্রয় এর হিসাব সম্পূর্ণ সংরক্ষিত থাকবে।' 
-                    : 'All records (feed, medicine, sales, expenses) remain completely preserved.'}
-                </p>
-                <p>
-                  • {language === 'bn' 
-                    ? 'ভবিষ্যতে রিপোর্ট ও অন্যান্য ব্যাচের সাথে তুলনা করার সময় এই ব্যাচটি সব তথ্যের সাথে প্রদর্শিত হবে।' 
-                    : 'The batch remains accessible forever for historical reports & comparisons.'}
-                </p>
-              </div>
-            </div>
+      {/* Completed Batch Certificate & Audit Report Modal */}
+      {viewReportBatch && (
+        <CompletedBatchReportModal
+          batch={viewReportBatch}
+          isBn={language === 'bn'}
+          onClose={() => setViewReportBatch(null)}
+        />
+      )}
 
-            <div className="flex gap-2 justify-end pt-1">
-              <button
-                type="button"
-                onClick={() => setCompleteBatchItem(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                {language === 'bn' ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={markCompleted}
-                className="px-4 py-2 text-xs font-black text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 size={14} />
-                <span>{language === 'bn' ? 'হ্যাঁ, ব্যাচটি সমাপ্ত করুন' : 'Confirm Complete'}</span>
-              </button>
-            </div>
+      {/* Broiler Daily SOP & Farm Guide Modal */}
+      {activeSopBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
+          <div className="max-w-4xl w-full my-auto">
+            <BroilerDailySopCard
+              batchName={activeSopBatch.batchName}
+              batchId={activeSopBatch.id}
+              batchAgeDays={calculateAge(activeSopBatch.startDate)}
+              isBn={language === 'bn'}
+              onClose={() => setActiveSopBatch(null)}
+            />
           </div>
         </div>
       )}

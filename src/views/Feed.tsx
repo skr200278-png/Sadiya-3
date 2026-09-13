@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, addDoc, doc, deleteDoc, onSnapshot, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -15,12 +15,14 @@ import FcrCalculatorCard from '../components/FcrCalculatorCard';
 import PoultryFeedPlan from '../components/PoultryFeedPlan';
 
 export default function Feed() {
+  const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
   const [records, setRecords] = useState<any[]>([]);
   const [duesList, setDuesList] = useState<any[]>([]);
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
+  const [allBatches, setAllBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
@@ -54,7 +56,9 @@ export default function Feed() {
   // Handle batch selection
   const handleBatchChange = (id: string) => {
     setBatchId(id);
-    const batch = activeBatches.find(b => b.id === id);
+    localStorage.setItem('selected_fcr_batch_id', id);
+    const candidateBatches = activeBatches.length > 0 ? activeBatches : allBatches;
+    const batch = candidateBatches.find(b => b.id === id);
     if (batch) {
       const fType = batch.farmType || 'poultry';
       setFarmType(fType);
@@ -97,38 +101,57 @@ export default function Feed() {
   const fetchInitialData = async () => {
     if (!currentUser) return;
     try {
+      let batches: any[] = [];
+      let allUserBatches: any[] = [];
+
       if (isDemoUser) {
-        const batches = demoStore.getBatches().filter(b => b.status === 'active');
-        setActiveBatches(batches);
-        if (batches.length > 0 && !batchId) {
-          const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
-          const savedId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
-          const matched = batches.find(b => b.id === savedId) || batches[0];
-          setBatchId(matched.id);
-          setFarmType(matched.farmType || 'poultry');
-        }
-        const fetchedRecords = demoStore.getFeedRecords();
-        setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        setDuesList(demoStore.getDues());
-        setLoading(false);
-        return;
+        allUserBatches = demoStore.getBatches();
+        batches = allUserBatches.filter(b => b.status === 'active');
+      } else {
+        // Fetch all batches for user
+        const allBatchesQuery = query(collection(db, 'batches'), where('userId', '==', currentUser.uid));
+        const allBatchSnap = await fastGetDocs(allBatchesQuery);
+        allUserBatches = allBatchSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        batches = allUserBatches.filter(b => b.status === 'active');
       }
 
-      // Fetch active batches
-      const batchesQuery = query(collection(db, 'batches'), where('userId', '==', currentUser.uid), where('status', '==', 'active'));
-      const batchSnap = await fastGetDocs(batchesQuery);
-      const batches: any[] = batchSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllBatches(allUserBatches);
       setActiveBatches(batches);
-      if (batches.length > 0) {
-        const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
-        const savedId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
-        const matched = batches.find(b => b.id === savedId) || batches[0];
+
+      const candidateBatches = batches.length > 0 ? batches : allUserBatches;
+      const urlBatchId = searchParams.get('batchId');
+      const savedFcrId = localStorage.getItem('selected_fcr_batch_id');
+      const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
+      const savedPrefId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
+
+      let matched: any = null;
+      if (urlBatchId && candidateBatches.some(b => b.id === urlBatchId)) {
+        matched = candidateBatches.find(b => b.id === urlBatchId);
+      } else if (savedFcrId && candidateBatches.some(b => b.id === savedFcrId)) {
+        matched = candidateBatches.find(b => b.id === savedFcrId);
+      } else if (savedPrefId && candidateBatches.some(b => b.id === savedPrefId)) {
+        matched = candidateBatches.find(b => b.id === savedPrefId);
+      } else if (candidateBatches.length > 0) {
+        matched = candidateBatches[0];
+      }
+
+      if (matched) {
         setBatchId(matched.id);
         const b = matched;
         setFarmType(b.farmType || 'poultry');
         if (b.farmType === 'cattle') setFeedType('দানা/ভুষি (Cattle/Goat)');
         else if (b.farmType === 'fish') setFeedType('ভাসমান খাবার (Fish)');
         else setFeedType('Starter / প্রাথমিক');
+      } else {
+        setBatchId('');
+      }
+
+      if (isDemoUser) {
+        const fetchedRecords = demoStore.getFeedRecords();
+        setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setDuesList(demoStore.getDues());
+        setLoading(false);
+        return;
       }
 
       // Fetch feed records
@@ -400,38 +423,20 @@ export default function Feed() {
       {/* Render based on selected Tab */}
       {feedTab === 'fcr' ? (
         <div className="space-y-3">
-          {activeBatches.length > 1 && (
-            <div className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-2">
-              <label className="text-xs font-bold text-slate-600 shrink-0">
-                {language === 'bn' ? 'ব্যাচ নির্বাচন করুন:' : 'Select Batch:'}
-              </label>
-              <select
-                value={batchId}
-                onChange={(e) => handleBatchChange(e.target.value)}
-                className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-orange-500"
-              >
-                {activeBatches.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.batchName} ({b.farmType === 'cattle' ? (language === 'bn' ? 'ছাগল ও পশু' : 'Cattle/Goat') : b.farmType === 'fish' ? (language === 'bn' ? 'মাছ' : 'Fish') : (language === 'bn' ? 'মুরগী ও পাখি' : 'Chicken/Birds')})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {(() => {
-            const currentSelectedBatch = activeBatches.find(b => b.id === batchId) || (activeBatches.length > 0 ? activeBatches[0] : null);
-            const batchRecords = records.filter(r => r.batchId === batchId);
+            const candidateBatches = activeBatches.length > 0 ? activeBatches : allBatches;
+            const currentSelectedBatch = candidateBatches.find(b => b.id === batchId) || (candidateBatches.length > 0 ? candidateBatches[0] : null);
+            const currentBatchId = currentSelectedBatch?.id || '';
+            const batchRecords = currentBatchId ? records.filter(r => r.batchId === currentBatchId) : [];
             // Total inward feed arrived at farm from purchase records (each bag standard 50kg)
-            const totalInwardFeedKg = batchRecords.reduce((sum, r) => sum + (Number(r.quantityBags || 0) * 50), 0);
+            const totalInwardFeedKg = batchRecords.reduce((sum, r) => sum + (Number(r.quantityBags || 0) * 50) + (Number(r.quantityKg || 0)), 0);
             const totalFeedCost = batchRecords.reduce((sum, r) => sum + Number(r.cost || 0), 0);
             const currentBirds = currentSelectedBatch ? Number(currentSelectedBatch.totalChicks || 0) : 0;
 
             // Compute actual consumed feed:
-            // Feed consumed must strictly represent real consumption (Total Inward - Stock Remaining)
-            const bId = currentSelectedBatch?.id || batchId;
-            const savedUsed = localStorage.getItem(`fcr_stock_used_${bId}`);
-            const savedRem = localStorage.getItem(`fcr_stock_rem_${bId}`);
+            const bId = currentBatchId;
+            const savedUsed = bId ? localStorage.getItem(`fcr_stock_used_${bId}`) : null;
+            const savedRem = bId ? localStorage.getItem(`fcr_stock_rem_${bId}`) : null;
 
             let actualConsumedKg = totalInwardFeedKg;
             if (currentSelectedBatch?.feedStockUsedKg !== undefined && Number(currentSelectedBatch.feedStockUsedKg) > 0) {
@@ -452,7 +457,9 @@ export default function Feed() {
                 totalFeedCost={totalFeedCost}
                 currentBirdCount={currentBirds}
                 activeBatches={activeBatches}
+                allBatches={allBatches}
                 onBatchChange={handleBatchChange}
+                onNavigateToBatches={() => navigate('/batches')}
                 batchRecords={batchRecords}
               />
             );

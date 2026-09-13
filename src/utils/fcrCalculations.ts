@@ -179,12 +179,31 @@ export const computeScientificFcr = ({
     epefScore = Math.round(((livability * (currentWeight / 1000)) / (ageDays * fcrForEpef)) * 100);
   }
 
-  // Status determination
+  // Status determination based on sector and breed
   let statusLevel: 'excellent' | 'normal' | 'warning' = 'normal';
   if (actualNetFcr > 0) {
-    if (actualNetFcr <= 1.45) statusLevel = 'excellent';
-    else if (actualNetFcr <= 1.70) statusLevel = 'normal';
-    else statusLevel = 'warning';
+    if (sector === 'cattle') {
+      if (actualNetFcr <= 6.5) statusLevel = 'excellent';
+      else if (actualNetFcr <= 7.5) statusLevel = 'normal';
+      else statusLevel = 'warning';
+    } else if (sector === 'fish') {
+      if (actualNetFcr <= 1.40) statusLevel = 'excellent';
+      else if (actualNetFcr <= 1.65) statusLevel = 'normal';
+      else statusLevel = 'warning';
+    } else if (birdType === 'sonali') {
+      if (actualNetFcr <= 2.30) statusLevel = 'excellent';
+      else if (actualNetFcr <= 2.60) statusLevel = 'normal';
+      else statusLevel = 'warning';
+    } else if (birdType === 'layer') {
+      if (actualNetFcr <= 2.50) statusLevel = 'excellent';
+      else if (actualNetFcr <= 2.90) statusLevel = 'normal';
+      else statusLevel = 'warning';
+    } else {
+      // Broiler standard (Cobb 500 / Ross 308)
+      if (actualNetFcr <= 1.50) statusLevel = 'excellent';
+      else if (actualNetFcr <= 1.70) statusLevel = 'normal';
+      else statusLevel = 'warning';
+    }
   }
 
   return {
@@ -202,3 +221,35 @@ export const computeScientificFcr = ({
     statusLevel
   };
 };
+
+/**
+ * Get standard target FCR and weight for a specific age
+ */
+export const getStandardBenchmarkForAge = (
+  sector: string, 
+  birdType: string = 'broiler', 
+  ageDays: number
+): { stdFcr: number; stdWeightGram: number } => {
+  const milestones = getMilestonesForSector(sector, birdType);
+  const exact = milestones.find(m => m.day === ageDays);
+  if (exact) return { stdFcr: exact.stdFcr, stdWeightGram: exact.stdWeightGram };
+  const prev = [...milestones].filter(m => m.day <= ageDays).pop();
+  if (prev) return { stdFcr: prev.stdFcr, stdWeightGram: prev.stdWeightGram };
+  return { stdFcr: milestones[0]?.stdFcr || 1.45, stdWeightGram: milestones[0]?.stdWeightGram || 200 };
+};
+
+/**
+ * Standalone calculation of European Production Efficiency Factor (EPEF)
+ * Formula: (Livability % * Live Body Weight in kg) / (Age in Days * Commercial FCR) * 100
+ */
+export function calculateEpef(
+  livabilityPercent: number,
+  weightInGrams: number,
+  fcr: number,
+  ageDays: number
+): number {
+  if (ageDays <= 0 || fcr <= 0) return 0;
+  const weightInKg = weightInGrams / 1000;
+  return Math.round(((livabilityPercent * weightInKg) / (ageDays * fcr)) * 100);
+}
+

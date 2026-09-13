@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { db, offlineSafeDocWrite } from '../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { demoStore } from '../utils/demoStore';
@@ -31,18 +32,22 @@ import {
   Percent,
   Sliders,
   X,
-  HelpCircle
+  HelpCircle,
+  ClipboardList
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { BroilerDailySopCard } from './BroilerDailySopCard';
 import { 
   calculateStandardFlockCumulativeFeedKg, 
-  detectBirdType 
+  detectBirdType,
+  detectLivestockType
 } from '../utils/feedStockCalculations';
 import { 
   MilestoneData, 
   getMilestonesForSector, 
   getInitialUnitWeightGram, 
   computeScientificFcr,
+  getStandardBenchmarkForAge,
   DEFAULT_BROILER_MILESTONES 
 } from '../utils/fcrCalculations';
 import FcrBreakdownModal from './FcrBreakdownModal';
@@ -57,7 +62,9 @@ export interface FcrCalculatorCardProps {
   totalFeedCost?: number;
   currentBirdCount?: number;
   activeBatches?: any[];
+  allBatches?: any[];
   onBatchChange?: (batchId: string) => void;
+  onNavigateToBatches?: () => void;
   batchRecords?: any[];
 }
 
@@ -68,12 +75,24 @@ export default function FcrCalculatorCard({
   totalFeedCost = 0,
   currentBirdCount = 0,
   activeBatches = [],
+  allBatches = [],
   onBatchChange,
+  onNavigateToBatches,
   batchRecords = []
 }: FcrCalculatorCardProps) {
+  const navigate = useNavigate();
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
   const isBn = language === 'bn';
+
+  // Available batches across active and completed lists
+  const allAvailableBatches = useMemo(() => {
+    if (activeBatches && activeBatches.length > 0) return activeBatches;
+    if (allBatches && allBatches.length > 0) return allBatches;
+    return [];
+  }, [activeBatches, allBatches]);
+
+  const hasAnyBatch = allAvailableBatches.length > 0;
 
   // Active view tab: 'overview' (the realistic dashboard) or 'quick_calc'
   const [activeTab, setActiveTab] = useState<'overview' | 'quick_calc'>('overview');
@@ -81,51 +100,57 @@ export default function FcrCalculatorCard({
   // Table view: 'weekly' (day 7, 14, 21, 28, 35) or 'all' (all available milestones)
   const [tableFilter, setTableFilter] = useState<'weekly' | 'all'>('weekly');
 
-  // Sector and Breed detection
-  const detectedBirdType = useMemo(() => detectBirdType(selectedBatch?.batchName), [selectedBatch?.batchName]);
-  const [birdType, setBirdType] = useState<string>(detectedBirdType || 'broiler');
+  // Livestock category filter for the batch selector
+  const [selectedLivestockCategory, setSelectedLivestockCategory] = useState<string>('all');
 
-  const batchSector: FarmSectorType = (selectedBatch?.farmType as FarmSectorType) || 'poultry';
-  const [activeSector, setActiveSector] = useState<FarmSectorType>(batchSector);
+  // Sector and Breed detection based on current selected batch
+  const detectedLivestock = useMemo(() => detectLivestockType(selectedBatch), [selectedBatch]);
+  const [birdType, setBirdType] = useState<string>(detectedLivestock.breed);
+  const [activeSector, setActiveSector] = useState<FarmSectorType>(detectedLivestock.sector);
 
-  // Sync when batch changes
+  // Sync sector & breed whenever batch changes
   useEffect(() => {
-    if (selectedBatch?.farmType) {
-      setActiveSector(selectedBatch.farmType as FarmSectorType);
+    if (selectedBatch) {
+      const detected = detectLivestockType(selectedBatch);
+      setActiveSector(detected.sector);
+      setBirdType(detected.breed);
     }
-    const detected = detectBirdType(selectedBatch?.batchName);
-    if (detected) setBirdType(detected);
-  }, [selectedBatch?.farmType, selectedBatch?.batchName]);
+  }, [selectedBatch]);
 
-  const batchId = selectedBatch?.id || 'default_batch';
-  const batchName = selectedBatch?.batchName || (isBn ? 'মুবাসসিন পোল্ট্রি ফার্ম (Ran-186)' : 'Standard Farm Batch');
-  const totalChicksHoused = Number(selectedBatch?.totalChicks || currentBirdCount || 900);
+  const batchId = selectedBatch?.id || '';
+  const batchName = selectedBatch?.batchName || (isBn ? 'নির্বাচন করা ব্যাচ' : 'Selected Batch');
+  const totalChicksHoused = Number(selectedBatch?.totalChicks || currentBirdCount || 0);
 
   // 1. Calculate Age
   const calculateAge = (dateStr?: string) => {
-    if (!dateStr) return 14;
+    if (!dateStr) return 1;
     const start = new Date(dateStr);
     const now = new Date();
     start.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
-    const diffTime = Math.abs(now.getTime() - start.getTime());
+    const diffTime = Math.max(0, now.getTime() - start.getTime());
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
   const ageDays = calculateAge(selectedBatch?.startDate);
 
-  // 2. Real-time Mortality Tracking
-  const [mortalityCount, setMortalityCount] = useState<number>(10);
+  // 2. Real-time Mortality Tracking (defaults strictly to 0, not fake 10!)
+  const [mortalityCount, setMortalityCount] = useState<number>(0);
 
   useEffect(() => {
+    if (!batchId) {
+      setMortalityCount(0);
+      return;
+    }
+
     if (isDemoUser) {
       const records = demoStore.getMortalityRecords(batchId);
       const count = records.reduce((sum, r) => sum + Number(r.count || 0), 0);
-      setMortalityCount(count > 0 ? count : 10);
+      setMortalityCount(count);
       const unsub = demoStore.subscribe(() => {
         const updated = demoStore.getMortalityRecords(batchId);
         const uCount = updated.reduce((sum, r) => sum + Number(r.count || 0), 0);
-        if (uCount > 0) setMortalityCount(uCount);
+        setMortalityCount(uCount);
       });
       return () => unsub();
     }
@@ -165,22 +190,28 @@ export default function FcrCalculatorCard({
     return calculateStandardFlockCumulativeFeedKg(activeSector, birdType as any, aliveBirds, ageDays);
   }, [activeSector, birdType, aliveBirds, ageDays]);
 
-  // Feed purchased from logs, props or defaults
+  // Feed purchased from logs, batch properties or actual calculations (no fake 750 defaults)
   const defaultFeedPurchasedKg = useMemo(() => {
     if (batchRecords && batchRecords.length > 0) {
-      const sum = batchRecords.reduce((acc, r) => acc + (Number(r.quantityBags || 0) * 50), 0);
+      const sum = batchRecords.reduce((acc, r) => acc + (Number(r.quantityBags || 0) * 50) + (Number(r.quantityKg || 0)), 0);
       if (sum > 0) return sum;
     }
+    if (selectedBatch?.feedStockInKg !== undefined && Number(selectedBatch.feedStockInKg) > 0) {
+      return Number(selectedBatch.feedStockInKg);
+    }
     if (totalFeedPurchasedKg && totalFeedPurchasedKg > 0) return totalFeedPurchasedKg;
-    return 750; // Default 15 bags (750 KG)
-  }, [batchRecords, totalFeedPurchasedKg]);
+    return 0;
+  }, [batchRecords, selectedBatch?.feedStockInKg, totalFeedPurchasedKg]);
 
   const defaultFeedUsedKg = useMemo(() => {
+    if (selectedBatch?.feedStockUsedKg !== undefined && Number(selectedBatch.feedStockUsedKg) > 0) {
+      return Number(selectedBatch.feedStockUsedKg);
+    }
     if (totalFeedConsumedKg && totalFeedConsumedKg > 0) {
       return totalFeedConsumedKg;
     }
-    return standardCumulativeKg > 0 ? standardCumulativeKg : 405;
-  }, [totalFeedConsumedKg, standardCumulativeKg]);
+    return defaultFeedPurchasedKg > 0 ? defaultFeedPurchasedKg : 0;
+  }, [selectedBatch?.feedStockUsedKg, totalFeedConsumedKg, defaultFeedPurchasedKg]);
 
   const [totalFeedInwardKg, setTotalFeedInwardKg] = useState<number>(() => {
     const saved = localStorage.getItem(storageKeyFeedIn);
@@ -256,6 +287,11 @@ export default function FcrCalculatorCard({
     setMilestones(baseMilestones);
   }, [storageKeyMilestones, baseMilestones]);
 
+  // Dynamic standard benchmark for current age and sector
+  const stdBenchmark = useMemo(() => {
+    return getStandardBenchmarkForAge(activeSector, birdType, ageDays);
+  }, [activeSector, birdType, ageDays]);
+
   // Current milestone based on age
   const currentMilestone = useMemo(() => {
     const exact = milestones.find(m => m.day === ageDays);
@@ -265,19 +301,38 @@ export default function FcrCalculatorCard({
     return milestones[0] || baseMilestones[0];
   }, [milestones, ageDays, baseMilestones]);
 
-  // Current Average Body Weight (editable and persistent)
+  // Current Average Body Weight (editable and persistent per batch)
   const [currentActualWeight, setCurrentActualWeight] = useState<number>(() => {
     const savedW = localStorage.getItem(storageKeyWeight);
-    if (savedW) return Number(savedW);
-    return currentMilestone?.actWeightGram || currentMilestone?.stdWeightGram || 483;
+    if (savedW && Number(savedW) > 0) return Number(savedW);
+    return currentMilestone?.actWeightGram || currentMilestone?.stdWeightGram || stdBenchmark.stdWeightGram;
   });
 
-  // Keep currentActualWeight in sync if milestone has a recorded weight
+  // Keep currentActualWeight in sync when batch or milestone changes
   useEffect(() => {
+    if (batchId) {
+      const savedW = localStorage.getItem(`fcr_current_weight_${batchId}`);
+      if (savedW && Number(savedW) > 0) {
+        setCurrentActualWeight(Number(savedW));
+        return;
+      }
+      const latestWJson = localStorage.getItem(`latest_weight_${batchId}`);
+      if (latestWJson) {
+        try {
+          const parsed = JSON.parse(latestWJson);
+          if (parsed.avgWeightGram && Number(parsed.avgWeightGram) > 0) {
+            setCurrentActualWeight(Number(parsed.avgWeightGram));
+            return;
+          }
+        } catch (e) {}
+      }
+    }
     if (currentMilestone?.actWeightGram && currentMilestone.actWeightGram > 0) {
       setCurrentActualWeight(currentMilestone.actWeightGram);
+      return;
     }
-  }, [currentMilestone]);
+    setCurrentActualWeight(currentMilestone?.stdWeightGram || stdBenchmark.stdWeightGram);
+  }, [batchId, currentMilestone?.actWeightGram, currentMilestone?.stdWeightGram, stdBenchmark.stdWeightGram]);
 
   // Full Scientific FCR metrics
   const scientificMetrics = useMemo(() => {
@@ -302,8 +357,8 @@ export default function FcrCalculatorCard({
     localStorage.setItem('fcr_calculation_mode', mode);
   };
 
-  const currentStdWeight = currentMilestone?.stdWeightGram || 531;
-  const currentStdFcr = currentMilestone?.stdFcr || 1.04;
+  const currentStdWeight = currentMilestone?.stdWeightGram || stdBenchmark.stdWeightGram;
+  const currentStdFcr = currentMilestone?.stdFcr || stdBenchmark.stdFcr;
   
   // Selected actual FCR based on chosen mode
   const currentActualFcr = fcrMode === 'commercial' 
@@ -407,6 +462,7 @@ export default function FcrCalculatorCard({
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showFcrBreakdownModal, setShowFcrBreakdownModal] = useState(false);
+  const [showSopModal, setShowSopModal] = useState(false);
   const [modalInwardKg, setModalInwardKg] = useState<string>(String(totalFeedInwardKg));
   const [modalConsumedKg, setModalConsumedKg] = useState<string>(String(feedConsumedKg));
 
@@ -537,13 +593,28 @@ export default function FcrCalculatorCard({
   }, [milestones, tableFilter, activeSector]);
 
   // Quick interactive manual calculator state
+  const [calcSector, setCalcSector] = useState<FarmSectorType>('poultry');
+  const [calcBreed, setCalcBreed] = useState<string>('broiler');
+  const [calcAgeDays, setCalcAgeDays] = useState<string>('32');
   const [calcFeedKg, setCalcFeedKg] = useState<string>('2500');
   const [calcFeedBags, setCalcFeedBags] = useState<string>('50');
   const [calcFeedUnit, setCalcFeedUnit] = useState<'kg' | 'bags'>('bags');
-  const [calcBirdsHoused, setCalcBirdsHoused] = useState<string>(String(totalChicksHoused || 900));
-  const [calcMortality, setCalcMortality] = useState<string>(String(mortalityCount || 119));
+  const [calcBirdsHoused, setCalcBirdsHoused] = useState<string>(String(totalChicksHoused > 0 ? totalChicksHoused : 900));
+  const [calcMortality, setCalcMortality] = useState<string>(String(mortalityCount > 0 ? mortalityCount : 15));
   const [calcAvgWeight, setCalcAvgWeight] = useState<string>('1600');
   const [calcInitialWeight, setCalcInitialWeight] = useState<string>(String(initialUnitWeightGram));
+
+  const handleCalcBreedChange = (newBreed: string) => {
+    setCalcBreed(newBreed);
+    if (newBreed === 'cattle') setCalcSector('cattle');
+    else if (newBreed === 'fish') setCalcSector('fish');
+    else setCalcSector('poultry');
+    const initW = getInitialUnitWeightGram(
+      newBreed === 'cattle' ? 'cattle' : newBreed === 'fish' ? 'fish' : 'poultry', 
+      newBreed
+    );
+    setCalcInitialWeight(String(initW));
+  };
 
   const manualCalcResult = useMemo(() => {
     const fKg = calcFeedUnit === 'bags' 
@@ -553,15 +624,28 @@ export default function FcrCalculatorCard({
     const mort = parseFloat(calcMortality) || 0;
     const alive = Math.max(0, housed - mort);
     const wGram = parseFloat(calcAvgWeight) || 0;
-    const initW = parseFloat(calcInitialWeight) || initialUnitWeightGram;
+    const initW = parseFloat(calcInitialWeight) || getInitialUnitWeightGram(calcSector, calcBreed);
+    const age = Math.max(1, parseFloat(calcAgeDays) || 30);
 
     if (fKg > 0 && alive > 0 && wGram > initW) {
-      const netGainKg = Math.max(0.01, (wGram - initW) / 1000);
+      const netGainKg = Math.max(0.001, (wGram - initW) / 1000);
       const totalNetMeatFlockKg = alive * netGainKg;
       const totalLiveFlockKg = (alive * wGram) / 1000;
 
       const netFcr = Number((fKg / totalNetMeatFlockKg).toFixed(2));
       const grossFcr = Number((fKg / totalLiveFlockKg).toFixed(2));
+
+      // Benchmark comparison
+      const benchmark = getStandardBenchmarkForAge(calcSector, calcBreed, age);
+      const stdFcr = benchmark.stdFcr;
+      const diffFcr = Number((grossFcr - stdFcr).toFixed(2));
+
+      // European Production Efficiency Factor (EPEF)
+      const livabilityPercent = housed > 0 ? (alive / housed) * 100 : 98;
+      const avgWeightKg = wGram / 1000;
+      const epef = grossFcr > 0 && age > 0
+        ? Math.round(((livabilityPercent * avgWeightKg) / (age * grossFcr)) * 100)
+        : 0;
 
       return {
         feedKg: fKg,
@@ -569,17 +653,121 @@ export default function FcrCalculatorCard({
         totalNetMeatKg: Number(totalNetMeatFlockKg.toFixed(2)),
         totalLiveKg: Number(totalLiveFlockKg.toFixed(2)),
         netFcr,
-        grossFcr
+        grossFcr,
+        stdFcr,
+        diffFcr,
+        epef,
+        livabilityPercent: Number(livabilityPercent.toFixed(1))
       };
     }
     return null;
-  }, [calcFeedKg, calcFeedBags, calcFeedUnit, calcBirdsHoused, calcMortality, calcAvgWeight, calcInitialWeight, initialUnitWeightGram]);
+  }, [calcFeedKg, calcFeedBags, calcFeedUnit, calcBirdsHoused, calcMortality, calcAvgWeight, calcInitialWeight, calcAgeDays, calcSector, calcBreed]);
+
+  // Filtered batch list based on category filter
+  const filteredBatches = useMemo(() => {
+    if (!allAvailableBatches || allAvailableBatches.length === 0) return [];
+    if (selectedLivestockCategory === 'all') return allAvailableBatches;
+    return allAvailableBatches.filter((b: any) => {
+      const info = detectLivestockType(b);
+      if (selectedLivestockCategory === 'broiler') return info.breed === 'broiler';
+      if (selectedLivestockCategory === 'sonali') return info.breed === 'sonali';
+      if (selectedLivestockCategory === 'layer') return info.breed === 'layer';
+      if (selectedLivestockCategory === 'cattle') return info.sector === 'cattle';
+      if (selectedLivestockCategory === 'fish') return info.sector === 'fish';
+      return true;
+    });
+  }, [allAvailableBatches, selectedLivestockCategory]);
 
   // Donut chart SVG geometry
   const donutRadius = 38;
   const donutCircumference = 2 * Math.PI * donutRadius;
   const strokeRemaining = (remainingStockPercent / 100) * donutCircumference;
   const strokeConsumed = (consumedStockPercent / 100) * donutCircumference;
+
+  // NO BATCH GUARD SCREEN: When user has no batch, show helpful notice and standalone calculator
+  if (!hasAnyBatch && activeTab !== 'quick_calc') {
+    return (
+      <div className="space-y-4">
+        {/* Top Header */}
+        <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-5 rounded-3xl shadow-sm border border-emerald-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+              <Activity size={26} />
+            </div>
+            <div>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 text-[11px] font-black tracking-wide uppercase">
+                {isBn ? 'খামার খাতা' : 'Khamar Khata'}
+              </span>
+              <h3 className="text-base font-black text-white mt-0.5">
+                {isBn ? 'এফসিআর (FCR) পারফরম্যান্স ও খাদ্য রূপান্তর অনুপাত' : 'FCR Feed Conversion Ratio'}
+              </h3>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('quick_calc')}
+            className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+          >
+            <Calculator size={15} />
+            <span>{isBn ? '🧮 কুইক সার্বজনীন ক্যালকুলেটর' : 'Universal FCR Calculator'}</span>
+          </button>
+        </div>
+
+        {/* Empty State Banner */}
+        <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm text-center max-w-2xl mx-auto space-y-5">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+            <AlertTriangle size={32} />
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+              {isBn ? 'কোনো সক্রিয় ব্যাচ পাওয়া যায়নি' : 'No Active Batch Found'}
+            </h3>
+            <p className="text-sm text-slate-600 font-medium leading-relaxed">
+              {isBn
+                ? 'সঠিক FCR নির্ণয়ের জন্য নির্দিষ্ট ব্যাচের বয়স, পশু-পাখির সংখ্যা, বাস্তব মৃত্যুহার, এবং প্রকৃত খাদ্য গ্রহণের হিসাব প্রয়োজন। আপনার অ্যাকাউন্টে বর্তমানে কোনো ব্যাচ নেই।'
+                : 'Accurate FCR requires a specific batch age, stock count, mortality, and feed consumption records. No batch is currently active in your account.'}
+            </p>
+          </div>
+
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 text-left space-y-2">
+            <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{isBn ? 'ব্যাচভিত্তিক সক্রিয় FCR কীভাবে কাজ করে?' : 'How Batch-Based FCR Works?'}</span>
+            </div>
+            <ul className="text-xs text-emerald-800/90 space-y-1.5 pl-6 list-disc font-medium">
+              <li>{isBn ? 'ব্রয়লার, সোনালী, লেয়ার, গরু বা মাছের জন্য ভিন্ন ভিন্ন বৈজ্ঞানিক স্ট্যান্ডার্ড প্রয়োগ করা হয়।' : 'Applies breed-specific benchmarks for Broiler, Sonali, Layer, Cattle, or Fish.'}</li>
+              <li>{isBn ? 'বাস্তব মৃত্যু সংখ্যা বাদ দিয়ে কেবল জীবিত প্রাণীর খাদ্য রূপান্তর ও লাভজনকতা মাপা হয়।' : 'Accounts for true mortality count to calculate net living biomass.'}</li>
+              <li>{isBn ? 'খাদ্যের স্টক, বয়স অনুযায়ী সম্ভাব্য খরচ এবং নিট ও গ্রস FCR স্বয়ংক্রিয়ভাবে আপডেট হয়।' : 'Feed stock, age milestones, and net/gross FCR automatically update in real time.'}</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToBatches) onNavigateToBatches();
+                else navigate('/batches');
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <Plus size={18} />
+              <span>{isBn ? 'নতুন ব্যাচ তৈরি করুন' : 'Create New Batch'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('quick_calc')}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Calculator size={18} className="text-amber-600" />
+              <span>{isBn ? 'সরাসরি ক্যালকুলেটরে হিসাব করুন' : 'Open Standalone Calculator'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -605,12 +793,14 @@ export default function FcrCalculatorCard({
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-950/80 border border-emerald-700/60 rounded-full text-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  {isBn ? 'মৃত্যু সমন্বয় ও অটো-সেভ সক্রিয়' : 'Mortality Adjusted & Auto-Saved'}
+                  {isBn ? 'সক্রিয় ব্যাচ ক্যালকুলেশন' : 'Live Batch Calculation'}
                 </span>
               </div>
 
               <div className="mt-1 flex items-center gap-2 text-xs text-slate-200 font-semibold flex-wrap">
                 <span>{isBn ? 'ব্যাচ:' : 'Batch:'} <strong className="text-white">{batchName}</strong></span>
+                <span className="text-emerald-400/60">•</span>
+                <span>{isBn ? 'বয়স:' : 'Age:'} <strong className="text-amber-300">{ageDays} {isBn ? 'দিন' : 'Days'}</strong></span>
                 <span className="text-emerald-400/60">•</span>
                 <span>{isBn ? 'ধরন:' : 'Type:'} <strong className="text-emerald-200 capitalize">{birdType} ({activeSector})</strong></span>
                 <span className="text-emerald-400/60">•</span>
@@ -619,34 +809,8 @@ export default function FcrCalculatorCard({
             </div>
           </div>
 
-          {/* Sector / Breed Selector & Reset Button */}
+          {/* Quick Actions */}
           <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
-            {/* Breed Selector */}
-            <select
-              value={birdType}
-              onChange={(e) => setBirdType(e.target.value)}
-              className="bg-emerald-950/90 text-white border border-emerald-600/60 rounded-xl px-2.5 py-1.5 text-xs font-bold focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer"
-            >
-              <option value="broiler" className="bg-slate-900 text-white">🐔 ব্রয়লার (Cobb 500 / Ross)</option>
-              <option value="sonali" className="bg-slate-900 text-white">🐥 সোনালী (Sonali)</option>
-              <option value="layer" className="bg-slate-900 text-white">🥚 লেয়ার (Layer Grower)</option>
-              <option value="deshi" className="bg-slate-900 text-white">🦆 দেশি / হাঁস / কোয়েল</option>
-            </select>
-
-            {activeBatches.length > 1 && onBatchChange && (
-              <select
-                value={selectedBatch?.id || ''}
-                onChange={(e) => onBatchChange(e.target.value)}
-                className="bg-emerald-950/90 text-white border border-emerald-600/60 rounded-xl px-2.5 py-1.5 text-xs font-bold focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer"
-              >
-                {activeBatches.map((b) => (
-                  <option key={b.id} value={b.id} className="bg-slate-900 text-white">
-                    {b.batchName} ({b.totalChicks || 0} টি)
-                  </option>
-                ))}
-              </select>
-            )}
-
             <button
               type="button"
               onClick={handleResetData}
@@ -659,6 +823,122 @@ export default function FcrCalculatorCard({
           </div>
         </div>
       </div>
+
+      {/* LIVESTOCK TYPE & BATCH SELECTOR (পশু-পাখির ধরণ অনুযায়ী ব্যাচ বাছাই ও সক্রিয় এফসিআর) */}
+      {allAvailableBatches.length > 0 && (
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg font-bold">
+                {detectedLivestock.icon}
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">
+                  {isBn ? 'পশু-পাখির ধরণ ও ব্যাচ নির্বাচন' : 'Livestock Type & Batch Selection'}
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {isBn 
+                    ? 'যে ব্যাচ সিলেক্ট করবেন সেই ব্যাচের বয়স, খাদ্য ও জীবিত সংখ্যার ওপর সক্রিয় FCR নির্ণয় হবে' 
+                    : 'Active FCR is calculated on the selected batch based on its age, feed, and alive population'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToBatches) onNavigateToBatches();
+                else navigate('/batches');
+              }}
+              className="self-start sm:self-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus size={14} />
+              <span>{isBn ? 'নতুন ব্যাচ (+)' : 'New Batch'}</span>
+            </button>
+          </div>
+
+          {/* Category Filter Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+            {[
+              { id: 'all', label: isBn ? `সকল ব্যাচ (${allAvailableBatches.length})` : `All (${allAvailableBatches.length})`, icon: '📋' },
+              { id: 'broiler', label: isBn ? 'ব্রয়লার' : 'Broiler', icon: '🐔' },
+              { id: 'sonali', label: isBn ? 'সোনালী' : 'Sonali', icon: '🐥' },
+              { id: 'layer', label: isBn ? 'লেয়ার' : 'Layer', icon: '🥚' },
+              { id: 'cattle', label: isBn ? 'গরু ও পশু' : 'Cattle/Goat', icon: '🐄' },
+              { id: 'fish', label: isBn ? 'মাছ' : 'Fish', icon: '🐟' },
+            ].map(cat => {
+              const isActive = selectedLivestockCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedLivestockCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Batch Dropdown & Breed Fine-Tuning */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                {isBn ? '🎯 সক্রিয় ব্যাচ নির্বাচন করুন:' : '🎯 Select Target Batch:'}
+              </label>
+              <select
+                value={selectedBatch?.id || ''}
+                onChange={(e) => {
+                  const bId = e.target.value;
+                  if (onBatchChange) onBatchChange(bId);
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none cursor-pointer"
+              >
+                {filteredBatches.map((b: any) => {
+                  const info = detectLivestockType(b);
+                  const bAge = calculateAge(b.startDate);
+                  return (
+                    <option key={b.id} value={b.id}>
+                      {info.icon} {b.batchName} — {info.labelBn} ({bAge} দিন | {b.totalChicks || 0} টি)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                {isBn ? '🧬 এফসিআর গ্রোথ স্ট্যান্ডার্ড (Standard Benchmark):' : '🧬 FCR Growth Standard Benchmark:'}
+              </label>
+              <select
+                value={birdType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBirdType(val);
+                  if (val === 'cattle') setActiveSector('cattle');
+                  else if (val === 'fish') setActiveSector('fish');
+                  else setActiveSector('poultry');
+                  toast.success(isBn ? `স্ট্যান্ডার্ড চার্ট: ${val} নির্বাচন করা হয়েছে` : `Standard chart set to ${val}`);
+                }}
+                className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl px-3 py-2.5 text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none cursor-pointer"
+              >
+                <option value="broiler">🐔 ব্রয়লার (Cobb 500 / Ross 308 Standard)</option>
+                <option value="sonali">🐥 সোনালী মুরগি (Sonali Standard)</option>
+                <option value="layer">🥚 লেয়ার গ্রোয়ার (Layer Grower)</option>
+                <option value="deshi">🦆 দেশি মুরগি / হাঁস / কোয়েল</option>
+                <option value="cattle">🐄 গরু মোটাতাজাকরণ (Cattle Fattening)</option>
+                <option value="fish">🐟 মাছ চাষ (Aquaculture Scientific FCR)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* VIEW TOGGLE TABS: Detailed Overview vs Quick Calculator */}
       <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2">
@@ -900,14 +1180,28 @@ export default function FcrCalculatorCard({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowFcrBreakdownModal(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-black text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-200 transition-colors cursor-pointer self-start sm:self-auto"
-            >
-              <Info size={14} className="text-indigo-600" />
-              <span>{isBn ? 'গাণিতিক সূত্র ও ধাপসমূহ দেখুন' : 'Verify Mathematical Steps'}</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              {birdType === 'broiler' && (
+                <button
+                  type="button"
+                  onClick={() => setShowSopModal(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors cursor-pointer"
+                  title={isBn ? 'ব্রয়লার দৈনিক কাজের শিডিউল, ক্রপ ফিল ও ফিডার স্লট গাইড' : 'Daily Broiler SOP Schedule Guide'}
+                >
+                  <ClipboardList size={14} className="text-emerald-600" />
+                  <span>{isBn ? '📋 দৈনিক এসওপি চার্ট' : '📋 Daily SOP Guide'}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowFcrBreakdownModal(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-black text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-200 transition-colors cursor-pointer"
+              >
+                <Info size={14} className="text-indigo-600" />
+                <span>{isBn ? 'গাণিতিক সূত্র ও ধাপসমূহ দেখুন' : 'Verify Mathematical Steps'}</span>
+              </button>
+            </div>
           </div>
 
           {/* CARD 2: FLOCK VITAL PERFORMANCE METRICS */}
@@ -1545,23 +1839,23 @@ export default function FcrCalculatorCard({
       ) : (
         /* QUICK FCR CALCULATOR TAB */
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                <Calculator size={18} />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                <Calculator size={20} />
               </div>
               <div>
                 <h4 className="text-base font-black text-slate-900">
                   {isBn ? 'কুইক সার্বজনীন FCR ক্যালকুলেটর (যেকোনো পশু-পাখি-মাছ)' : 'Universal Precision FCR Calculator'}
                 </h4>
                 <p className="text-[11px] text-slate-500 font-semibold">
-                  {isBn ? 'মৃত্যু সংখ্যা ও কেজি বা বস্তা ইনপুট দিয়ে তাৎক্ষণিক সঠিক FCR যাচাই করুন' : 'Accounts for mortality count and feed units (kg or bags)'}
+                  {isBn ? 'মৃত্যু সমন্বয়, গড় ওজন ও বয়সের ভিত্তিতে তাৎক্ষণিক বিজ্ঞানসম্মত FCR ও পারফরম্যান্স নির্ণয়' : 'Instantly calculate net FCR, gross FCR, and EPEF efficiency for any livestock'}
                 </p>
               </div>
             </div>
 
             {/* Feed Unit Toggle */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setCalcFeedUnit('bags')}
@@ -1580,6 +1874,40 @@ export default function FcrCalculatorCard({
               >
                 {isBn ? 'কেজি (KG)' : 'KG'}
               </button>
+            </div>
+          </div>
+
+          {/* Breed / Livestock Selector in Quick Calc */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {isBn ? '১. পশু-পাখি বা মাছের প্রজাতি নির্বাচন:' : '1. Livestock / Breed Type:'}
+              </label>
+              <select
+                value={calcBreed}
+                onChange={(e) => handleCalcBreedChange(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="broiler">🐔 ব্রয়লার (Cobb 500 / Ross 308)</option>
+                <option value="sonali">🐥 সোনালী মুরগি (Sonali Standard)</option>
+                <option value="layer">🥚 লেয়ার গ্রোয়ার (Layer Grower)</option>
+                <option value="deshi">🦆 দেশি মুরগি / হাঁস / কোয়েল</option>
+                <option value="cattle">🐄 গরু ও পশু মোটাতাজাকরণ (Cattle Fattening)</option>
+                <option value="fish">🐟 মাছের খামার (Aquaculture FCR)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {isBn ? '২. বাচ্চার বর্তমান বয়স (দিন):' : '2. Flock Age (Days):'}
+              </label>
+              <input
+                type="number"
+                value={calcAgeDays}
+                onChange={(e) => setCalcAgeDays(e.target.value)}
+                placeholder="32"
+                className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -1636,7 +1964,7 @@ export default function FcrCalculatorCard({
                 type="number"
                 value={calcMortality}
                 onChange={(e) => setCalcMortality(e.target.value)}
-                placeholder="119"
+                placeholder="15"
                 className="w-full border border-rose-300 text-rose-700 rounded-xl p-2.5 text-sm font-bold focus:ring-2 focus:ring-rose-500 bg-rose-50/50"
               />
               <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">
@@ -1661,7 +1989,7 @@ export default function FcrCalculatorCard({
             {/* Initial Weight */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {isBn ? 'বাচ্চার প্রারম্ভিক ওজন (গ্রাম):' : 'Day-Old Weight (GM):'}
+                {isBn ? 'প্রারম্ভিক ওজন (গ্রাম):' : 'Day-Old Weight (GM):'}
               </label>
               <input
                 type="number"
@@ -1675,33 +2003,84 @@ export default function FcrCalculatorCard({
 
           {/* Computed Results */}
           {manualCalcResult && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl text-center space-y-2">
-                <span className="text-xs font-black uppercase tracking-widest text-amber-300">
-                  {isBn ? 'প্রকৃত নিট FCR (NET BIOMASS FCR)' : 'ACTUAL NET FCR'}
-                </span>
-                <p className="text-4xl sm:text-5xl font-black font-mono text-yellow-300">
-                  {manualCalcResult.netFcr.toFixed(2)}
-                </p>
-                <p className="text-xs text-slate-300">
-                  {isBn 
-                    ? `জীবিত ${manualCalcResult.aliveBirds}টি পাখির মোট নিট মাংস বৃদ্ধি হয়েছে ${manualCalcResult.totalNetMeatKg} কেজি।`
-                    : `Total net meat gained by ${manualCalcResult.aliveBirds} alive birds is ${manualCalcResult.totalNetMeatKg} KG.`}
-                </p>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Net FCR */}
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-4 rounded-3xl text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">
+                    {isBn ? 'প্রকৃত নিট FCR (NET FCR)' : 'ACTUAL NET FCR'}
+                  </span>
+                  <p className="text-3xl sm:text-4xl font-black font-mono text-yellow-300">
+                    {manualCalcResult.netFcr.toFixed(2)}
+                  </p>
+                  <p className="text-[11px] text-slate-300">
+                    {isBn 
+                      ? `নিট মাংস বৃদ্ধি ${manualCalcResult.totalNetMeatKg} কেজি` 
+                      : `Net meat gained ${manualCalcResult.totalNetMeatKg} KG`}
+                  </p>
+                </div>
+
+                {/* Gross FCR */}
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-3xl text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    {isBn ? 'বাণিজ্যিক গ্রস FCR (LIVE FCR)' : 'COMMERCIAL LIVE FCR'}
+                  </span>
+                  <p className="text-3xl sm:text-4xl font-black font-mono text-slate-800">
+                    {manualCalcResult.grossFcr.toFixed(2)}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {isBn 
+                      ? `মোট জীবিত ওজন ${manualCalcResult.totalLiveKg} কেজি` 
+                      : `Total live weight ${manualCalcResult.totalLiveKg} KG`}
+                  </p>
+                </div>
+
+                {/* Target Standard Benchmark */}
+                <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-3xl text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800">
+                    {isBn ? 'আদর্শ টার্গেট FCR' : 'TARGET BENCHMARK'}
+                  </span>
+                  <p className="text-3xl sm:text-4xl font-black font-mono text-emerald-900">
+                    {manualCalcResult.stdFcr.toFixed(2)}
+                  </p>
+                  <p className="text-[11px] font-bold text-emerald-700">
+                    {manualCalcResult.diffFcr <= 0 
+                      ? (isBn ? `টার্গেট থেকে ${Math.abs(manualCalcResult.diffFcr)} ভালো` : `${Math.abs(manualCalcResult.diffFcr)} better`)
+                      : (isBn ? `টার্গেট থেকে +${manualCalcResult.diffFcr} বেশি` : `+${manualCalcResult.diffFcr} above target`)}
+                  </p>
+                </div>
+
+                {/* EPEF Efficiency */}
+                <div className="bg-amber-50/80 border border-amber-200 p-4 rounded-3xl text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-800">
+                    {isBn ? 'EPEF পারফরম্যান্স স্কোর' : 'EPEF EFFICIENCY'}
+                  </span>
+                  <p className="text-3xl sm:text-4xl font-black font-mono text-amber-900">
+                    {manualCalcResult.epef}
+                  </p>
+                  <p className="text-[11px] font-black">
+                    {manualCalcResult.epef >= 350 ? (
+                      <span className="text-emerald-700">🏆 {isBn ? 'আন্তর্জাতিক মান (অসাধারণ)' : 'Excellent'}</span>
+                    ) : manualCalcResult.epef >= 280 ? (
+                      <span className="text-blue-700">✅ {isBn ? 'সন্তোষজনক ও লাভজনক' : 'Good'}</span>
+                    ) : (
+                      <span className="text-rose-700">⚠️ {isBn ? 'উন্নয়ন প্রয়োজন' : 'Needs improvement'}</span>
+                    )}
+                  </p>
+                </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 p-5 rounded-3xl text-center space-y-2">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500">
-                  {isBn ? 'বাণিজ্যিক গ্রস FCR (COMMERCIAL LIVE FCR)' : 'COMMERCIAL LIVE FCR'}
-                </span>
-                <p className="text-4xl sm:text-5xl font-black font-mono text-slate-800">
-                  {manualCalcResult.grossFcr.toFixed(2)}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {isBn 
-                    ? `জীবিত মুরগির মোট ওজন ${manualCalcResult.totalLiveKg} কেজি অনুসারে খাদ্য রূপান্তর।`
-                    : `Based on total live weight of ${manualCalcResult.totalLiveKg} KG.`}
-                </p>
+              {/* Formula & Method Notice */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-2">
+                <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-slate-800">
+                    {isBn ? 'ক্যালকুলেশন মেথড:' : 'Calculation Method:'}
+                  </strong>{' '}
+                  {isBn
+                    ? `মোট জীবিত পাখি: ${manualCalcResult.aliveBirds}টি (লিভাবিলিটি ${manualCalcResult.livabilityPercent}%)। নিট FCR = মোট খাদ্য (${manualCalcResult.feedKg} কেজি) ÷ প্রকৃত মাংস বৃদ্ধি (${manualCalcResult.totalNetMeatKg} কেজি)।`
+                    : `Alive birds: ${manualCalcResult.aliveBirds} (${manualCalcResult.livabilityPercent}% livability). Net FCR = Feed / Net Weight Gain.`}
+                </div>
               </div>
             </div>
           )}
@@ -1837,6 +2216,21 @@ export default function FcrCalculatorCard({
         stdFcr={currentStdFcr}
         metrics={scientificMetrics}
       />
+
+      {/* BROILER DAILY FLOCK RECORD & SOP MODAL */}
+      {showSopModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
+          <div className="max-w-4xl w-full my-auto">
+            <BroilerDailySopCard
+              batchName={batchName}
+              batchId={batchId}
+              batchAgeDays={ageDays}
+              isBn={isBn}
+              onClose={() => setShowSopModal(false)}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );
