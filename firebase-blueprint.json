@@ -28,6 +28,30 @@
       },
       "required": ["userId", "batchName", "startDate", "totalChicks", "status", "createdAt"]
     },
+    "DailyActualRecord": {
+      "title": "DailyActualRecord",
+      "description": "Strict batch-scoped daily record of actual feed used, mortality, and weight samples",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "batchId": { "type": "string" },
+        "date": { "type": "string" },
+        "batchAgeDays": { "type": "number" },
+        "openingLiveCount": { "type": "number" },
+        "todayMortality": { "type": "number" },
+        "totalMortalityToDate": { "type": "number" },
+        "currentLiveCount": { "type": "number" },
+        "actualFeedUsedKg": { "type": "number" },
+        "actualFeedUsedBags": { "type": "number" },
+        "bagWeightKgUsed": { "type": "number" },
+        "cumulativeActualFeedUsedKg": { "type": "number" },
+        "weightSampleCount": { "type": "number" },
+        "totalSampleWeightKg": { "type": "number" },
+        "avgWeightGram": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "batchId", "date", "batchAgeDays", "openingLiveCount", "totalMortalityToDate", "currentLiveCount", "createdAt"]
+    },
     "FeedRecord": {
       "title": "FeedRecord",
       "description": "Feed consumption record",

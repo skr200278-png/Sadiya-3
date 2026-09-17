@@ -14,7 +14,17 @@ import {
   ShieldCheck,
   FileSpreadsheet
 } from 'lucide-react';
-import { calculateEpef } from '../utils/fcrCalculations';
+
+const calculateEpef = (
+  livabilityPercent: number,
+  avgBirdWeightGram: number,
+  fcr: number,
+  ageDays: number
+): number => {
+  if (fcr <= 0 || ageDays <= 0) return 0;
+  const avgWeightKg = avgBirdWeightGram / 1000;
+  return Math.round(((livabilityPercent * avgWeightKg) / (ageDays * fcr)) * 100);
+};
 
 export interface BatchClosureReport {
   completedAt: string;
@@ -418,11 +428,28 @@ export const BatchCompletionModal: React.FC<BatchCompletionModalProps> = ({
             </div>
           </div>
 
+          {/* Section 4: 15-Day Auto-Deletion & Backup Warning Notice */}
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <AlertCircle size={18} />
+            </div>
+            <div className="text-xs space-y-1">
+              <h4 className="font-black text-amber-900 flex items-center gap-1.5">
+                <span>{isBn ? '⚠️ ব্যাচ সমাপ্তির গুরুত্বপূর্ণ নোটিশ ও স্বয়ংক্রিয় মুছে যাওয়ার সতর্কতা' : '⚠️ Important Notice: 15-Day Lifecycle & Auto-Deletion'}</span>
+              </h4>
+              <p className="text-amber-900/90 font-medium leading-relaxed">
+                {isBn 
+                  ? 'ব্যাচ সমাপ্ত করার সাথে সাথেই এই ব্যাচে নতুন কোনো খাবার, ওষুধ, বা খরচ এন্ট্রি সম্পূর্ণ বন্ধ (লক) হয়ে যাবে। সমাপ্তির পরবর্তী ১৫ দিনের মধ্যে এই ব্যাচ ও সংশ্লিষ্ট ডাটা স্বয়ংক্রিয়ভাবে মুছে যাবে। অতএব সমাপ্তির আগে বা ১৫ দিনের মধ্যে অবশ্যই ব্যাচের হিসাব ডাউনলোড / সেভ করে নিন।'
+                  : 'Once completed, this batch will be permanently locked against new feed, medicine, or expense entries. All associated data will be automatically cleaned up after 15 days. Please ensure you download and backup your records.'}
+              </p>
+            </div>
+          </div>
+
           {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             <div className="text-[11px] text-slate-500 flex items-center gap-1">
               <ShieldCheck size={14} className="text-emerald-600" />
-              <span>{isBn ? 'ব্যাচের সব পূর্ববর্তী দৈনিক রেকর্ড আজীবন সংরক্ষিত থাকবে' : 'All historical logs remain permanently saved'}</span>
+              <span>{isBn ? 'সমাপ্তির পর ১৫ দিন রিপোর্ট ডাউনলোড করা যাবে' : 'Download report available for 15 days'}</span>
             </div>
 
             <div className="flex items-center gap-2">

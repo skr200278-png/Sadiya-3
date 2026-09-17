@@ -29,6 +29,7 @@ import Marketplace from './views/Marketplace';
 import DoctorConsultation from './views/DoctorConsultation';
 import StoreDirectory from './views/StoreDirectory';
 import ChickMarket from './views/ChickMarket';
+import FCR from './views/FCR';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAuth();
@@ -46,6 +47,7 @@ function AppRoutes() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="batches" element={<Batches />} />
           <Route path="feed" element={<Feed />} />
+          <Route path="fcr" element={<FCR />} />
           <Route path="medicine" element={<Medicine />} />
           <Route path="mortality" element={<Mortality />} />
           <Route path="expenses" element={<Expenses />} />

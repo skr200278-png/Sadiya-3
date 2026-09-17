@@ -3,16 +3,16 @@ import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X, ClipboardList, Award } from 'lucide-react';
+import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X, ClipboardList, Award, Clock, FileSpreadsheet, Download, Wheat, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
-import PoultryFeedPlan from '../components/PoultryFeedPlan';
 import BatchComparisonCard, { BatchSummaryStats } from '../components/BatchComparisonCard';
 import { BatchCompletionModal, BatchClosureReport } from '../components/BatchCompletionModal';
 import { CompletedBatchReportModal } from '../components/CompletedBatchReportModal';
 import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 import { demoStore } from '../utils/demoStore';
 import { useNavigate } from 'react-router-dom';
+import { fetchBatchFullRecords, downloadBatchCSV, downloadBatchPDF, purgeExpiredCompletedBatches } from '../utils/batchExportUtils';
 
 const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string, totalChicks: number, costPerChick: number }) => {
   const { currentUser, isDemoUser } = useAuth();
@@ -177,6 +177,28 @@ export default function Batches() {
   // Delete batch state with cascade protection
   const [deleteBatchItem, setDeleteBatchItem] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [exportingBatchId, setExportingBatchId] = useState<string | null>(null);
+
+  const handleDownloadBatchArchive = async (batch: any, format: 'csv' | 'pdf') => {
+    if (!currentUser) return;
+    setExportingBatchId(batch.id);
+    try {
+      const data = await fetchBatchFullRecords(batch.id, currentUser.uid, isDemoUser);
+      if (!data) {
+        toast.error(language === 'bn' ? 'ডাটা লোড করা যায়নি' : 'Failed to fetch data');
+        return;
+      }
+      if (format === 'csv') {
+        downloadBatchCSV(batch, data);
+      } else {
+        downloadBatchPDF(batch, data);
+      }
+    } catch (e) {
+      toast.error(language === 'bn' ? 'ডাউনলোড ব্যর্থ হয়েছে' : 'Download failed');
+    } finally {
+      setExportingBatchId(null);
+    }
+  };
   
   // Category filter state ('all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare')
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'poultry' | 'cattle' | 'fish' | 'completed' | 'compare'>(() => {
@@ -212,6 +234,11 @@ export default function Batches() {
   useEffect(() => {
     if (!currentUser) return;
     setLoading(true);
+
+    // Auto-purge completed batches that exceeded 15 days retention
+    purgeExpiredCompletedBatches(currentUser.uid, isDemoUser).catch(err => {
+      console.warn('Auto-purge check error:', err);
+    });
 
     if (isDemoUser) {
       const loadDemoBatches = () => {
@@ -318,6 +345,8 @@ export default function Batches() {
       let mort = 0;
       const cChick = Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0);
 
+      const batchBagWeight = Math.max(1, Number(localStorage.getItem(`bag_weight_${batch.id}`)) || 50);
+
       if (isDemoUser) {
         demoStore.getSales(batch.id).forEach(s => tSales += Number(s.totalAmount || 0));
         demoStore.getExpenses(batch.id).forEach(e => tOther += Number(e.amount || 0));
@@ -325,7 +354,8 @@ export default function Batches() {
           tFeed += Number(f.cost || 0);
           const fAny = f as any;
           const bags = Number(fAny.quantityBags || fAny.bags || 0);
-          feedKg += Number(fAny.quantityKg || (bags * 50));
+          const bagSize = Number(fAny.bagWeightKg) || batchBagWeight;
+          feedKg += Number(fAny.quantityKg || (bags * bagSize));
         });
         demoStore.getMedicineRecords(batch.id).forEach(m => tMed += Number(m.cost || 0));
         demoStore.getMortalityRecords(batch.id).forEach(m => mort += Number(m.count || 0));
@@ -341,7 +371,8 @@ export default function Batches() {
         expSnap.forEach(d => tOther += Number(d.data().amount || 0));
         feedSnap.forEach(d => {
           tFeed += Number(d.data().cost || 0);
-          feedKg += Number(d.data().quantityKg || (d.data().bags ? d.data().bags * 50 : 0));
+          const bagSize = Number(d.data().bagWeightKg) || batchBagWeight;
+          feedKg += Number(d.data().quantityKg || (d.data().bags ? d.data().bags * bagSize : 0));
         });
         medSnap.forEach(d => tMed += Number(d.data().cost || 0));
         mortSnap.forEach(d => mort += Number(d.data().count || 0));
@@ -555,6 +586,8 @@ export default function Batches() {
     let tMed = 0;
     let tOther = 0;
     let tSales = 0;
+    let tSalesQty = 0;
+    let tSalesWeightKg = 0;
     let tMort = 0;
     let avgWeight = 0;
     const cChick = Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0);
@@ -563,6 +596,8 @@ export default function Batches() {
       if (isDemoUser) {
         demoStore.getSales(batchId).forEach(s => {
           tSales += Number(s.totalAmount || 0);
+          tSalesQty += Number(s.quantity || 0);
+          tSalesWeightKg += Number(s.totalWeightKg || 0);
           if (s.totalWeightKg && s.quantity) avgWeight = Number(s.totalWeightKg) / Number(s.quantity);
         });
         demoStore.getExpenses(batchId).forEach(e => { tOther += Number(e.amount || 0); });
@@ -577,6 +612,8 @@ export default function Batches() {
         const salesSnap = await fastGetDocs(salesQ);
         salesSnap.forEach(d => {
           tSales += Number(d.data().totalAmount || 0);
+          tSalesQty += Number(d.data().quantity || 0);
+          tSalesWeightKg += Number(d.data().totalWeightKg || 0);
           if (d.data().totalWeightKg && d.data().quantity) {
             avgWeight = Number(d.data().totalWeightKg) / Number(d.data().quantity);
           }
@@ -614,15 +651,17 @@ export default function Batches() {
     const profitPerBird = numBirds > 0 ? netProfit / numBirds : 0;
     const age = calculateAge(batch.startDate);
 
-    let calculatedFcr: number | undefined = undefined;
-    const estWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
-    if (alive > 0 && estWeight > 0 && tFeedBags > 0) {
-      const totalFeedKg = tFeedBags * 50;
-      const totalLiveWeight = alive * estWeight;
-      if (totalLiveWeight > 0) {
-        calculatedFcr = Number((totalFeedKg / totalLiveWeight).toFixed(2));
-      }
+    // Retrieve measured sample weight from storage if available
+    let measuredWeightGram: number | undefined = undefined;
+    const savedWeight = localStorage.getItem(`batch_weight_${batchId}`);
+    if (savedWeight && Number(savedWeight) > 0) {
+      measuredWeightGram = Number(savedWeight);
+      avgWeight = measuredWeightGram / 1000;
+    } else if (avgWeight > 0) {
+      measuredWeightGram = Math.round(avgWeight * 1000);
     }
+
+    const bagWt = Math.max(1, Number(localStorage.getItem(`bag_weight_${batchId}`)) || 50);
 
     return {
       batchId,
@@ -645,7 +684,6 @@ export default function Batches() {
       salesRevenue: tSales,
       netProfit,
       profitPerBird,
-      fcr: calculatedFcr,
       avgWeightKg: avgWeight || undefined
     };
   };
@@ -929,6 +967,28 @@ export default function Batches() {
           const badgeIcon = isCattle ? '🐄' : isFish ? '🐟' : '🐔';
           const badgeText = isCattle ? 'গরু / ডেইরি' : isFish ? 'মাছ চাষ' : 'মুরগী';
 
+          const breedNameMap: Record<string, string> = {
+            broiler: 'ব্রয়লার',
+            layer: 'লেয়ার',
+            sonali: 'সোনালী',
+            deshi: 'দেশি',
+            duck: 'হাঁস',
+            quail: 'কোয়েল',
+            turkey: 'টার্কি',
+            pigeon: 'কবুতর',
+            dairy: 'ডেইরি',
+            fattening: 'মোটাতাজাকরণ',
+            goat: 'ছাগল',
+            sheep: 'ভেড়া',
+            buffalo: 'মহিষ',
+            telapia: 'তেলাপিয়া',
+            carp: 'কার্প',
+            pangash: 'পাঙ্গাস',
+            shing_pabda: 'শিং/পাবদা',
+            mixed: 'মিশ্র'
+          };
+          const breedDisplay = batch.subBreed ? (breedNameMap[batch.subBreed.toLowerCase()] || batch.subBreed) : '';
+
           const countLabel = isCattle 
             ? (language === 'bn' ? 'পশুর সংখ্যা' : 'Animals') 
             : isFish 
@@ -949,10 +1009,10 @@ export default function Batches() {
               {/* Top Row: Title, Farm Badge, Status, Delete */}
               <div className="flex items-start justify-between gap-2 mb-2 pr-6">
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                     <span className="text-xs">{badgeIcon}</span>
-                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60">
-                      {badgeText}
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60">
+                      {badgeText}{breedDisplay ? ` • ${breedDisplay}` : ''}
                     </span>
                     <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${
                       batch.status === 'active' 
@@ -995,7 +1055,7 @@ export default function Batches() {
               </div>
 
               {/* Stats pill row */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70 mb-3">
                 <div>
                   <span className="text-[9px] font-bold text-slate-400 block">{countLabel}</span>
                   <p className="text-xs font-black text-slate-800 font-sans">
@@ -1008,43 +1068,50 @@ export default function Batches() {
                     ৳ {Number(batch.costPerChick || 0).toLocaleString()}
                   </p>
                 </div>
-              </div>
-              
-              {batch.status === 'active' && batch.farmType === 'poultry' && (
-                <div className="mb-3">
-                  <PoultryFeedPlan 
-                    batchId={batch.id} 
-                    startDate={batch.startDate} 
-                    totalChicks={Number(batch.totalChicks) || 0} 
-                    batchName={batch.batchName}
-                  />
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="text-[9px] font-bold text-slate-400 block">
+                    {language === 'bn' ? 'বাচ্চা ক্রয়ের খরচ' : 'Stock Cost'}
+                  </span>
+                  <p className="text-xs font-black text-slate-700 font-sans">
+                    ৳ {(Number(batch.totalChicks || 0) * Number(batch.costPerChick || 0)).toLocaleString()}
+                  </p>
                 </div>
-              )}
+              </div>
 
               {/* Real-time Profit & Loss Summary */}
               <div className="mb-2.5">
                 <BatchSummary batchId={batch.id} totalChicks={batch.totalChicks} costPerChick={batch.costPerChick} />
               </div>
 
-              {/* Action Buttons: View on Dashboard & Mark Complete */}
+              {/* Action Buttons: View on Dashboard, Feed, FCR, SOP & Mark Complete */}
               {batch.status === 'active' && (
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 flex-wrap sm:flex-nowrap">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={() => handleActivateOnDashboard(batch)}
                       className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title={language === 'bn' ? 'ড্যাশবোর্ডে সেট করুন' : 'Set on Dashboard'}
                     >
                       <LayoutDashboard size={13} />
                       <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
                     </button>
 
                     <button
-                      onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
+                      onClick={() => navigate(`/feed?batchId=${batch.id}`)}
                       className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title={language === 'bn' ? 'সাপ্তাহিক ও মাসিক FCR গ্রাফ দেখুন' : 'View FCR Graph'}
+                      title={language === 'bn' ? 'খাবার স্টক ও দৈনিক লগ' : 'View Feed Stock'}
                     >
-                      <ChartIcon size={13} />
-                      <span>{language === 'bn' ? 'FCR গ্রাফ' : 'FCR Graph'}</span>
+                      <Wheat size={13} />
+                      <span>{language === 'bn' ? 'খাবার স্টক' : 'Feed Stock'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => navigate(`/fcr?category=${batch.farmType || 'poultry'}&breed=${batch.subBreed || 'broiler'}&batchId=${batch.id}`)}
+                      className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title={language === 'bn' ? 'এই ব্যাচের FCR হিসাব ও পারফরম্যান্স' : 'Batch FCR & Performance'}
+                    >
+                      <Calculator size={13} className="text-indigo-600" />
+                      <span>{language === 'bn' ? 'FCR হিসাব' : 'FCR'}</span>
                     </button>
 
                     {batch.farmType === 'poultry' && (
@@ -1061,7 +1128,7 @@ export default function Batches() {
 
                   <button 
                     onClick={() => handleOpenCompleteModal(batch)} 
-                    className="text-xs font-bold text-slate-600 hover:text-purple-700 px-2.5 py-1.5 rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                    className="text-xs font-bold text-slate-600 hover:text-purple-700 px-2.5 py-1.5 rounded-xl hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-colors cursor-pointer flex items-center gap-1 ml-auto"
                   >
                     <CheckCircle2 size={13} className="text-purple-600" />
                     <span>{language === 'bn' ? 'ব্যাচ সমাপ্ত করুন' : t('batches.markComplete')}</span>
@@ -1069,40 +1136,98 @@ export default function Batches() {
                 </div>
               )}
 
-              {batch.status === 'completed' && (
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-150 bg-slate-50/60 -mx-3.5 -mb-3.5 px-3.5 py-2 rounded-b-2xl">
-                  <span className="text-[11px] font-bold text-purple-800 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} className="text-purple-600" />
-                    {language === 'bn' 
-                      ? `ব্যাচ সমাপ্ত ${batch.endDate ? `(${new Date(batch.endDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}` 
-                      : 'Completed & Archived'}
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      onClick={() => setViewReportBatch(batch)}
-                      className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                      title={language === 'bn' ? 'চূড়ান্ত সমাপনী অডিট সার্টিফিকেট' : 'Audit Certificate'}
-                    >
-                      <Award size={12} className="text-amber-700" />
-                      <span>{language === 'bn' ? 'অডিট সার্টিফিকেট' : 'Certificate'}</span>
-                    </button>
-                    <button
-                      onClick={() => handleActivateOnDashboard(batch)}
-                      className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <LayoutDashboard size={12} />
-                      <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
-                    </button>
-                    <button
-                      onClick={() => navigate(`/feed?tab=fcr&batchId=${batch.id}`)}
-                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <ChartIcon size={12} />
-                      <span>{language === 'bn' ? 'FCR' : 'FCR'}</span>
-                    </button>
+              {batch.status === 'completed' && (() => {
+                const completedDate = batch.completedAt || batch.endDate || batch.updatedAt || batch.createdAt;
+                const daysPassed = completedDate 
+                  ? Math.max(0, Math.floor((new Date().getTime() - new Date(completedDate).getTime()) / (1000 * 60 * 60 * 24)))
+                  : 0;
+                const daysRemaining = Math.max(0, 15 - daysPassed);
+
+                return (
+                  <div className="space-y-2 pt-2 border-t border-slate-150">
+                    {/* 15-Day Auto-Deletion Banner */}
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-300/90 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                          <Clock size={13} />
+                        </div>
+                        <div className="text-[11px] leading-tight">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.2 rounded font-black text-[9px] bg-amber-500 text-white uppercase">
+                              {language === 'bn' ? `আর ${daysRemaining} দিন বাকি` : `${daysRemaining} days left`}
+                            </span>
+                            <span className="font-extrabold text-amber-950">
+                              {language === 'bn' ? '১৫ দিনের মধ্যে এই ব্যাচের ডাটা সক্রিয়ভাবে মুছে যাবে' : 'Batch data will auto-delete within 15 days'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-amber-900/85 font-medium mt-0.5">
+                            {language === 'bn'
+                              ? 'ব্যাচ সমাপ্ত হওয়ায় নতুন এন্ট্রি বন্ধ আছে। তথ্য হারানোর আগে সম্পূর্ণ হিসাব এক্সেল বা পিডিএফে ডাউনলোড করে নিন।'
+                              : 'Batch is locked. Please download and backup your report before expiration.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadBatchArchive(batch, 'csv')}
+                          disabled={exportingBatchId === batch.id}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                          title={language === 'bn' ? 'এক্সেল ডাউনলোড' : 'Excel'}
+                        >
+                          <FileSpreadsheet size={11} />
+                          <span>{language === 'bn' ? 'এক্সেল' : 'CSV'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadBatchArchive(batch, 'pdf')}
+                          disabled={exportingBatchId === batch.id}
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                          title={language === 'bn' ? 'পিডিএফ ডাউনলোড' : 'PDF'}
+                        >
+                          <Download size={11} />
+                          <span>{language === 'bn' ? 'PDF' : 'PDF'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] font-bold text-purple-800 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} className="text-purple-600" />
+                        {language === 'bn' 
+                          ? `ব্যাচ সমাপ্ত ${batch.endDate ? `(${new Date(batch.endDate).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}` 
+                          : 'Completed & Locked'}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => setViewReportBatch(batch)}
+                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                          title={language === 'bn' ? 'চূড়ান্ত সমাপনী অডিট সার্টিফিকেট' : 'Audit Certificate'}
+                        >
+                          <Award size={12} className="text-amber-700" />
+                          <span>{language === 'bn' ? 'অডিট সার্টিফিকেট' : 'Certificate'}</span>
+                        </button>
+                        <button
+                          onClick={() => handleActivateOnDashboard(batch)}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <LayoutDashboard size={12} />
+                          <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate(`/feed?batchId=${batch.id}`)}
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Wheat size={12} />
+                          <span>{language === 'bn' ? 'খাবার' : 'Feed'}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}

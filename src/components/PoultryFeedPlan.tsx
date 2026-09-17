@@ -19,6 +19,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { demoStore } from '../utils/demoStore';
+import { BROILER_SOP_SCHEDULE, getSopForDay } from '../utils/broilerSopData';
+import { calculateStandardDailyFeedForFlock } from '../utils/feedStockCalculations';
 
 interface PoultryFeedPlanProps {
   batchId: string;
@@ -40,21 +42,12 @@ const formatNum = (val: number | string, lang: string, decimals = 1): string => 
 
 // Daily standard feed consumption per bird (in grams) based on Cobb 500 / Ross 308 & standard research
 const getDailyFeedGrams = (type: 'broiler' | 'sonali' | 'layer' | 'deshi', day: number): number => {
-  const d = Math.max(1, day);
+  const d = Math.max(1, Math.round(day));
   if (type === 'broiler') {
-    if (d === 1) return 15;
-    if (d === 2) return 18;
-    if (d === 3) return 23;
-    if (d === 4) return 28;
-    if (d === 5) return 34;
-    if (d === 6) return 40;
-    if (d === 7) return 46;
-    if (d <= 14) return Math.round(46 + (d - 7) * 8.3); // Day 14 -> ~104g
-    if (d <= 21) return Math.round(104 + (d - 14) * 6.5); // Day 21 -> ~150g
-    if (d <= 28) return Math.round(150 + (d - 21) * 2.8); // Day 28 -> ~170g
-    if (d <= 35) return Math.round(170 + (d - 28) * 2.3); // Day 35 -> ~186g
-    if (d <= 42) return Math.round(186 + (d - 35) * 2.0); // Day 42 -> ~200g
-    return 205;
+    const sop = BROILER_SOP_SCHEDULE.find(s => s.day === d);
+    if (sop && sop.feedDailyGm > 0) return sop.feedDailyGm;
+    if (d > 42) return 195;
+    return 130;
   } else if (type === 'sonali') {
     if (d <= 7) return 6 + d;
     if (d <= 14) return 13 + (d - 7);
@@ -115,15 +108,10 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
   const [liveStockKg, setLiveStockKg] = useState<number | null>(() => {
     let savedIn = (batch?.feedStockInKg !== undefined && batch?.feedStockInKg !== null)
       ? String(batch.feedStockInKg)
-      : localStorage.getItem(`fcr_stock_in_${batchId}`);
+      : (batchId ? localStorage.getItem(`fcr_stock_in_${batchId}`) : null);
     let savedUsed = (batch?.feedStockUsedKg !== undefined && batch?.feedStockUsedKg !== null)
       ? String(batch.feedStockUsedKg)
-      : localStorage.getItem(`fcr_stock_used_${batchId}`);
-
-    if ((savedIn === null || savedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
-      savedIn = localStorage.getItem('fcr_stock_in_default_batch');
-      savedUsed = localStorage.getItem('fcr_stock_used_default_batch');
-    }
+      : (batchId ? localStorage.getItem(`fcr_stock_used_${batchId}`) : null);
 
     if (savedIn !== null && savedUsed !== null) {
       const inKg = Number(savedIn) || 0;
@@ -137,15 +125,10 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
     const readStock = () => {
       let savedIn = (batch?.feedStockInKg !== undefined && batch?.feedStockInKg !== null)
         ? String(batch.feedStockInKg)
-        : localStorage.getItem(`fcr_stock_in_${batchId}`);
+        : (batchId ? localStorage.getItem(`fcr_stock_in_${batchId}`) : null);
       let savedUsed = (batch?.feedStockUsedKg !== undefined && batch?.feedStockUsedKg !== null)
         ? String(batch.feedStockUsedKg)
-        : localStorage.getItem(`fcr_stock_used_${batchId}`);
-
-      if ((savedIn === null || savedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
-        savedIn = localStorage.getItem('fcr_stock_in_default_batch');
-        savedUsed = localStorage.getItem('fcr_stock_used_default_batch');
-      }
+        : (batchId ? localStorage.getItem(`fcr_stock_used_${batchId}`) : null);
 
       if (savedIn !== null && savedUsed !== null) {
         const inKg = Number(savedIn) || 0;
@@ -159,7 +142,7 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
     readStock();
 
     const handleFeedStockUpdate = (e: any) => {
-      if (!e.detail?.batchId || e.detail?.batchId === batchId || e.detail?.batchId === 'default_batch') {
+      if (!e.detail?.batchId || e.detail?.batchId === batchId) {
         if (e.detail?.remainingKg !== undefined) {
           setLiveStockKg(Number(e.detail.remainingKg));
         } else {
@@ -219,91 +202,60 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
     }
   }, [batchId, currentUser, isDemoUser]);
 
-  // Active Bird Count
+  // Active Bird Count (updates automatically when mortality changes)
   const liveChicks = Math.max(0, totalChicks - totalMortality);
 
-  // Calculate Feed Requirements dynamically based on standard poultry nutrition tables by Breed & Age
-  let standardPortionGrams = 20;
+  // Standard Feed calculation using unified Cumulative Feed formula:
+  // Daily Feed = বর্তমান দিনের cumulative feed − আগের দিনের cumulative feed
+  const standardDailyMetrics = useMemo(() => {
+    return calculateStandardDailyFeedForFlock(
+      'poultry',
+      birdType,
+      liveChicks,
+      ageDays,
+      bagWeightKg
+    );
+  }, [birdType, liveChicks, ageDays, bagWeightKg]);
+
+  // Base standard portion per bird (grams)
+  const standardPortionGrams = standardDailyMetrics.dailyGramsPerBird || getDailyFeedGrams(birdType, ageDays);
   let stageType: 'baby' | 'grower' | 'finisher' = 'baby';
 
   if (birdType === 'broiler') {
-    if (ageDays <= 7) {
-      standardPortionGrams = 20;
+    if (ageDays <= 14) {
       stageType = 'baby';
-    } else if (ageDays <= 14) {
-      standardPortionGrams = 45;
-      stageType = 'baby';
-    } else if (ageDays <= 21) {
-      standardPortionGrams = 80;
-      stageType = 'grower';
     } else if (ageDays <= 28) {
-      standardPortionGrams = 120;
       stageType = 'grower';
-    } else if (ageDays <= 35) {
-      standardPortionGrams = 155;
-      stageType = 'finisher';
     } else {
-      standardPortionGrams = 175;
       stageType = 'finisher';
     }
   } else if (birdType === 'sonali') {
-    if (ageDays <= 7) {
-      standardPortionGrams = 10;
+    if (ageDays <= 14) {
       stageType = 'baby';
-    } else if (ageDays <= 14) {
-      standardPortionGrams = 18;
-      stageType = 'baby';
-    } else if (ageDays <= 21) {
-      standardPortionGrams = 26;
-      stageType = 'grower';
-    } else if (ageDays <= 28) {
-      standardPortionGrams = 34;
-      stageType = 'grower';
     } else if (ageDays <= 45) {
-      standardPortionGrams = 48;
       stageType = 'grower';
-    } else if (ageDays <= 60) {
-      standardPortionGrams = 62;
-      stageType = 'finisher';
     } else {
-      standardPortionGrams = 75;
       stageType = 'finisher';
     }
   } else if (birdType === 'layer') {
     if (ageDays <= 14) {
-      standardPortionGrams = 18;
       stageType = 'baby';
-    } else if (ageDays <= 28) {
-      standardPortionGrams = 32;
-      stageType = 'grower';
-    } else if (ageDays <= 56) {
-      standardPortionGrams = 50;
-      stageType = 'grower';
     } else if (ageDays <= 112) {
-      standardPortionGrams = 75;
       stageType = 'grower';
     } else {
-      standardPortionGrams = 115;
       stageType = 'finisher';
     }
   } else {
-    // Deshi / other birds
     if (ageDays <= 14) {
-      standardPortionGrams = 15;
       stageType = 'baby';
-    } else if (ageDays <= 30) {
-      standardPortionGrams = 30;
-      stageType = 'grower';
     } else if (ageDays <= 60) {
-      standardPortionGrams = 55;
       stageType = 'grower';
     } else {
-      standardPortionGrams = 75;
       stageType = 'finisher';
     }
   }
 
-  // Use customized average weight to adjust standard portion if specified
+  // Use customized average weight to adjust portion if specified
   let actualPortionGrams = standardPortionGrams;
   if (avgWeightGrams && Number(avgWeightGrams) > 0) {
     const customWeight = Number(avgWeightGrams);
@@ -320,8 +272,12 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
     }
   }
 
-  // Exact Feed Calculations (KG & Bags)
-  const totalDailyFeedKg = (liveChicks * actualPortionGrams) / 1000;
+  // Exact Feed Calculations (KG & Bags) based on Cumulative Feed difference
+  // When no custom weight override is set, this matches standardDailyMetrics.dailyFeedKg exactly
+  const totalDailyFeedKg = avgWeightGrams && Number(avgWeightGrams) > 0
+    ? Number(((liveChicks * actualPortionGrams) / 1000).toFixed(2))
+    : standardDailyMetrics.dailyFeedKg;
+
   const morningMealKg = totalDailyFeedKg / 3;
   const noonMealKg = totalDailyFeedKg / 3;
   const nightMealKg = totalDailyFeedKg / 3;
@@ -340,7 +296,7 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
   // Max batch duration based on breed
   const maxDays = birdType === 'broiler' ? 42 : birdType === 'sonali' ? 60 : birdType === 'layer' ? 90 : 50;
 
-  // Day-by-Day exact feed schedule list
+  // Day-by-Day exact feed schedule list using cumulative feed difference
   const dailyScheduleList = useMemo(() => {
     const list = [];
     for (let d = 1; d <= maxDays; d++) {
@@ -350,9 +306,17 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
       if (scheduleWeekFilter === 'w4' && (d < 22 || d > 28)) continue;
       if (scheduleWeekFilter === 'w5+' && d < 29) continue;
 
-      const gramsPerBird = getDailyFeedGrams(birdType, d);
-      const totalKg = (liveChicks * gramsPerBird) / 1000;
-      const bags = totalKg / bagWeightKg;
+      const dayCalc = calculateStandardDailyFeedForFlock(
+        'poultry',
+        birdType,
+        liveChicks,
+        d,
+        bagWeightKg
+      );
+
+      const gramsPerBird = dayCalc.dailyGramsPerBird;
+      const totalKg = dayCalc.dailyFeedKg;
+      const bags = dayCalc.dailyBags;
 
       let stage = language === 'bn' ? 'স্টার্টার' : 'Starter';
       if (birdType === 'broiler') {
@@ -371,7 +335,8 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
         gramsPerBird,
         totalKg,
         bags,
-        stage
+        stage,
+        cumKg: dayCalc.currentDayCumKg
       });
     }
     return list;
@@ -465,9 +430,9 @@ export default function PoultryFeedPlan({ batchId, startDate, totalChicks, batch
           <div className="flex items-center justify-between gap-1 mb-1">
             <span className="text-[10px] font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
               <Package size={13} className="text-indigo-600" />
-              {language === 'bn' ? 'আজকের দৈনিক খাবার' : 'Today\'s Total Feed'}
+              {language === 'bn' ? 'আজকের Standard Feed' : "Today's Standard Feed"}
             </span>
-            <span className="text-[9px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded" title={language === 'bn' ? 'বর্তমান দিনের cumulative feed − আগের দিনের cumulative feed' : 'Current day cum feed - Previous day cum feed'}>
               {formatNum(actualPortionGrams, language, 0)} {language === 'bn' ? 'গ্রাম/পাখি' : 'g/bird'}
             </span>
           </div>

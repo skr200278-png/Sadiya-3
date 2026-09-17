@@ -29,6 +29,13 @@ service cloud.firestore {
       allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
     }
 
+    // Daily Actual Records (Batch-Scoped Daily Logs)
+    match /daily_actual_records/{recordId} {
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
+    }
+
     // Feed Records
     match /feed_records/{recordId} {
       allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());

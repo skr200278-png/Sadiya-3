@@ -4,6 +4,7 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ShieldPlus, Plus, Trash2, Sparkles, Syringe, ClipboardList, Calendar } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -13,6 +14,7 @@ import SponsorCard from '../components/SponsorCard';
 import VaccineScheduleCard, { VaccineItem } from '../components/VaccineScheduleCard';
 
 export default function Medicine() {
+  const [searchParams] = useSearchParams();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currentUser, isDemoUser } = useAuth();
   const { t, language } = useLanguage();
@@ -23,7 +25,18 @@ export default function Medicine() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
   
-  const [activeTab, setActiveTab] = useState<'records' | 'schedule'>('records');
+  const [activeTab, setActiveTab] = useState<'records' | 'schedule'>(() => {
+    return searchParams.get('tab') === 'schedule' ? 'schedule' : 'records';
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'schedule') {
+      setActiveTab('schedule');
+    } else if (tabParam === 'records') {
+      setActiveTab('records');
+    }
+  }, [searchParams]);
   const [showForm, setShowForm] = useState(false);
   const [batchId, setBatchId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);

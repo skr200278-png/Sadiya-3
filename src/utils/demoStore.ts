@@ -1,6 +1,7 @@
 /**
  * Local demo storage & mock engine for instant demo mode without Firestore errors
  */
+import { DailyActualRecord } from '../types/fcrTypes';
 
 export interface DemoBatch {
   id: string;
@@ -961,6 +962,7 @@ export const demoStore = {
     setItem('expenses', this.getExpenseRecords().filter(r => r.batchId !== id));
     setItem('sales', this.getSales().filter(r => r.batchId !== id));
     setItem('dues', this.getDues().filter(r => r.batchId !== id));
+    setItem('daily_actual_records', this.getDailyActualRecords().filter(r => r.batchId !== id));
   },
 
   // Feed
@@ -1095,6 +1097,38 @@ export const demoStore = {
   deleteDue(id: string): void {
     const records = this.getDues().filter(r => r.id !== id);
     setItem('dues', records);
+  },
+
+  // Daily Actual Records (Batch-scoped)
+  getDailyActualRecords(batchId?: string): DailyActualRecord[] {
+    const records = getItem<DailyActualRecord[]>('daily_actual_records', []);
+    return batchId ? records.filter(r => r.batchId === batchId) : records;
+  },
+  saveDailyActualRecord(record: DailyActualRecord): DailyActualRecord {
+    const records = this.getDailyActualRecords();
+    const existingIndex = records.findIndex(r => r.batchId === record.batchId && (r.id === record.id || r.date === record.date));
+    if (existingIndex !== -1) {
+      records[existingIndex] = {
+        ...records[existingIndex],
+        ...record,
+        updatedAt: new Date().toISOString()
+      };
+      setItem('daily_actual_records', records);
+      return records[existingIndex];
+    }
+    const newRecord: DailyActualRecord = {
+      ...record,
+      id: record.id || 'demo_daily_' + Date.now(),
+      createdAt: record.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    records.unshift(newRecord);
+    setItem('daily_actual_records', records);
+    return newRecord;
+  },
+  deleteDailyActualRecord(id: string): void {
+    const records = this.getDailyActualRecords().filter(r => r.id !== id);
+    setItem('daily_actual_records', records);
   },
 
   // Profile

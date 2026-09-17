@@ -19,7 +19,11 @@ import {
   Layers,
   ArrowDownRight,
   FileText,
-  Printer
+  Printer,
+  Scale,
+  Calculator,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -54,10 +58,20 @@ export default function Sales() {
   
   // Weights / Quantities & Pricing
   const [saleType, setSaleType] = useState<'weight' | 'quantity'>('weight'); // 'weight' or 'quantity'
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'mon' | 'ton'>('kg');
+  const [enteredWeight, setEnteredWeight] = useState('');
+  const [rateUnit, setRateUnit] = useState<'per_kg' | 'per_mon'>('per_kg');
+  const [enteredRate, setEnteredRate] = useState('');
   const [totalWeightKg, setTotalWeightKg] = useState('');
   const [pricePerKg, setPricePerKg] = useState('');
   const [quantity, setQuantity] = useState('');
   const [pricePerPiece, setPricePerPiece] = useState('');
+
+  // Quick large flock calculator (e.g. 5,000 birds * 2.1 kg)
+  const [showWeightCalc, setShowWeightCalc] = useState(false);
+  const [calcBirdCount, setCalcBirdCount] = useState('');
+  const [calcAvgWeight, setCalcAvgWeight] = useState('');
+  const [calcAvgUnit, setCalcAvgUnit] = useState<'kg' | 'g'>('kg');
   
   // Buyer & Financials
   const [buyerName, setBuyerName] = useState('');

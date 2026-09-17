@@ -11,7 +11,8 @@ import {
   DollarSign, 
   TrendingUp, 
   CheckCircle2, 
-  Loader2 
+  Loader2,
+  Droplets 
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -140,12 +141,12 @@ export default function QuickDailyLogModal({
       return;
     }
 
-    const hasFeed = (Number(feedBags) > 0 || Number(feedKg) > 0);
-    const hasMortality = Number(mortalityCount) > 0;
-    const hasWeight = Number(avgWeightGram) > 0 || Number(waterLiters) > 0 || Number(eggCount) > 0 || Number(milkLiter) > 0;
-    const hasMedicine = medicineName.trim().length > 0;
-    const hasExpense = Number(expenseAmount) > 0;
-    const hasSales = Number(saleTotalAmount) > 0;
+    const hasFeed = (activeTab === 'all' || activeTab === 'feed') && (Number(feedBags) > 0 || Number(feedKg) > 0);
+    const hasMortality = (activeTab === 'all' || activeTab === 'mortality') && Number(mortalityCount) > 0;
+    const hasWeight = (activeTab === 'all' || activeTab === 'weight' || activeTab === 'water') && (Number(avgWeightGram) > 0 || Number(waterLiters) > 0 || Number(eggCount) > 0 || Number(milkLiter) > 0);
+    const hasMedicine = (activeTab === 'all') && medicineName.trim().length > 0;
+    const hasExpense = (activeTab === 'all' || activeTab === 'expense') && Number(expenseAmount) > 0;
+    const hasSales = (activeTab === 'all' || activeTab === 'sales') && Number(saleTotalAmount) > 0;
 
     if (!hasFeed && !hasMortality && !hasWeight && !hasMedicine && !hasExpense && !hasSales) {
       toast.error(language === 'bn' ? 'কমপক্ষে একটি হিসাবের তথ্য দিন' : 'Please enter at least one entry');
@@ -340,17 +341,25 @@ export default function QuickDailyLogModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0">
+        <div className={`p-3.5 sm:p-4 flex items-center justify-between shrink-0 text-white ${
+          activeTab === 'water' 
+            ? 'bg-gradient-to-r from-cyan-700 via-blue-600 to-teal-700' 
+            : 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700'
+        }`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-amber-300 font-bold shadow-inner">
-              <Zap size={18} />
+            <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-white font-bold shadow-inner">
+              {activeTab === 'water' ? <Droplets size={18} /> : <Zap size={18} className="text-amber-300" />}
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black tracking-tight leading-none">
-                {language === 'bn' ? 'আজকের কুইক ডেইলি লগ' : 'Quick Daily Farm Log'}
+                {activeTab === 'water' 
+                  ? (language === 'bn' ? 'দৈনিক পানির হিসাব' : 'Daily Water Intake Log')
+                  : (language === 'bn' ? 'আজকের ডেইলি এন্ট্রি' : 'Daily Farm Record')}
               </h2>
               <p className="text-[11px] text-emerald-100 font-medium mt-0.5">
-                {language === 'bn' ? 'খাদ্য, মৃত্যু, ওজন ও খরচ একসাথে দ্রুত এন্ট্রি' : 'Fast 30-second daily record entry'}
+                {activeTab === 'water'
+                  ? (language === 'bn' ? 'ফ্লকের দৈনিক পানি পানের সঠিক হিসাব ও অনুপাত' : 'Flock daily water consumption tracking')
+                  : (language === 'bn' ? 'খাদ্য, মৃত্যু, ওজন ও খরচ এন্ট্রি' : 'Fast daily record entry')}
               </p>
             </div>
           </div>
@@ -404,86 +413,88 @@ export default function QuickDailyLogModal({
             </div>
           </div>
 
-          {/* Section Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveTab('all')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'all' 
-                  ? 'bg-emerald-700 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {language === 'bn' ? 'সব এন্ট্রি' : 'All Entries'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('feed')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'feed' 
-                  ? 'bg-amber-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              🥣 {language === 'bn' ? 'খাদ্য' : 'Feed'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('water')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all flex items-center gap-1 ${
-                activeTab === 'water' 
-                  ? 'bg-cyan-600 text-white shadow-xs' 
-                  : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-200'
-              }`}
-            >
-              💧 {language === 'bn' ? 'পানি পান' : 'Water'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('mortality')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'mortality' 
-                  ? 'bg-red-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              ⚠️ {language === 'bn' ? 'মৃত্যু' : 'Mortality'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('weight')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'weight' 
-                  ? 'bg-blue-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              ⚖️ {language === 'bn' ? 'ওজন/ডিম' : 'Weight/Prod'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('expense')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'expense' 
-                  ? 'bg-purple-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              💰 {language === 'bn' ? 'খরচ' : 'Expense'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('sales')}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                activeTab === 'sales' 
-                  ? 'bg-green-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              💵 {language === 'bn' ? 'বিক্রয়' : 'Sales'}
-            </button>
-          </div>
+          {/* Section Filter Pills (Only show if not locked to water) */}
+          {initialTab !== 'water' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'all' 
+                    ? 'bg-emerald-700 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {language === 'bn' ? 'সব এন্ট্রি' : 'All Entries'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('feed')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'feed' 
+                    ? 'bg-amber-600 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                🥣 {language === 'bn' ? 'খাদ্য' : 'Feed'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('water')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all flex items-center gap-1 ${
+                  activeTab === 'water' 
+                    ? 'bg-cyan-600 text-white shadow-xs' 
+                    : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-200'
+                }`}
+              >
+                💧 {language === 'bn' ? 'পানি পান' : 'Water'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('mortality')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'mortality' 
+                    ? 'bg-red-600 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                ⚠️ {language === 'bn' ? 'মৃত্যু' : 'Mortality'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('weight')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'weight' 
+                    ? 'bg-blue-600 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                ⚖️ {language === 'bn' ? 'ওজন/ডিম' : 'Weight/Prod'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('expense')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'expense' 
+                    ? 'bg-purple-600 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                💰 {language === 'bn' ? 'খরচ' : 'Expense'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('sales')}
+                className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${
+                  activeTab === 'sales' 
+                    ? 'bg-green-600 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                💵 {language === 'bn' ? 'বিক্রয়' : 'Sales'}
+              </button>
+            </div>
+          )}
 
           {/* Section 1: Feed (খাদ্য) */}
           {(activeTab === 'all' || activeTab === 'feed') && (

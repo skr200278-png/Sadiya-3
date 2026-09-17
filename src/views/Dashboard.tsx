@@ -48,9 +48,13 @@ import {
   Wheat,
   Pill,
   GitCompare,
-  Bird
+  Bird,
+  Scale,
+  Calculator,
+  BookOpen
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getSopForDay } from '../utils/broilerSopData';
 
 interface Chores {
   id: string;
@@ -337,6 +341,8 @@ export default function Dashboard() {
       let tMedCost = 0;
       let tOtherExp = 0;
       let tSales = 0;
+      let tSalesQty = 0;
+      let tSalesWeightKg = 0;
       let tMort = 0;
       let avgWeight = 0;
 
@@ -355,6 +361,8 @@ export default function Dashboard() {
         });
         demoStore.getSales(batch.id).forEach(s => {
           tSales += Number(s.totalAmount || 0);
+          tSalesQty += Number(s.quantity || 0);
+          tSalesWeightKg += Number(s.totalWeightKg || 0);
           if (s.totalWeightKg && s.quantity) {
             avgWeight = Number(s.totalWeightKg) / Number(s.quantity);
           }
@@ -386,6 +394,8 @@ export default function Dashboard() {
         const salesSnap = await fastGetDocs(salesQ);
         salesSnap.forEach(d => {
           tSales += Number(d.data().totalAmount || d.data().totalPrice || 0);
+          tSalesQty += Number(d.data().quantity || 0);
+          tSalesWeightKg += Number(d.data().totalWeightKg || 0);
           if (d.data().totalWeightKg && d.data().quantity) {
             avgWeight = Number(d.data().totalWeightKg) / Number(d.data().quantity);
           }
@@ -403,6 +413,8 @@ export default function Dashboard() {
       const age = calculateAge(batch.startDate);
       const aliveCount = Math.max(0, Number(batch.totalChicks || 0) - tMort);
 
+      const bagWeightKg = Math.max(1, Number(localStorage.getItem(`bag_weight_${batch.id}`)) || 50);
+
       // Check realistic stock tracked in FCR & Stock Tracker
       let feedPurchasedBags = tFeedBags;
       let feedUsedBags = 0;
@@ -410,7 +422,6 @@ export default function Dashboard() {
 
       // 1. Check direct batch properties from Firestore / demoStore
       // 2. Check localStorage with batch.id
-      // 3. Fallback to default_batch key
       let savedFeedIn = (batch.feedStockInKg !== undefined && batch.feedStockInKg !== null)
         ? String(batch.feedStockInKg)
         : localStorage.getItem(`fcr_stock_in_${batch.id}`);
@@ -418,25 +429,17 @@ export default function Dashboard() {
         ? String(batch.feedStockUsedKg)
         : localStorage.getItem(`fcr_stock_used_${batch.id}`);
 
-      if ((savedFeedIn === null || savedFeedUsed === null) && localStorage.getItem('fcr_stock_in_default_batch') !== null) {
-        savedFeedIn = localStorage.getItem('fcr_stock_in_default_batch');
-        savedFeedUsed = localStorage.getItem('fcr_stock_used_default_batch');
-      }
-
       if (savedFeedIn !== null && savedFeedUsed !== null) {
         const inKg = Number(savedFeedIn) || 0;
         const usedKg = Number(savedFeedUsed) || 0;
-        feedPurchasedBags = Number((inKg / 50).toFixed(1));
-        feedUsedBags = Number((usedKg / 50).toFixed(1));
+        feedPurchasedBags = Number((inKg / bagWeightKg).toFixed(1));
+        feedUsedBags = Number((usedKg / bagWeightKg).toFixed(1));
         const remKg = Math.max(0, Number((inKg - usedKg).toFixed(1)));
-        remainingBags = Number((remKg / 50).toFixed(1));
+        remainingBags = Number((remKg / bagWeightKg).toFixed(1));
       } else {
-        // Fallback calculation if not manually adjusted in FCR tracker
         feedPurchasedBags = tFeedBags;
-        const estCumKgPerBird = age <= 7 ? 0.16 : age <= 14 ? 0.52 : age <= 21 ? 1.25 : age <= 28 ? 2.35 : age <= 35 ? 3.75 : 4.8;
-        const estUsedKg = aliveCount * estCumKgPerBird;
-        feedUsedBags = Math.min(tFeedBags, Number((estUsedKg / 50).toFixed(1)));
-        remainingBags = Math.max(0, Number((tFeedBags - feedUsedBags).toFixed(1)));
+        feedUsedBags = 0;
+        remainingBags = tFeedBags;
       }
 
       // Calculate accurate current daily feed consumption rate (in bags)
@@ -446,50 +449,133 @@ export default function Dashboard() {
       } else if (batch.farmType === 'fish') {
         dailyGramsPerBird = 50;
       } else {
-        // Standard poultry daily intake curve
-        if (age <= 7) dailyGramsPerBird = 25;
-        else if (age <= 14) dailyGramsPerBird = 50;
-        else if (age <= 21) dailyGramsPerBird = 85;
-        else if (age <= 28) dailyGramsPerBird = 125;
-        else if (age <= 35) dailyGramsPerBird = 155;
-        else dailyGramsPerBird = 175;
+        const batchNameLower = (batch.name || '').toLowerCase();
+        const isBroiler = !batchNameLower.includes('sonali') && !batchNameLower.includes('সোনালী') && !batchNameLower.includes('layer') && !batchNameLower.includes('লেয়ার');
+        if (isBroiler) {
+          const sop = getSopForDay(age);
+          dailyGramsPerBird = sop.feedDailyGm || 130;
+        } else {
+          // Other poultry daily intake curve
+          if (age <= 7) dailyGramsPerBird = 15;
+          else if (age <= 14) dailyGramsPerBird = 25;
+          else if (age <= 21) dailyGramsPerBird = 40;
+          else if (age <= 28) dailyGramsPerBird = 55;
+          else if (age <= 35) dailyGramsPerBird = 65;
+          else dailyGramsPerBird = 75;
+        }
       }
 
       const dailyConsumptionKg = (aliveCount * dailyGramsPerBird) / 1000;
       const dailyConsumptionBags = dailyConsumptionKg > 0 ? (dailyConsumptionKg / 50) : (age > 0 ? (tFeedBags / age) : 1);
       const avgDaily = Number(dailyConsumptionBags.toFixed(2));
-      const daysLeft = (remainingBags > 0 && dailyConsumptionBags > 0) ? Math.max(0, Math.floor(remainingBags / dailyConsumptionBags)) : 0;
 
-      let calculatedFcr: number | undefined = undefined;
-      const estimatedWeight = avgWeight > 0 ? avgWeight : (age * 0.045);
-      const actualUsedFeedKg = feedUsedBags > 0 ? feedUsedBags * 50 : tFeedBags * 50;
+      // Realistic progressive feed forecast (accounts for growing feed intake and harvest cycles)
+      let daysLeft = 0;
+      let feedForecastNote = '';
+      let isFeedCoversEntireBatch = false;
 
-      if (aliveCount > 0 && estimatedWeight > 0 && actualUsedFeedKg > 0) {
-        const initialUnitWeightKg = batch.farmType === 'cattle' ? 25 : batch.farmType === 'fish' ? 0.01 : 0.042;
-        const netGainPerUnitKg = Math.max(0.01, estimatedWeight - initialUnitWeightKg);
-        const totalNetMeatKg = aliveCount * netGainPerUnitKg;
-        const totalLiveWeightKg = aliveCount * estimatedWeight;
+      const remainingKg = remainingBags * 50;
+      if (remainingKg > 0 && aliveCount > 0) {
+        const batchNameLower = (batch.name || '').toLowerCase();
+        const isBroiler = (batch.farmType === 'poultry' || !batch.farmType) && !batchNameLower.includes('sonali') && !batchNameLower.includes('সোনালী') && !batchNameLower.includes('layer') && !batchNameLower.includes('লেয়ার');
+        const isSonali = (batch.farmType === 'poultry' || !batch.farmType) && (batchNameLower.includes('sonali') || batchNameLower.includes('সোনালী'));
 
-        if (totalNetMeatKg > 0) {
-          calculatedFcr = Number((actualUsedFeedKg / totalNetMeatKg).toFixed(2));
-        } else if (totalLiveWeightKg > 0) {
-          calculatedFcr = Number((actualUsedFeedKg / totalLiveWeightKg).toFixed(2));
+        // Standard target slaughter/harvest age in days
+        const targetHarvestAge = isBroiler ? 35 : (isSonali ? 65 : (batch.farmType === 'fish' ? 150 : (batch.farmType === 'cattle' ? 120 : 365)));
+        const remainingBatchDays = Math.max(1, targetHarvestAge - age);
+
+        let rem = remainingKg;
+        let simDay = age;
+        let daysSimulated = 0;
+
+        while (rem > 0 && daysSimulated < 365) {
+          simDay++;
+          daysSimulated++;
+          let gPerBird = dailyGramsPerBird;
+          if (isBroiler) {
+            const sop = getSopForDay(simDay);
+            gPerBird = sop.feedDailyGm || 180;
+          } else if (isSonali) {
+            if (simDay <= 7) gPerBird = 10;
+            else if (simDay <= 14) gPerBird = 18;
+            else if (simDay <= 21) gPerBird = 26;
+            else if (simDay <= 28) gPerBird = 34;
+            else if (simDay <= 45) gPerBird = 48;
+            else if (simDay <= 60) gPerBird = 62;
+            else gPerBird = 75;
+          }
+
+          const dayNeedKg = (aliveCount * gPerBird) / 1000;
+          if (rem < dayNeedKg) {
+            break;
+          }
+          rem -= dayNeedKg;
+
+          // If the feed covers until the batch reaches harvest age
+          if ((isBroiler || isSonali) && simDay >= targetHarvestAge) {
+            isFeedCoversEntireBatch = true;
+            break;
+          }
+        }
+
+        if (isFeedCoversEntireBatch) {
+          daysLeft = remainingBatchDays;
+          const surplusBags = Number((rem / 50).toFixed(1));
+          feedForecastNote = surplusBags > 0
+            ? (language === 'bn'
+                ? `বর্তমান ব্যাচ শেষ হওয়া পর্যন্ত (বাকি ${remainingBatchDays} দিন) সম্পূর্ণ খাদ্য নিশ্চিত আছে (উদ্বৃত্ত ~${surplusBags} বস্তা)`
+                : `Feed covers entire batch until harvest (${remainingBatchDays} days left, ~${surplusBags} bags surplus)`)
+            : (language === 'bn'
+                ? `বর্তমান ব্যাচ শেষ হওয়া পর্যন্ত (বাকি ${remainingBatchDays} দিন) সম্পূর্ণ খাদ্য নিশ্চিত আছে`
+                : `Feed covers entire batch until harvest (${remainingBatchDays} days left)`);
+        } else {
+          daysLeft = daysSimulated;
+          feedForecastNote = language === 'bn'
+            ? `ক্রমবর্ধমান চাহিদার ভিত্তিতে এই খাদ্য দিয়ে আর প্রায় ${daysLeft} দিন চলবে`
+            : `At progressive intake rate, this feed will last approx ${daysLeft} days`;
         }
       }
 
+      // Retrieve measured sample weight from storage if available
+      let measuredWeightGram: number | undefined = undefined;
+      const savedWeight = localStorage.getItem(`batch_weight_${batch.id}`);
+      if (savedWeight && Number(savedWeight) > 0) {
+        measuredWeightGram = Number(savedWeight);
+        avgWeight = measuredWeightGram / 1000;
+      } else if (avgWeight > 0) {
+        measuredWeightGram = Math.round(avgWeight * 1000);
+      }
+
+      let actualUsedFeedKg = 0;
+      if (batch.feedStockUsedKg !== undefined && Number(batch.feedStockUsedKg) >= 0) {
+        actualUsedFeedKg = Number(batch.feedStockUsedKg);
+      } else if (savedFeedUsed !== null && !isNaN(Number(savedFeedUsed))) {
+        actualUsedFeedKg = Number(savedFeedUsed);
+      } else if (feedUsedBags > 0) {
+        actualUsedFeedKg = feedUsedBags * bagWeightKg;
+      } else if (tFeedBags > 0) {
+        actualUsedFeedKg = tFeedBags * bagWeightKg;
+      }
+
       const totalBirds = Number(batch.totalChicks || 0);
+      const aliveBirds = Math.max(0, totalBirds - tMort);
       const mortRate = totalBirds > 0 ? Number(((tMort / totalBirds) * 100).toFixed(1)) : 0;
+      const survivalRate = Number((100 - mortRate).toFixed(1));
 
       setBatchMetrics({
         totalChicks: totalBirds,
-        aliveBirds: aliveCount,
+        aliveBirds,
         totalMortality: tMort,
         mortalityRate: mortRate,
+        survivalRate,
         feedBagsPurchased: feedPurchasedBags,
-        feedBagsUsed: feedUsedBags,
+        feedBagsUsed: Number((actualUsedFeedKg / bagWeightKg).toFixed(1)),
         feedStockRemainingBags: remainingBags,
+        feedConsumedKg: actualUsedFeedKg,
         avgDailyFeedBags: avgDaily,
         daysOfFeedLeft: daysLeft,
+        feedForecastNote,
+        isFeedCoversEntireBatch,
         totalFeedCost: tFeedCost,
         totalMedicineCost: tMedCost,
         totalChickCost: chickCost,
@@ -497,11 +583,11 @@ export default function Dashboard() {
         totalCost,
         totalSalesRevenue: tSales,
         netProfit,
-        fcr: calculatedFcr,
-        previousFcr: calculatedFcr ? Number((calculatedFcr + 0.05).toFixed(2)) : undefined,
-        avgWeightKg: avgWeight || undefined,
+        avgWeightKg: avgWeight > 0 ? avgWeight : undefined,
+        currentAvgWeightGram: measuredWeightGram,
         batchAgeDays: age,
-        farmType: batch.farmType || 'poultry'
+        farmType: batch.farmType || 'poultry',
+        species: batch.subBreed || batch.breed || 'broiler'
       });
     } catch (err) {
       console.warn('Error computing batch metrics:', err);
@@ -1077,10 +1163,10 @@ export default function Dashboard() {
               <span>{language === 'bn' ? 'সকল ব্যাচ' : 'All Batches'}</span>
             </Link>
             <Link 
-              to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`} 
+              to={`/feed${activeBatch?.id ? `?batchId=${activeBatch.id}` : ''}`} 
               className="text-amber-700 hover:text-amber-800 flex items-center gap-1 font-black transition-colors"
             >
-              <span>{language === 'bn' ? 'FCR ও স্টক' : 'FCR & Stock'}</span>
+              <span>{language === 'bn' ? 'খাবার স্টক' : 'Feed Stock'}</span>
               <ChevronRight size={12} />
             </Link>
           </div>
@@ -1118,19 +1204,21 @@ export default function Dashboard() {
 
         {/* 5 Rows x 3 Columns = 15 Action Buttons */}
         <div className="grid grid-cols-3 gap-2">
-          {/* Row 1, Item 1: Quick Daily Log (Highlight) */}
-          <button 
-            type="button"
-            onClick={() => openQuickLog('all')}
-            className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative"
+          {/* Row 1, Item 1: Vaccine Schedule / টিকা শিডিউল (No duplicate profit/loss) */}
+          <Link 
+            to="/medicine?tab=schedule"
+            className="bg-indigo-50/80 p-2 rounded-xl border border-indigo-200/90 flex flex-col items-center justify-center gap-1 hover:border-indigo-400 hover:bg-indigo-100/80 transition-all duration-150 group cursor-pointer relative shadow-2xs"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <Zap size={15} className="text-yellow-300 fill-yellow-300 animate-pulse" />
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <Syringe size={16} strokeWidth={2.4} className="text-white" />
             </div>
-            <span className="text-[10px] font-black text-emerald-850 tracking-tight text-center truncate w-full">
-              {language === 'bn' ? 'দ্রুত হিসাব' : 'Quick Log'}
+            <span className="text-[10px] font-black text-indigo-950 tracking-tight text-center truncate w-full">
+              {language === 'bn' ? 'টিকা শিডিউল' : 'Vaccine'}
             </span>
-          </button>
+            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-purple-600 text-white rounded-full uppercase border border-white tracking-wider">
+              {language === 'bn' ? 'রুটিন' : 'PLAN'}
+            </span>
+          </Link>
 
           {/* Row 1, Item 2: Feed */}
           <Link to="/feed" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-amber-300 hover:bg-amber-50/20 transition-all duration-150 group">
@@ -1217,16 +1305,19 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 4, Item 1: FCR Graph & Stock */}
+          {/* Row 4, Item 1: Farm Guidelines / খামার নির্দেশিকা ও গাইড */}
           <Link 
-            to={`/feed?tab=fcr${activeBatch?.id ? `&batchId=${activeBatch.id}` : ''}`}
-            className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/90 flex flex-col items-center justify-center gap-1 hover:border-amber-400 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer"
+            to="/guidelines"
+            className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative shadow-2xs"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <BarChart2 size={15} strokeWidth={2.5} />
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <BookOpen size={16} strokeWidth={2.4} />
             </div>
-            <span className="text-[10px] font-black text-amber-850 tracking-tight block truncate">
-              {language === 'bn' ? 'FCR ও স্টক' : 'FCR & Stock'}
+            <span className="text-[10px] font-black text-emerald-950 tracking-tight block truncate">
+              {language === 'bn' ? 'খামার গাইড' : 'Farm Guide'}
+            </span>
+            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded-full uppercase border border-white tracking-wider">
+              SOP
             </span>
           </Link>
 
@@ -1301,6 +1392,32 @@ export default function Dashboard() {
             <span className="text-[10px] font-extrabold text-slate-700 tracking-tight block truncate">
               {language === 'bn' ? 'সব ব্যাচ' : 'Batches'}
             </span>
+          </Link>
+
+          {/* Dedicated FCR Feature Button / ড্যাশবোর্ড -> FCR */}
+          <Link
+            to="/fcr"
+            className="col-span-3 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 p-2.5 rounded-xl border border-emerald-300/80 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 text-left min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <Calculator size={16} strokeWidth={2.3} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-slate-900 leading-tight">
+                    {language === 'bn' ? 'FCR হিসাব ও রূপান্তর হার' : 'FCR Calculation'}
+                  </span>
+                  <span className="bg-emerald-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                    FCR FEATURE
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-slate-500 font-bold truncate">
+                  {language === 'bn' ? 'Category → Breed → Batch ভিত্তিক নির্ভুল খাঁটি FCR নির্ণয়' : 'Category → Breed → Batch isolated Feed Conversion Ratio'}
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-emerald-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
           </Link>
 
           {/* Row 5 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}

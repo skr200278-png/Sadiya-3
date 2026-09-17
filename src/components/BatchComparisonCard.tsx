@@ -36,7 +36,6 @@ export interface BatchSummaryStats {
   salesRevenue: number;
   netProfit: number;
   profitPerBird: number;
-  fcr?: number;
   avgWeightKg?: number;
   [key: string]: any;
 }
@@ -210,13 +209,6 @@ export default function BatchComparisonCard({ batches, getBatchStats }: BatchCom
             <span className={stats2.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>
               ৳ {stats2.netProfit.toLocaleString()}
             </span>
-          </div>
-
-          {/* Row 8: FCR */}
-          <div className="grid grid-cols-3 p-2 text-center items-center">
-            <span className="text-left font-bold text-slate-600">{isBn ? 'এফসিআর (FCR)' : 'FCR'}</span>
-            <span className="font-black text-indigo-700">{stats1.fcr ? stats1.fcr.toFixed(2) : '--'}</span>
-            <span className="font-black text-indigo-700">{stats2.fcr ? stats2.fcr.toFixed(2) : '--'}</span>
           </div>
 
         </div>

@@ -4,15 +4,14 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, BookOpen, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
 import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
-import FcrCalculatorCard from '../components/FcrCalculatorCard';
-import PoultryFeedPlan from '../components/PoultryFeedPlan';
+import DailyActualRecordsView from '../components/DailyActualRecordsView';
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -21,6 +20,8 @@ export default function Feed() {
   const { t, language } = useLanguage();
   const [records, setRecords] = useState<any[]>([]);
   const [duesList, setDuesList] = useState<any[]>([]);
+  const [allMortality, setAllMortality] = useState<any[]>([]);
+  const [allSales, setAllSales] = useState<any[]>([]);
   const [activeBatches, setActiveBatches] = useState<any[]>([]);
   const [allBatches, setAllBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,15 +29,14 @@ export default function Feed() {
   const submitLock = useRef(false);
   
   const [searchParams] = useSearchParams();
-  const [feedTab, setFeedTab] = useState<'records' | 'fcr' | 'plan'>('records');
+  const [feedTab, setFeedTab] = useState<'records' | 'daily'>('records');
   const [showForm, setShowForm] = useState(false);
   const [batchId, setBatchId] = useState('');
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'fcr') setFeedTab('fcr');
-    else if (tabParam === 'plan') setFeedTab('plan');
-    else if (tabParam === 'records') setFeedTab('records');
+    if (tabParam === 'daily') setFeedTab('daily');
+    else setFeedTab('records');
 
     const batchParam = searchParams.get('batchId');
     if (batchParam) {
@@ -56,7 +56,6 @@ export default function Feed() {
   // Handle batch selection
   const handleBatchChange = (id: string) => {
     setBatchId(id);
-    localStorage.setItem('selected_fcr_batch_id', id);
     const candidateBatches = activeBatches.length > 0 ? activeBatches : allBatches;
     const batch = candidateBatches.find(b => b.id === id);
     if (batch) {
@@ -120,15 +119,12 @@ export default function Feed() {
 
       const candidateBatches = batches.length > 0 ? batches : allUserBatches;
       const urlBatchId = searchParams.get('batchId');
-      const savedFcrId = localStorage.getItem('selected_fcr_batch_id');
       const prefType = localStorage.getItem('selected_farm_type') || 'poultry';
       const savedPrefId = localStorage.getItem(`selected_batch_id_${prefType}`) || localStorage.getItem('selected_batch_id_poultry');
 
       let matched: any = null;
       if (urlBatchId && candidateBatches.some(b => b.id === urlBatchId)) {
         matched = candidateBatches.find(b => b.id === urlBatchId);
-      } else if (savedFcrId && candidateBatches.some(b => b.id === savedFcrId)) {
-        matched = candidateBatches.find(b => b.id === savedFcrId);
       } else if (savedPrefId && candidateBatches.some(b => b.id === savedPrefId)) {
         matched = candidateBatches.find(b => b.id === savedPrefId);
       } else if (candidateBatches.length > 0) {
@@ -147,22 +143,34 @@ export default function Feed() {
       }
 
       if (isDemoUser) {
-        const fetchedRecords = demoStore.getFeedRecords();
+        const fetchedRecords = demoStore.getFeedRecords().filter((r: any) => r.recordType !== 'actual_consumed');
         setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setDuesList(demoStore.getDues());
+        setAllMortality(demoStore.getMortalityRecords());
+        setAllSales(demoStore.getSales());
         setLoading(false);
         return;
       }
 
-      // Fetch feed records
+      // Fetch feed purchase records (filter out actual_consumed so stock purchase accounting is isolated)
       const feedQuery = query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid));
       const feedSnap = await fastGetDocs(feedQuery);
-      const fetchedRecords = feedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const fetchedRecords = feedSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((r: any) => r.recordType !== 'actual_consumed');
       setRecords(fetchedRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
       // Fetch initial dues
       const duesSnap = await fastGetDocs(query(collection(db, 'dues'), where('userId', '==', currentUser.uid)));
       setDuesList(duesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+      // Fetch mortality for opening live count derivations
+      const mortSnap = await fastGetDocs(query(collection(db, 'mortality'), where('userId', '==', currentUser.uid)));
+      setAllMortality(mortSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+      // Fetch sales for opening live count derivations
+      const salesSnap = await fastGetDocs(query(collection(db, 'sales'), where('userId', '==', currentUser.uid)));
+      setAllSales(salesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'feed_records');
     } finally {
@@ -381,113 +389,45 @@ export default function Feed() {
         </div>
 
         {/* Tab switch buttons */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+        <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
           <button
             onClick={() => setFeedTab('records')}
-            className={`py-2 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+            className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               feedTab === 'records'
-                ? 'bg-white text-orange-700 shadow-2xs'
+                ? 'bg-white text-orange-700 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
             <ClipboardList size={14} />
-            <span>{language === 'bn' ? 'খাবার স্টক' : 'Logs'} ({records.length})</span>
+            <span className="truncate">{language === 'bn' ? 'খাবার স্টক ও ক্রয়' : 'Logs & Stock'}</span>
           </button>
 
           <button
-            onClick={() => setFeedTab('fcr')}
-            className={`py-2 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              feedTab === 'fcr'
-                ? 'bg-white text-teal-700 shadow-2xs'
+            onClick={() => setFeedTab('daily')}
+            className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              feedTab === 'daily'
+                ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <ChartIcon size={14} />
-            <span>{language === 'bn' ? '📉 FCR ও স্টক' : 'FCR & Stock'}</span>
-          </button>
-
-          <button
-            onClick={() => setFeedTab('plan')}
-            className={`py-2 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              feedTab === 'plan'
-                ? 'bg-white text-indigo-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            <BookOpen size={14} />
-            <span>{language === 'bn' ? 'খাদ্য চার্ট' : 'Feed Guide'}</span>
+            <Activity size={14} />
+            <span className="truncate">{language === 'bn' ? 'দৈনিক রেকর্ড' : 'Daily Records'}</span>
           </button>
         </div>
       </div>
 
       {/* Render based on selected Tab */}
-      {feedTab === 'fcr' ? (
-        <div className="space-y-3">
-          {(() => {
-            const candidateBatches = activeBatches.length > 0 ? activeBatches : allBatches;
-            const currentSelectedBatch = candidateBatches.find(b => b.id === batchId) || (candidateBatches.length > 0 ? candidateBatches[0] : null);
-            const currentBatchId = currentSelectedBatch?.id || '';
-            const batchRecords = currentBatchId ? records.filter(r => r.batchId === currentBatchId) : [];
-            // Total inward feed arrived at farm from purchase records (each bag standard 50kg)
-            const totalInwardFeedKg = batchRecords.reduce((sum, r) => sum + (Number(r.quantityBags || 0) * 50) + (Number(r.quantityKg || 0)), 0);
-            const totalFeedCost = batchRecords.reduce((sum, r) => sum + Number(r.cost || 0), 0);
-            const currentBirds = currentSelectedBatch ? Number(currentSelectedBatch.totalChicks || 0) : 0;
-
-            // Compute actual consumed feed:
-            const bId = currentBatchId;
-            const savedUsed = bId ? localStorage.getItem(`fcr_stock_used_${bId}`) : null;
-            const savedRem = bId ? localStorage.getItem(`fcr_stock_rem_${bId}`) : null;
-
-            let actualConsumedKg = totalInwardFeedKg;
-            if (currentSelectedBatch?.feedStockUsedKg !== undefined && Number(currentSelectedBatch.feedStockUsedKg) > 0) {
-              actualConsumedKg = Number(currentSelectedBatch.feedStockUsedKg);
-            } else if (savedUsed && Number(savedUsed) > 0) {
-              actualConsumedKg = Number(savedUsed);
-            } else if (currentSelectedBatch?.feedStockRemainingKg !== undefined) {
-              actualConsumedKg = Math.max(0, totalInwardFeedKg - Number(currentSelectedBatch.feedStockRemainingKg));
-            } else if (savedRem && !isNaN(Number(savedRem))) {
-              actualConsumedKg = Math.max(0, totalInwardFeedKg - Number(savedRem));
-            }
-
-            return (
-              <FcrCalculatorCard
-                selectedBatch={currentSelectedBatch}
-                totalFeedPurchasedKg={totalInwardFeedKg}
-                totalFeedConsumedKg={actualConsumedKg}
-                totalFeedCost={totalFeedCost}
-                currentBirdCount={currentBirds}
-                activeBatches={activeBatches}
-                allBatches={allBatches}
-                onBatchChange={handleBatchChange}
-                onNavigateToBatches={() => navigate('/batches')}
-                batchRecords={batchRecords}
-              />
-            );
-          })()}
-        </div>
-      ) : feedTab === 'plan' ? (
-        <div className="space-y-3">
-          {(() => {
-            const currentSelectedBatch = activeBatches.find(b => b.id === batchId) || (activeBatches.length > 0 ? activeBatches[0] : null);
-            if (!currentSelectedBatch) {
-              return (
-                <div className="bg-white p-6 rounded-2xl text-center text-slate-500 font-bold border border-slate-200">
-                  {language === 'bn' ? 'কোনো সক্রিয় ব্যাচ পাওয়া যায়নি।' : 'No active batch found.'}
-                </div>
-              );
-            }
-
-            return (
-              <PoultryFeedPlan
-                batchId={currentSelectedBatch.id}
-                startDate={currentSelectedBatch.startDate}
-                totalChicks={currentSelectedBatch.totalChicks}
-                batchName={currentSelectedBatch.batchName}
-                batch={currentSelectedBatch}
-              />
-            );
-          })()}
-        </div>
+      {feedTab === 'daily' ? (
+        <DailyActualRecordsView
+          selectedBatchId={batchId}
+          onBatchChange={handleBatchChange}
+          activeBatches={activeBatches}
+          allBatches={allBatches}
+          currentUser={currentUser}
+          isDemoUser={isDemoUser}
+          allMortalityRecords={allMortality}
+          allSalesRecords={allSales}
+        />
       ) : (
         <>
           {showForm && (

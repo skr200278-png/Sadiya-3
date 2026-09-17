@@ -14,17 +14,22 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { toBnDigits } from '../utils/feedStockCalculations';
 
 export interface InsightMetricData {
   totalChicks: number;
   aliveBirds: number;
   totalMortality: number;
   mortalityRate: number;
+  survivalRate?: number;
   feedBagsPurchased: number;
   feedBagsUsed: number;
   feedStockRemainingBags: number;
+  feedConsumedKg?: number;
   avgDailyFeedBags: number;
   daysOfFeedLeft: number;
+  feedForecastNote?: string;
+  isFeedCoversEntireBatch?: boolean;
   totalFeedCost: number;
   totalMedicineCost: number;
   totalChickCost: number;
@@ -32,11 +37,11 @@ export interface InsightMetricData {
   totalCost: number;
   totalSalesRevenue: number;
   netProfit: number;
-  fcr?: number;
-  previousFcr?: number;
   avgWeightKg?: number;
+  currentAvgWeightGram?: number;
   batchAgeDays: number;
   farmType: 'poultry' | 'cattle' | 'fish';
+  species?: string;
 }
 
 interface SmartFarmInsightsCardProps {
@@ -62,9 +67,6 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
   // 3. Mortality Assessment
   const isHighMortality = data.mortalityRate > 4.5;
   const isModerateMortality = data.mortalityRate > 2.5 && data.mortalityRate <= 4.5;
-
-  // 4. FCR comparison
-  const fcrDiff = data.fcr && data.previousFcr ? Number((data.fcr - data.previousFcr).toFixed(2)) : null;
 
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -104,9 +106,9 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
         </div>
       </button>
 
-      {/* Grid of 4 Insight Badges (Shown when expanded) */}
+      {/* Grid of Insight Badges (Shown when expanded) */}
       {isExpanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-100 animate-fadeIn">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 animate-fadeIn">
         
         {/* 1. Feed Inventory & Days Left Insight */}
         <div className={`p-2.5 rounded-xl border flex flex-col justify-between ${
@@ -129,7 +131,7 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
                 : 'bg-white/70 text-slate-800'
             }`}>
               {data.feedStockRemainingBags > 0 
-                ? `${data.feedStockRemainingBags} ${isBn ? 'বস্তা বাকি' : 'bags left'}`
+                ? `${isBn ? toBnDigits(data.feedStockRemainingBags) : data.feedStockRemainingBags} ${isBn ? 'বস্তা বাকি' : 'bags left'}`
                 : (isBn ? 'মজুত শূন্য (০ বস্তা)' : 'No stock (0 bags)')}
             </span>
           </div>
@@ -141,13 +143,17 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
                   ? 'খাবার শেষ! স্টকে কোনো খাদ্য অবশিষ্ট নেই (০ দিন চলবে)। মুরগিকে সুস্থ রাখতে অবিলম্বে নতুন খাদ্য কিনুন।' 
                   : 'Out of feed! No stock remaining (0 days left). Reorder feed immediately.'}
               </span>
+            ) : data.feedForecastNote ? (
+              <span className={data.isFeedCoversEntireBatch ? 'text-emerald-900 font-bold' : (isFeedLow ? 'text-amber-900 font-bold' : 'text-slate-800 font-bold')}>
+                {isBn ? toBnDigits(data.feedForecastNote) : data.feedForecastNote}।
+              </span>
             ) : data.daysOfFeedLeft > 0 ? (
               <>
                 {isBn 
                   ? `বর্তমান খরচের হারে এই খাদ্য দিয়ে আর প্রায় ` 
                   : `At current usage, this feed will last approx `}
                 <strong className={isFeedLow ? 'text-amber-800 underline' : 'text-emerald-800 underline'}>
-                  {data.daysOfFeedLeft} {isBn ? 'দিন' : 'days'}
+                  {isBn ? toBnDigits(data.daysOfFeedLeft) : data.daysOfFeedLeft} {isBn ? 'দিন' : 'days'}
                 </strong> {isBn ? 'চলবে।' : '.'}
               </>
             ) : (
@@ -178,7 +184,7 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
               isHighMortality ? 'bg-red-200 text-red-800' : 'bg-white/70 text-slate-700'
             }`}>
-              {data.mortalityRate}% {isBn ? 'মৃত্যু' : 'mortality'}
+              {isBn ? toBnDigits(data.mortalityRate) : data.mortalityRate}% {isBn ? 'মৃত্যু' : 'mortality'}
             </span>
           </div>
           <p className="text-xs font-bold leading-relaxed">
@@ -212,7 +218,7 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
               {isBn ? 'খাদ্য খরচের অনুপাত' : 'Feed Cost Share'}
             </span>
             <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100">
-              {feedCostRatio}% {isBn ? 'মোট খরচের' : 'of cost'}
+              {isBn ? toBnDigits(feedCostRatio) : feedCostRatio}% {isBn ? 'মোট খরচের' : 'of cost'}
             </span>
           </div>
           <p className="text-xs font-bold text-slate-800 leading-relaxed">
@@ -225,67 +231,8 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
             ) : (
               <span>
                 {isBn 
-                  ? `মোট ব্যয়ের মধ্যে খাদ্য বাবদ খরচ স্বাভাবিক মাত্রায় আছে (৳ ${data.totalFeedCost.toLocaleString()})।` 
+                  ? `মোট ব্যয়ের মধ্যে খাদ্য বাবদ খরচ স্বাভাবিক মাত্রায় আছে (৳ ${toBnDigits(data.totalFeedCost.toLocaleString())})।` 
                   : `Feed budget is well proportioned within total batch expenses.`}
-              </span>
-            )}
-          </p>
-        </div>
-
-        {/* 4. Live FCR / Production Insight */}
-        <div className="p-2.5 rounded-xl border bg-blue-50/60 border-blue-200/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-blue-900 flex items-center gap-1">
-              <Scale size={12} className="text-blue-600" />
-              {isBn ? 'এফসিআর (FCR) পারফরম্যান্স' : 'FCR Efficiency'}
-            </span>
-            {data.fcr ? (
-              <span className="text-[9px] font-black text-blue-800 bg-white px-1.5 py-0.5 rounded-md shadow-2xs">
-                FCR: {data.fcr.toFixed(2)}
-              </span>
-            ) : (
-              <span className="text-[9px] font-bold text-slate-400">
-                {isBn ? 'ওজন এন্ট্রি প্রয়োজন' : 'Weight needed'}
-              </span>
-            )}
-          </div>
-          <p className="text-xs font-bold text-blue-950 leading-relaxed">
-            {data.fcr ? (
-              <>
-                {data.fcr <= 1.55 ? (
-                  <span className="text-emerald-700">
-                    {isBn ? 'চমৎকার এফসিআর! খাদ্য রূপান্তর দক্ষতা সর্বোচ্চ মানের।' : 'Outstanding FCR conversion!'}
-                  </span>
-                ) : data.fcr <= 1.75 ? (
-                  <span className="text-blue-700">
-                    {isBn ? 'এফসিআর সন্তোষজনক মানদণ্ডে রয়েছে।' : 'FCR is in normal expected range.'}
-                  </span>
-                ) : (
-                  <span className="text-amber-800">
-                    {isBn ? 'এফসিআর কিছুটা বেশি; পুষ্টি ও ব্রুডিং তাপমাত্রা চেক করুন।' : 'FCR is slightly high; review feeding routines.'}
-                  </span>
-                )}
-                {fcrDiff !== null && (
-                  <span className="block text-[10px] text-slate-600 mt-0.5">
-                    {fcrDiff < 0 ? (
-                      <span className="text-emerald-700 font-extrabold inline-flex items-center">
-                        <ArrowDownRight size={11} className="inline mr-0.5" />
-                        {isBn ? `আগের রেকর্ডের চেয়ে ${Math.abs(fcrDiff)} উন্নত` : `${Math.abs(fcrDiff)} better than previous`}
-                      </span>
-                    ) : fcrDiff > 0 ? (
-                      <span className="text-amber-700 font-extrabold inline-flex items-center">
-                        <ArrowUpRight size={11} className="inline mr-0.5" />
-                        {isBn ? `আগের চেয়ে ${fcrDiff} বৃদ্ধি পেয়েছে` : `${fcrDiff} higher than previous`}
-                      </span>
-                    ) : null}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-slate-600">
-                {isBn 
-                  ? 'কুইক ডেইলি লগে পাখির গড় ওজন এন্ট্রি করলেই লাইভ FCR দেখতে পাবেন।' 
-                  : 'Enter flock weight in Quick Log to compute real-time FCR.'}
               </span>
             )}
           </p>

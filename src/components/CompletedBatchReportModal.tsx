@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   CheckCircle2, 
   X, 
@@ -8,12 +8,20 @@ import {
   TrendingUp, 
   TrendingDown, 
   Award, 
-  ShieldCheck,
-  Calendar,
-  Layers,
-  ArrowRight
+  ShieldCheck, 
+  Calendar, 
+  Layers, 
+  ArrowRight,
+  Download,
+  AlertTriangle,
+  FileSpreadsheet,
+  Clock,
+  FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { fetchBatchFullRecords, downloadBatchCSV, downloadBatchPDF } from '../utils/batchExportUtils';
+import toast from 'react-hot-toast';
 
 interface CompletedBatchReportModalProps {
   batch: any;
@@ -27,7 +35,16 @@ export const CompletedBatchReportModal: React.FC<CompletedBatchReportModalProps>
   onClose
 }) => {
   const navigate = useNavigate();
+  const { currentUser, isDemoUser } = useAuth();
   const report = batch.closureReport || {};
+  const [isExporting, setIsExporting] = useState(false);
+
+  // 15 days lifecycle calculation
+  const completedDate = batch.completedAt || batch.endDate || batch.updatedAt || batch.createdAt;
+  const daysSinceCompleted = completedDate
+    ? Math.max(0, Math.floor((new Date().getTime() - new Date(completedDate).getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const daysRemaining = Math.max(0, 15 - daysSinceCompleted);
 
   const totalChicks = report.totalChicks || batch.totalChicks || 0;
   const soldQty = report.finalSoldQty || (totalChicks - (batch.mortalityCount || 0));
@@ -46,9 +63,41 @@ export const CompletedBatchReportModal: React.FC<CompletedBatchReportModalProps>
     window.print();
   };
 
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchBatchFullRecords(batch.id, currentUser?.uid || '', isDemoUser);
+      if (!data) {
+        toast.error(isBn ? 'ডাটা লোড করা যায়নি' : 'Failed to fetch batch data');
+        return;
+      }
+      downloadBatchCSV(batch, data);
+    } catch (e) {
+      toast.error(isBn ? 'ডাউনলোড ব্যর্থ হয়েছে' : 'Download failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchBatchFullRecords(batch.id, currentUser?.uid || '', isDemoUser);
+      if (!data) {
+        toast.error(isBn ? 'ডাটা লোড করা যায়নি' : 'Failed to fetch batch data');
+        return;
+      }
+      downloadBatchPDF(batch, data);
+    } catch (e) {
+      toast.error(isBn ? 'ডাউনলোড ব্যর্থ হয়েছে' : 'Download failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-purple-200 my-auto space-y-5 print:shadow-none print:border-none print:p-2">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-purple-200 my-auto space-y-4 print:shadow-none print:border-none print:p-2">
         {/* Certificate Top Ribbon */}
         <div className="flex items-start justify-between border-b border-slate-150 pb-4">
           <div className="flex items-center gap-3">
@@ -74,17 +123,65 @@ export const CompletedBatchReportModal: React.FC<CompletedBatchReportModalProps>
             <button
               onClick={handlePrint}
               className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-              title={isBn ? 'প্রিন্ট / পিডিএফ ডাউনলোড' : 'Print / Save PDF'}
+              title={isBn ? 'প্রিন্ট / সেভ' : 'Print'}
             >
               <Printer size={16} />
               <span className="hidden sm:inline">{isBn ? 'প্রিন্ট' : 'Print'}</span>
             </button>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X size={20} />
             </button>
+          </div>
+        </div>
+
+        {/* 15-Day Auto-Deletion Warning & Export Banner */}
+        <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-50 border-2 border-amber-400/80 rounded-2xl p-3.5 print:hidden shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                <Clock size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider">
+                    {isBn ? `আর ${daysRemaining} দিন পর মুছে যাবে` : `Auto-deletes in ${daysRemaining} days`}
+                  </span>
+                  <span className="text-[11px] font-black text-amber-950">
+                    {isBn ? '১৫ দিনের মধ্যে এই ব্যাচের ডাটা স্বয়ংক্রিয়ভাবে মুছে যাবে' : 'Data permanently auto-deletes in 15 days'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-900 font-medium mt-1 leading-snug">
+                  {isBn
+                    ? 'ব্যাচটি সমাপ্ত হওয়ায় নতুন কোনো এন্ট্রি নেওয়া হবে না। ১৫ দিন অতিক্রান্ত হওয়ার আগেই আপনার সম্পূর্ণ হিসাব এক্সেল (CSV) বা পিডিএফে ডাউনলোড করে নিরাপদে সংরক্ষণ করুন।'
+                    : 'This completed batch is locked against new entries. Please download your records before the 15-day lifecycle expires.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Direct Export Buttons */}
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                disabled={isExporting}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <FileSpreadsheet size={14} />
+                <span>{isBn ? 'এক্সেল ডাউনলোড' : 'Excel/CSV'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Download size={14} />
+                <span>{isBn ? 'PDF রিপোর্ট' : 'PDF'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -221,7 +318,7 @@ export const CompletedBatchReportModal: React.FC<CompletedBatchReportModalProps>
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-150 print:hidden flex-wrap">
           <div className="flex items-center gap-1.5 text-slate-500 text-xs">
             <ShieldCheck size={14} className="text-emerald-600" />
-            <span>{isBn ? 'রেকর্ডটি স্থায়ীভাবে সুরক্ষিত ও অপরিবর্তনীয়' : 'Permanently saved & locked'}</span>
+            <span>{isBn ? 'রেকর্ডটি নিরাপদে ডাউনলোড করে সংরক্ষণ করুন' : 'Download and save report safely'}</span>
           </div>
 
           <div className="flex items-center gap-2">
