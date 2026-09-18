@@ -476,33 +476,54 @@ export default function FCR() {
       {/* TOP HEADER */}
       {/* ------------------------------------------------------------ */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition"
-              title={isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
-                  <Calculator className="w-5 h-5" />
-                </span>
-                <h1 className="text-xl font-bold text-slate-900">
-                  {isBn ? 'FCR হিসাব ও রূপান্তর হার' : 'Feed Conversion Ratio (FCR)'}
-                </h1>
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <button
+                onClick={() => navigate('/')}
+                className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition shrink-0"
+                title={isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <span className="p-1 sm:p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
+                    <Calculator className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </span>
+                  <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate">
+                    {isBn ? 'FCR হিসাব ও রূপান্তর হার' : 'Feed Conversion Ratio (FCR)'}
+                  </h1>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
+                  {isBn
+                    ? 'খামারের ক্যাটাগরি, জাত ও ব্যাচ ভিত্তিক খাঁটি FCR এবং খাদ্য মজুদ রানওয়ে'
+                    : 'Batch-isolated actual FCR calculation & progressive feed stock runway'}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isBn
-                  ? 'খামারের ক্যাটাগরি, জাত ও ব্যাচ ভিত্তিক খাঁটি FCR এবং খাদ্য মজুদ রানওয়ে'
-                  : 'Batch-isolated actual FCR calculation & progressive feed stock runway'}
-              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:hidden shrink-0">
+              <button
+                onClick={loadBatchRecords}
+                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                title={isBn ? 'রিফ্রেশ' : 'Refresh'}
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              {currentBatch && (
+                <button
+                  onClick={handleOpenFcrModal}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isBn ? 'পরিমাপ এন্ট্রি' : 'Add Entry'}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <button
               onClick={loadBatchRecords}
               className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
@@ -654,34 +675,38 @@ export default function FCR() {
             </div>
 
             {/* Flock Live Count & Mortality Summary */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
-                <span className="block text-xs text-slate-500">{isBn ? 'শুরুর সংখ্যা' : 'Initial Count'}</span>
-                <span className="text-lg font-bold text-slate-800">{currentBatch.totalChicks}</span>
-                <span className="text-xs text-slate-400 block">{isBn ? 'টি বাচ্চা' : 'birds'}</span>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-center flex flex-col justify-between">
+                <span className="block text-[10px] sm:text-xs text-slate-500 font-semibold">{isBn ? 'শুরুর সংখ্যা' : 'Initial Count'}</span>
+                <span className="text-base sm:text-lg font-black text-slate-800 my-0.5">{currentBatch.totalChicks}</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 block">{isBn ? 'টি বাচ্চা' : 'birds'}</span>
               </div>
 
               <div 
                 onClick={() => navigate(`/mortality?batchId=${currentBatch.id}`)}
-                className="p-3 bg-rose-50 hover:bg-rose-100/70 transition border border-rose-200 rounded-lg text-center cursor-pointer group"
+                className="p-2 sm:p-3 bg-rose-50 hover:bg-rose-100/70 transition border border-rose-200 rounded-xl text-center cursor-pointer group flex flex-col justify-between"
                 title={isBn ? 'মৃত্যু ব্যবস্থাপনা দেখতে ক্লিক করুন' : 'Click to view Mortality Management'}
               >
-                <span className="block text-xs text-rose-600 font-medium">{isBn ? 'মোট মৃত্যু (সিঙ্ককৃত)' : 'Total Mortality (Synced)'}</span>
-                <span className="text-lg font-bold text-rose-700">{fcrResult.totalMortalityToDate}</span>
-                <span className="text-xs text-rose-500 block">
-                  {currentBatch.totalChicks > 0
-                    ? `${((fcrResult.totalMortalityToDate / currentBatch.totalChicks) * 100).toFixed(1)}%`
-                    : '0%'}
-                </span>
-                <span className="text-2xs text-rose-600 group-hover:underline block mt-0.5 font-semibold">
-                  {isBn ? 'মৃত্যু এন্ট্রি দেখুন →' : 'View Mortality →'}
+                <div>
+                  <span className="block text-[10px] sm:text-xs text-rose-600 font-bold leading-tight">{isBn ? 'মোট মৃত্যু' : 'Total Mortality'}</span>
+                  <div className="flex items-baseline justify-center gap-1 my-0.5">
+                    <span className="text-base sm:text-lg font-black text-rose-700">{fcrResult.totalMortalityToDate}</span>
+                    <span className="text-[10px] sm:text-xs text-rose-500 font-semibold">
+                      ({currentBatch.totalChicks > 0
+                        ? `${((fcrResult.totalMortalityToDate / currentBatch.totalChicks) * 100).toFixed(1)}%`
+                        : '0%'})
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] sm:text-2xs text-rose-600 group-hover:underline block font-semibold">
+                  {isBn ? 'সিঙ্ককৃত (দেখুন →)' : 'Synced (View →)'}
                 </span>
               </div>
 
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
-                <span className="block text-xs text-emerald-700">{isBn ? 'বর্তমানে জীবিত' : 'Current Alive'}</span>
-                <span className="text-lg font-bold text-emerald-800">{fcrResult.currentLiveCount}</span>
-                <span className="text-xs text-emerald-600 block">{isBn ? 'টি বেঁচে আছে' : 'living birds'}</span>
+              <div className="p-2 sm:p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center flex flex-col justify-between">
+                <span className="block text-[10px] sm:text-xs text-emerald-700 font-semibold">{isBn ? 'বর্তমানে জীবিত' : 'Current Alive'}</span>
+                <span className="text-base sm:text-lg font-black text-emerald-800 my-0.5">{fcrResult.currentLiveCount}</span>
+                <span className="text-[10px] sm:text-xs text-emerald-600 block font-medium">{isBn ? 'টি বেঁচে আছে' : 'living birds'}</span>
               </div>
             </div>
           </div>

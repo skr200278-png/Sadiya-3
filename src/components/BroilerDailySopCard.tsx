@@ -24,7 +24,12 @@ import {
   Flame,
   Clock,
   Sun,
-  Moon
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Table,
+  LayoutGrid,
+  Check
 } from 'lucide-react';
 import { 
   BROILER_SOP_SCHEDULE, 
@@ -250,6 +255,8 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
   // - 'full_chart': 1-46 / 1-60 / 1-72 weeks master schedule
   // - 'crop_brood': Brooding / SOP guide
   const [activeTab, setActiveTab] = useState<'today' | 'full_chart' | 'crop_brood'>('today');
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState<boolean>(false);
+  const [fullChartMobileMode, setFullChartMobileMode] = useState<'cards' | 'table'>('cards');
 
   // Max schedule days for poultry:
   // Broiler: 46 days (১ থেকে ৪৬ দিন)
@@ -348,27 +355,27 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
     : activePoultrySchedule.filter(s => s.week === selectedWeekFilter);
 
   return (
-    <div className="bg-white rounded-3xl border border-emerald-200/80 shadow-2xl overflow-hidden animate-fadeIn max-h-[92vh] flex flex-col">
+    <div className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-200/80 shadow-2xl overflow-hidden animate-fadeIn max-h-[96vh] sm:max-h-[92vh] flex flex-col">
       {/* 1. Header Banner & Universal Category Switcher */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-4 sm:p-5 shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0 shadow-inner">
-              <ClipboardList size={22} className="text-emerald-300" />
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-3 sm:p-5 shrink-0">
+        <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0 shadow-inner">
+              <ClipboardList size={20} className="text-emerald-300 sm:w-[22px] sm:h-[22px]" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 uppercase tracking-wide">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-amber-400 text-slate-950 uppercase tracking-wide">
                   {isBn ? 'বাস্তব খামার স্ট্যান্ডার্ড' : 'Commercial Farm SOP'}
                 </span>
                 {selectedBatch && (
-                  <span className="text-xs text-emerald-200 font-bold truncate">
-                    {selectedBatch.name || selectedBatch.batchName} ({isBn ? `বর্তমান বয়স: ${batchAgeDays} দিন` : `Age: ${batchAgeDays} Days`})
+                  <span className="text-[11px] sm:text-xs text-emerald-200 font-bold truncate">
+                    {selectedBatch.name || selectedBatch.batchName} ({isBn ? `বয়স: ${batchAgeDays} দিন` : `Age: ${batchAgeDays}d`})
                   </span>
                 )}
               </div>
-              <h2 className="text-base sm:text-lg font-black text-white mt-0.5 truncate">
-                {isBn ? 'খামার এসওপি ও সুষম খাদ্য শিডিউল (১ দিন থেকে)' : 'Farm SOP & Feed Schedule (Day 1+)'}
+              <h2 className="text-sm sm:text-lg font-black text-white mt-0.5 truncate">
+                {isBn ? 'খামার এসওপি ও সুষম খাদ্য শিডিউল' : 'Farm SOP & Feed Schedule'}
               </h2>
             </div>
           </div>
@@ -384,231 +391,262 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
           )}
         </div>
 
-        {/* Top 3 Main Category Pills: পাখি (Poultry) | পশু (Cattle) | মাছ (Fish) */}
-        <div className="mt-3.5 pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-2xl border border-white/15">
-            <button
-              type="button"
-              onClick={() => setActiveCategory('poultry')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'poultry'
-                  ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
-                  : 'text-emerald-100 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <Bird size={14} />
-              <span>{isBn ? '🐔 পাখি (মুরগি/হাঁস)' : '🐔 Poultry'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveCategory('cattle')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'cattle'
-                  ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
-                  : 'text-emerald-100 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <Milk size={14} />
-              <span>{isBn ? '🐄 পশু (গরু/মহিষ)' : '🐄 Cattle'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveCategory('fish')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'fish'
-                  ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
-                  : 'text-emerald-100 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <Fish size={14} />
-              <span>{isBn ? '🐟 মাছ চাষ' : '🐟 Aquaculture'}</span>
-            </button>
+        {/* Mobile Quick Status & Filter Expand Bar (sm:hidden) */}
+        <div className="sm:hidden mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0 text-[11px]">
+            <span className="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black">
+              {activeCategory === 'poultry'
+                ? (poultryBreed === 'broiler' ? '🍗 ব্রয়লার' : poultryBreed === 'sonali' ? '🐥 সোনালী' : '🥚 লেয়ার')
+                : (activeCategory === 'cattle' ? (cattleType === 'dairy' ? '🥛 ডেইরি' : '🐂 মোটাতাজা') : '🐟 মাছ')}
+            </span>
+            <span className="px-2 py-0.5 rounded-lg bg-white/15 text-white font-bold">
+              {effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}
+            </span>
+            {activeCategory === 'poultry' && (
+              <span className="px-2 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-200 font-bold">
+                {isBn ? `${batchAgeDays} দিন` : `Day ${batchAgeDays}`}
+              </span>
+            )}
           </div>
 
-          {/* Sub-breed / Specific Type Selector */}
-          {activeCategory === 'poultry' && (
-            <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
-              <button
-                type="button"
-                onClick={() => setPoultryBreed('broiler')}
-                className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                  poultryBreed === 'broiler' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                }`}
-              >
-                🍗 {isBn ? 'ব্রয়লার (১-৪৬ দিন)' : 'Broiler (1-46d)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPoultryBreed('sonali')}
-                className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                  poultryBreed === 'sonali' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                }`}
-              >
-                🐥 {isBn ? 'সোনালী (১-৬০ দিন)' : 'Sonali (1-60d)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPoultryBreed('layer')}
-                className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                  poultryBreed === 'layer' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                }`}
-              >
-                🥚 {isBn ? 'লেয়ার (ডিম উৎপাদন)' : 'Layer (Commercial)'}
-              </button>
-            </div>
-          )}
-
-          {activeCategory === 'cattle' && (
-            <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
-              <button
-                type="button"
-                onClick={() => setCattleType('dairy')}
-                className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                  cattleType === 'dairy' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                }`}
-              >
-                🥛 {isBn ? 'দুগ্ধবতী গাভী' : 'Dairy Cow'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCattleType('beef')}
-                className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                  cattleType === 'beef' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                }`}
-              >
-                🐂 {isBn ? 'ষাঁড় মোটাতাজাকরণ' : 'Beef Fattening'}
-              </button>
-            </div>
-          )}
-
-          {activeCategory === 'fish' && (
-            <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
-              {FISH_FEEDING_SCHEDULE.map((phase, idx) => (
-                <button
-                  key={phase.stageId}
-                  type="button"
-                  onClick={() => setSelectedFishPhaseIdx(idx)}
-                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
-                    selectedFishPhaseIdx === idx ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
-                  }`}
-                >
-                  {isBn ? phase.titleBn.split(' ')[0] + ' ' + phase.titleBn.split(' ')[1] : phase.titleEn.split(' ')[0]}
-                </button>
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+            className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-white/15 hover:bg-white/25 text-amber-300 border border-white/20 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+          >
+            <Sliders size={12} />
+            <span>{isMobileFiltersOpen ? (isBn ? 'সংক্ষিপ্ত ▲' : 'Hide ▲') : (isBn ? 'ব্যাচ/ফিল্টার ▼' : 'Filters ▼')}</span>
+          </button>
         </div>
 
-        {/* Dynamic Batch Selector & Live Bird/Animal Count Controls */}
-        <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-          {/* Batch Selector */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold text-emerald-200 flex items-center gap-1">
-              <Package size={13} />
-              <span>{isBn ? 'ব্যাচ:' : 'Batch:'}</span>
-            </span>
-            <select
-              value={currentBatchId}
-              onChange={(e) => {
-                setCurrentBatchId(e.target.value);
-                setIsSimulating(false);
-              }}
-              className="bg-emerald-950 text-white text-xs font-bold px-2.5 py-1 rounded-xl border border-emerald-500/40 focus:outline-none focus:border-amber-400 cursor-pointer"
-            >
-              {batches.map((b) => (
-                <option key={b.id} value={b.id} className="bg-slate-900 text-white">
-                  {b.name || b.batchName} ({b.totalChicks || b.quantity} {isBn ? 'মাথা' : 'heads'})
-                </option>
-              ))}
-              <option value="custom-sim" className="bg-slate-900 text-amber-300">
-                ⭐ {isBn ? 'কাস্টম সংখ্যা দিয়ে হিসাব' : 'Custom Simulation'}
-              </option>
-            </select>
-          </div>
+        {/* Collapsible on Mobile, Always Visible on Desktop (sm:block) */}
+        <div className={`${isMobileFiltersOpen ? 'block' : 'hidden'} sm:block transition-all space-y-3`}>
+          {/* Top 3 Main Category Pills: পাখি (Poultry) | পশু (Cattle) | মাছ (Fish) */}
+          <div className="mt-3.5 pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-2xl border border-white/15">
+              <button
+                type="button"
+                onClick={() => setActiveCategory('poultry')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeCategory === 'poultry'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    : 'text-emerald-100 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Bird size={14} />
+                <span>{isBn ? '🐔 পাখি (মুরগি/হাঁস)' : '🐔 Poultry'}</span>
+              </button>
 
-          {/* Counts Bar */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="px-2 py-0.5 bg-white/10 rounded-lg flex items-center gap-1 text-[11px] font-bold">
-              <span className="text-slate-300">{isBn ? 'শুরুর সংখ্যা:' : 'Initial:'}</span>
-              <span className="font-black text-white">{initialHeadCount.toLocaleString()}</span>
+              <button
+                type="button"
+                onClick={() => setActiveCategory('cattle')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeCategory === 'cattle'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    : 'text-emerald-100 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Milk size={14} />
+                <span>{isBn ? '🐄 পশু (গরু/মহিষ)' : '🐄 Cattle'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveCategory('fish')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeCategory === 'fish'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    : 'text-emerald-100 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Fish size={14} />
+                <span>{isBn ? '🐟 মাছ চাষ' : '🐟 Aquaculture'}</span>
+              </button>
             </div>
 
-            {batchMortality > 0 && (
-              <div className="px-2 py-0.5 bg-rose-500/20 border border-rose-400/30 rounded-lg flex items-center gap-1 text-[11px] font-bold text-rose-200">
-                <span>{isBn ? 'মৃত্যু বাদ:' : 'Mortality:'}</span>
-                <span className="font-black text-white">{batchMortality.toLocaleString()}</span>
+            {/* Sub-breed / Specific Type Selector */}
+            {activeCategory === 'poultry' && (
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPoultryBreed('broiler')}
+                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    poultryBreed === 'broiler' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                  }`}
+                >
+                  🍗 {isBn ? 'ব্রয়লার (১-৪৬ দিন)' : 'Broiler (1-46d)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPoultryBreed('sonali')}
+                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    poultryBreed === 'sonali' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                  }`}
+                >
+                  🐥 {isBn ? 'সোনালী (১-৬০ দিন)' : 'Sonali (1-60d)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPoultryBreed('layer')}
+                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    poultryBreed === 'layer' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                  }`}
+                >
+                  🥚 {isBn ? 'লেয়ার (ডিম উৎপাদন)' : 'Layer (Commercial)'}
+                </button>
               </div>
             )}
 
-            {/* Effective Live Count Highlight */}
-            <div className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-xl flex items-center gap-1.5 font-black shadow-xs">
-              <span>{isBn ? 'বর্তমান জীবিত:' : 'Live Count:'}</span>
-              <span className="text-xs underline">{effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}</span>
-            </div>
-
-            {/* Custom Simulation Input */}
-            <div className="flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-xl">
-              <span className="text-[10px] text-slate-300 font-bold">{isBn ? 'অন্য সংখ্যা:' : 'Custom:'}</span>
-              <input
-                type="number"
-                min={1}
-                max={100000}
-                value={simulatedCount}
-                onChange={(e) => {
-                  const val = Math.max(1, Number(e.target.value) || 1);
-                  setSimulatedCount(val);
-                  setIsSimulating(true);
-                }}
-                className="w-16 bg-slate-900 text-white font-black text-xs px-1 py-0.5 rounded border border-white/20 text-center"
-                title={isBn ? 'যে কোনো সংখ্যা লিখে খাদ্য হিসাব দেখতে পারেন' : 'Enter custom count to simulate'}
-              />
-              {isSimulating && (
+            {activeCategory === 'cattle' && (
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsSimulating(false);
-                    setSimulatedCount(calculatedLiveCount);
-                  }}
-                  className="text-[10px] text-amber-300 underline font-bold cursor-pointer"
+                  onClick={() => setCattleType('dairy')}
+                  className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    cattleType === 'dairy' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                  }`}
                 >
-                  {isBn ? 'রিসেট' : 'Reset'}
+                  🥛 {isBn ? 'দুগ্ধবতী গাভী' : 'Dairy Cow'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCattleType('beef')}
+                  className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    cattleType === 'beef' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                  }`}
+                >
+                  🐂 {isBn ? 'ষাঁড় মোটাতাজাকরণ' : 'Beef Fattening'}
+                </button>
+              </div>
+            )}
+
+            {activeCategory === 'fish' && (
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
+                {FISH_FEEDING_SCHEDULE.map((phase, idx) => (
+                  <button
+                    key={phase.stageId}
+                    type="button"
+                    onClick={() => setSelectedFishPhaseIdx(idx)}
+                    className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                      selectedFishPhaseIdx === idx ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
+                    }`}
+                  >
+                    {isBn ? phase.titleBn.split(' ')[0] + ' ' + phase.titleBn.split(' ')[1] : phase.titleEn.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Batch Selector & Live Bird/Animal Count Controls */}
+          <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            {/* Batch Selector */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold text-emerald-200 flex items-center gap-1">
+                <Package size={13} />
+                <span>{isBn ? 'ব্যাচ:' : 'Batch:'}</span>
+              </span>
+              <select
+                value={currentBatchId}
+                onChange={(e) => {
+                  setCurrentBatchId(e.target.value);
+                  setIsSimulating(false);
+                }}
+                className="bg-emerald-950 text-white text-xs font-bold px-2.5 py-1 rounded-xl border border-emerald-500/40 focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                    {b.name || b.batchName} ({b.totalChicks || b.quantity} {isBn ? 'মাথা' : 'heads'})
+                  </option>
+                ))}
+                <option value="custom-sim" className="bg-slate-900 text-amber-300">
+                  ⭐ {isBn ? 'কাস্টম সংখ্যা দিয়ে হিসাব' : 'Custom Simulation'}
+                </option>
+              </select>
+            </div>
+
+            {/* Counts Bar */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="px-2 py-0.5 bg-white/10 rounded-lg flex items-center gap-1 text-[11px] font-bold">
+                <span className="text-slate-300">{isBn ? 'শুরুর সংখ্যা:' : 'Initial:'}</span>
+                <span className="font-black text-white">{initialHeadCount.toLocaleString()}</span>
+              </div>
+
+              {batchMortality > 0 && (
+                <div className="px-2 py-0.5 bg-rose-500/20 border border-rose-400/30 rounded-lg flex items-center gap-1 text-[11px] font-bold text-rose-200">
+                  <span>{isBn ? 'মৃত্যু বাদ:' : 'Mortality:'}</span>
+                  <span className="font-black text-white">{batchMortality.toLocaleString()}</span>
+                </div>
               )}
+
+              {/* Effective Live Count Highlight */}
+              <div className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-xl flex items-center gap-1.5 font-black shadow-xs">
+                <span>{isBn ? 'বর্তমান জীবিত:' : 'Live Count:'}</span>
+                <span className="text-xs underline">{effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}</span>
+              </div>
+
+              {/* Custom Simulation Input */}
+              <div className="flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-xl">
+                <span className="text-[10px] text-slate-300 font-bold">{isBn ? 'অন্য সংখ্যা:' : 'Custom:'}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  value={simulatedCount}
+                  onChange={(e) => {
+                    const val = Math.max(1, Number(e.target.value) || 1);
+                    setSimulatedCount(val);
+                    setIsSimulating(true);
+                  }}
+                  className="w-16 bg-slate-900 text-white font-black text-xs px-1 py-0.5 rounded border border-white/20 text-center"
+                  title={isBn ? 'যে কোনো সংখ্যা লিখে খাদ্য হিসাব দেখতে পারেন' : 'Enter custom count to simulate'}
+                />
+                {isSimulating && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSimulating(false);
+                      setSimulatedCount(calculatedLiveCount);
+                    }}
+                    className="text-[10px] text-amber-300 underline font-bold cursor-pointer"
+                  >
+                    {isBn ? 'রিসেট' : 'Reset'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 mt-3 bg-emerald-950/60 p-1 rounded-2xl border border-white/10 flex-wrap">
+        {/* Tab Navigation - Single Line with Horizontal Scroll on Mobile */}
+        <div className="flex items-center gap-1.5 mt-2.5 sm:mt-3 bg-emerald-950/60 p-1 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('today')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'today' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
             }`}
           >
             <Calendar size={13} />
             <span>
               {activeCategory === 'poultry' 
-                ? (poultryBreed === 'layer' ? (isBn ? `সপ্তাহ ${selectedLayerWeek}: ডিম ও খাদ্য পরামর্শ` : `Wk ${selectedLayerWeek}: Lay & Feed`) : (isBn ? `দিন ${selectedDay}: খাদ্য ও কাজের তালিকা` : `Day ${selectedDay}: Daily Plan`))
-                : (isBn ? 'আজকের পুষ্টি ও খাদ্য পরামর্শ' : 'Daily Diet & Ration')}
+                ? (poultryBreed === 'layer' ? (isBn ? `সপ্তাহ ${selectedLayerWeek}: ডিম ও খাদ্য` : `Wk ${selectedLayerWeek}: Feed`) : (isBn ? `দিন ${selectedDay} খাদ্য তালিকা` : `Day ${selectedDay} Plan`))
+                : (isBn ? 'আজকের পুষ্টি ও খাদ্য' : 'Daily Diet')}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('full_chart')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'full_chart' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
             }`}
           >
             <Layers size={13} />
             <span>
               {activeCategory === 'poultry'
-                ? (poultryBreed === 'layer' ? (isBn ? '১-৭২+ সপ্তাহের পূর্ণাঙ্গ লেয়ার চার্ট' : '1-72 Wk Layer Master Chart') : (isBn ? `১-${maxPoultryDays} দিনের পূর্ণাঙ্গ চার্ট (${effectiveLiveCount.toLocaleString()} মুরগি)` : `1-${maxPoultryDays}d Master Chart`))
-                : (activeCategory === 'cattle' ? (isBn ? 'গরুর পূর্ণাঙ্গ খাদ্য ও ওজন বৃদ্ধির তালিকা' : 'Complete Cattle Ration Chart') : (isBn ? 'মাছের সম্পূর্ণ খাদ্য ও পানির গুণমান গাইড' : 'Fish Feeding & Water Quality SOP'))}
+                ? (poultryBreed === 'layer' ? (isBn ? '১-৭২ সপ্তাহের চার্ট' : '1-72 Wk Layer Chart') : (isBn ? `১-${maxPoultryDays} দিনের পূর্ণাঙ্গ চার্ট (${effectiveLiveCount.toLocaleString()}টি)` : `1-${maxPoultryDays}d Master Chart`))
+                : (activeCategory === 'cattle' ? (isBn ? 'গরুর খাদ্য তালিকা' : 'Cattle Ration Chart') : (isBn ? 'মাছের খাদ্য চার্ট' : 'Fish Schedule'))}
             </span>
           </button>
 
@@ -616,12 +654,12 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('crop_brood')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'crop_brood' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
               }`}
             >
               <Sliders size={13} />
-              <span>{isBn ? 'ব্রুডিং ও ক্রপ ফিল গাইড' : 'Brooding & Crop Fill SOP'}</span>
+              <span>{isBn ? 'ব্রুডিং ও ক্রপ ফিল' : 'Brooding SOP'}</span>
             </button>
           )}
         </div>
@@ -639,102 +677,104 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             {poultryBreed !== 'layer' && activeTab === 'today' && (
               <div className="space-y-4">
                 {/* Day Selector & Environmental Target Bar (Starts strictly from Day 1) */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDay(prev => Math.max(1, prev - 1))}
-                      disabled={selectedDay === 1}
-                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
-                      title={isBn ? 'আগের দিন' : 'Previous Day'}
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-3 sm:p-3.5 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between sm:justify-start gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDay(prev => Math.max(1, prev - 1))}
+                        disabled={selectedDay === 1}
+                        className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+                        title={isBn ? 'আগের দিন' : 'Previous Day'}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
 
-                    <div className="px-3.5 py-1.5 bg-white border border-emerald-300 rounded-xl text-center shadow-2xs min-w-[90px]">
-                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-700 block">
-                        {isBn ? `সপ্তাহ ${currentBroilerSonaliSop.week}` : `Week ${currentBroilerSonaliSop.week}`}
-                      </span>
-                      <span className="text-base font-black text-slate-900">
-                        {isBn ? `দিন ${selectedDay}` : `Day ${selectedDay}`}
-                      </span>
+                      <div className="px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-center shadow-2xs min-w-[85px] sm:min-w-[90px]">
+                        <span className="text-[9px] sm:text-[10px] uppercase tracking-wider font-extrabold text-emerald-700 block">
+                          {isBn ? `সপ্তাহ ${currentBroilerSonaliSop.week}` : `Week ${currentBroilerSonaliSop.week}`}
+                        </span>
+                        <span className="text-sm sm:text-base font-black text-slate-900">
+                          {isBn ? `দিন ${selectedDay}` : `Day ${selectedDay}`}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDay(prev => Math.min(maxPoultryDays, prev + 1))}
+                        disabled={selectedDay === maxPoultryDays}
+                        className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+                        title={isBn ? 'পরের দিন' : 'Next Day'}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDay(prev => Math.min(maxPoultryDays, prev + 1))}
-                      disabled={selectedDay === maxPoultryDays}
-                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
-                      title={isBn ? 'পরের দিন' : 'Next Day'}
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-
                     {Math.round(batchAgeDays) === selectedDay ? (
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1 border border-emerald-200">
-                        <Sparkles size={12} />
+                      <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[11px] sm:text-xs font-black flex items-center gap-1 border border-emerald-200">
+                        <Sparkles size={11} />
                         {isBn ? 'আজকের বয়স' : 'Current Age'}
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setSelectedDay(Math.max(1, Math.min(maxPoultryDays, Math.round(batchAgeDays))))}
-                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                        className="text-[11px] sm:text-xs font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
                       >
                         {isBn ? 'আজকের দিনে ফিরুন' : 'Back to Today'}
                       </button>
                     )}
                   </div>
 
-                  {/* Climate & Target Specs */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-extrabold text-rose-900">
-                      <Thermometer size={14} className="text-rose-600" />
+                  {/* Climate & Target Specs - 2x2 grid on mobile, flex on desktop */}
+                  <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-extrabold text-rose-900 justify-center">
+                      <Thermometer size={14} className="text-rose-600 shrink-0" />
                       <span>{currentBroilerSonaliSop.tempFMin}-{currentBroilerSonaliSop.tempFMax}°F</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-extrabold text-blue-900">
-                      <Droplets size={14} className="text-blue-600" />
+                    <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-extrabold text-blue-900 justify-center">
+                      <Droplets size={14} className="text-blue-600 shrink-0" />
                       <span>{currentBroilerSonaliSop.relHumidityMin}-{currentBroilerSonaliSop.relHumidityMax}% RH</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-extrabold text-amber-900">
+                    <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-extrabold text-amber-900 justify-center">
                       <span>🎯 {isBn ? '১টির খাদ্য:' : '1 Bird:'}</span>
                       <span className="font-black text-slate-900">{currentBroilerSonaliSop.feedDailyGm}g</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-extrabold text-emerald-900">
-                      <span>⚖️ {isBn ? 'টার্গেট ওজন:' : 'Target Wt:'}</span>
+                    <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-extrabold text-emerald-900 justify-center">
+                      <span>⚖️ {isBn ? 'টার্গেট:' : 'Target:'}</span>
                       <span className="font-black text-slate-900">{currentBroilerSonaliSop.bodyWeightGm}g</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Total Feed Needed Calculation Card */}
-                <div className="bg-gradient-to-br from-amber-500/15 via-emerald-500/10 to-teal-500/15 p-4 rounded-3xl border-2 border-amber-300/80 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="bg-gradient-to-br from-amber-500/15 via-emerald-500/10 to-teal-500/15 p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border-2 border-amber-300/80 shadow-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-2xs">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-2xs shrink-0">
                         <Wheat size={18} />
                       </div>
-                      <div>
-                        <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                      <div className="min-w-0">
+                        <h3 className="font-black text-slate-900 text-sm sm:text-base leading-tight">
                           {isBn 
                             ? `দিন ${selectedDay}: জীবিত ${effectiveLiveCount.toLocaleString()}টি মুরগির মোট খাদ্য হিসাব` 
                             : `Day ${selectedDay}: Feed for ${effectiveLiveCount.toLocaleString()} Live Birds`}
                         </h3>
-                        <p className="text-[11px] text-slate-600 font-bold">
+                        <p className="text-[10px] sm:text-[11px] text-slate-600 font-bold truncate">
                           {isBn 
-                            ? `প্রতি মুরগি ${currentBroilerSonaliSop.feedDailyGm} গ্রাম × ${effectiveLiveCount.toLocaleString()} টি জীবিত মুরগি (নির্ভুল বাণিজ্যিক স্ট্যান্ডার্ড)` 
+                            ? `প্রতি মুরগি ${currentBroilerSonaliSop.feedDailyGm} গ্রাম × ${effectiveLiveCount.toLocaleString()} টি জীবিত মুরগি` 
                             : `${currentBroilerSonaliSop.feedDailyGm}g/bird × ${effectiveLiveCount.toLocaleString()} live birds`}
                         </p>
                       </div>
                     </div>
 
                     {/* Total Feed Badge */}
-                    <div className="text-right bg-white px-4 py-2 rounded-2xl border border-amber-300 shadow-xs">
+                    <div className="text-left sm:text-right bg-white p-2.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl border border-amber-300 shadow-xs flex sm:block items-center justify-between">
                       <span className="text-[10px] font-black uppercase text-amber-800 block">
                         {isBn ? 'আজ সারাদিনে মোট খাবার লাগবে' : 'Total Feed Today'}
                       </span>
                       <div className="flex items-baseline gap-1.5 justify-end">
-                        <span className="text-xl sm:text-2xl font-black text-amber-700">
+                        <span className="text-lg sm:text-2xl font-black text-amber-700">
                           {poultryDailyFeedKg.toLocaleString()} {isBn ? 'কেজি' : 'kg'}
                         </span>
                         <span className="text-xs font-black text-slate-600">
@@ -1004,50 +1044,172 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             {/* FULL 1-46 / 1-60 DAY POULTRY TABLE (STARTS AT DAY 1, NO DAY 0) */}
             {activeTab === 'full_chart' && poultryBreed !== 'layer' && (
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-black text-slate-700 mr-1">
-                      {isBn ? 'সপ্তাহ ফিল্টার:' : 'Filter Week:'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedWeekFilter('all')}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                        selectedWeekFilter === 'all' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white border border-slate-200'
-                      }`}
-                    >
-                      {isBn ? 'সব সপ্তাহ' : 'All'}
-                    </button>
-                    {availableWeeks.map(w => (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-50 p-2.5 sm:p-3 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                      <span className="text-xs font-black text-slate-700 shrink-0 mr-1">
+                        {isBn ? 'সপ্তাহ:' : 'Week:'}
+                      </span>
                       <button
-                        key={w}
                         type="button"
-                        onClick={() => setSelectedWeekFilter(w)}
-                        className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                          selectedWeekFilter === w ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white border border-slate-200'
+                        onClick={() => setSelectedWeekFilter('all')}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 ${
+                          selectedWeekFilter === 'all' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white border border-slate-200'
                         }`}
                       >
-                        {isBn ? `সপ্তাহ ${w}` : `Wk ${w}`}
+                        {isBn ? 'সব' : 'All'}
                       </button>
-                    ))}
+                      {availableWeeks.map(w => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setSelectedWeekFilter(w)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 ${
+                            selectedWeekFilter === w ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white border border-slate-200'
+                          }`}
+                        >
+                          {isBn ? `সপ্তাহ ${w}` : `Wk ${w}`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Mobile View Toggle: Cards vs Table */}
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 p-0.5 rounded-xl text-xs sm:hidden shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setFullChartMobileMode('cards')}
+                        className={`px-2 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer ${
+                          fullChartMobileMode === 'cards' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600'
+                        }`}
+                        title={isBn ? 'মোবাইল কার্ড ভিউ' : 'Card View'}
+                      >
+                        <LayoutGrid size={12} />
+                        <span>{isBn ? 'কার্ড' : 'Card'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFullChartMobileMode('table')}
+                        className={`px-2 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer ${
+                          fullChartMobileMode === 'table' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600'
+                        }`}
+                        title={isBn ? 'টেবিল ভিউ' : 'Table View'}
+                      >
+                        <Table size={12} />
+                        <span>{isBn ? 'টেবিল' : 'Table'}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                  <div className="text-[11px] sm:text-xs font-bold text-slate-600 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                     <span>
                       {isBn 
-                        ? `১ থেকে ${maxPoultryDays} দিনের বাস্তব হিসাব (জীবিত ${effectiveLiveCount.toLocaleString()}টি মুরগি)` 
+                        ? `১ থেকে ${maxPoultryDays} দিনের হিসাব (${effectiveLiveCount.toLocaleString()}টি জীবিত মুরগি)` 
                         : `1 to ${maxPoultryDays} Days for ${effectiveLiveCount.toLocaleString()} Live Birds`}
                     </span>
                   </div>
                 </div>
 
-                {/* Master Table */}
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                {/* Mobile Cards View */}
+                {fullChartMobileMode === 'cards' && (
+                  <div className="sm:hidden space-y-2.5">
+                    {filteredPoultryDays.map((row) => {
+                      const isToday = Math.round(batchAgeDays) === row.day;
+                      const tasks = isBn ? row.tasksBn : row.tasks;
+                      const rowFlockFeedKg = Number(((effectiveLiveCount * row.feedDailyGm) / 1000).toFixed(2));
+                      const rowFlockFeedBags = Number((rowFlockFeedKg / 50).toFixed(2));
+                      const rowFlockBiomassKg = Number(((effectiveLiveCount * row.bodyWeightGm) / 1000).toFixed(1));
+
+                      return (
+                        <div 
+                          key={row.day}
+                          className={`p-3 rounded-2xl border transition-all ${
+                            isToday
+                              ? 'bg-amber-50/90 border-amber-400 shadow-md ring-2 ring-amber-400/50'
+                              : 'bg-white border-slate-200 shadow-2xs hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 border-b border-slate-150 pb-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded-xl text-xs font-black ${
+                                isToday ? 'bg-amber-400 text-slate-950' : 'bg-slate-900 text-white'
+                              }`}>
+                                {isBn ? `দিন ${row.day}` : `Day ${row.day}`}
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                {isBn ? `সপ্তাহ ${row.week}` : `Wk ${row.week}`}
+                              </span>
+                              {isToday && (
+                                <span className="px-2 py-0.5 rounded-lg bg-amber-200 text-amber-900 text-[10px] font-black animate-pulse">
+                                  {isBn ? '🌟 আজকের দিন' : 'Today'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                              <span className="px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">
+                                🌡️ {row.tempFMin}-{row.tempFMax}°F
+                              </span>
+                              {row.fcrStd > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700">
+                                  FCR {row.fcrStd.toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-amber-100/60 p-2 rounded-xl border border-amber-200 space-y-0.5">
+                              <span className="text-[10px] font-bold text-amber-900 uppercase block">
+                                {isBn ? '🌾 মোট খাদ্য (আজ)' : '🌾 Total Feed'}
+                              </span>
+                              <div className="text-base font-black text-amber-950">
+                                {rowFlockFeedKg} {isBn ? 'কেজি' : 'kg'}
+                              </div>
+                              <div className="text-[10px] font-semibold text-amber-800">
+                                ({rowFlockFeedBags} {isBn ? 'বস্তা' : 'bags'} • ১টির: {row.feedDailyGm}g)
+                              </div>
+                            </div>
+
+                            <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-200 space-y-0.5">
+                              <span className="text-[10px] font-bold text-emerald-900 uppercase block">
+                                {isBn ? '⚖️ টার্গেট ওজন' : '⚖️ Target Wt'}
+                              </span>
+                              <div className="text-base font-black text-emerald-950">
+                                {row.bodyWeightGm} {isBn ? 'গ্রাম' : 'g'}
+                              </div>
+                              <div className="text-[10px] font-semibold text-emerald-700">
+                                {isBn ? `মোট: ${rowFlockBiomassKg} কেজি` : `Biomass: ${rowFlockBiomassKg}kg`}
+                              </div>
+                            </div>
+                          </div>
+
+                          {tasks && tasks.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                                {isBn ? '📋 নির্দিষ্ট কাজ:' : 'Key Tasks:'}
+                              </span>
+                              {tasks.slice(0, 2).map((t, idx) => (
+                                <div key={idx} className="flex items-start gap-1">
+                                  <span className="text-emerald-600 font-bold">•</span>
+                                  <span className="line-clamp-1">{t}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Master Table with Sticky Day Column */}
+                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto rounded-2xl border border-slate-200`}>
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-900 text-white font-black text-[11px]">
-                        <th className="py-3 px-3 whitespace-nowrap">{isBn ? 'দিন' : 'Day'}</th>
+                        <th className="py-3 px-3 whitespace-nowrap sticky left-0 z-20 bg-slate-900 text-amber-300 shadow-xs">
+                          {isBn ? 'দিন' : 'Day'}
+                        </th>
                         <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? '১টির খাদ্য (gm)' : '1 Bird (gm)'}</th>
                         <th className="py-3 px-3 text-center whitespace-nowrap bg-amber-900/60 text-amber-200">
                           {isBn ? `ব্যাচের মোট খাদ্য (${effectiveLiveCount}টি)` : `Batch Feed (Kg)`}
@@ -1074,7 +1236,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                         return (
                           <tr 
                             key={row.day}
-                            className={`transition-colors ${
+                            className={`group transition-colors ${
                               isToday 
                                 ? 'bg-amber-100/70 font-bold ring-1 ring-amber-400' 
                                 : row.isCritical 
@@ -1082,7 +1244,9 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                                   : 'hover:bg-slate-50'
                             }`}
                           >
-                            <td className="py-2.5 px-3 font-black whitespace-nowrap">
+                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-10 ${
+                              isToday ? 'bg-amber-100 text-slate-950 font-black' : 'bg-white text-slate-900 group-hover:bg-slate-50'
+                            } border-r border-slate-200 shadow-2xs`}>
                               <div className="flex items-center gap-1.5">
                                 <span>{isBn ? `দিন ${row.day}` : `D ${row.day}`}</span>
                                 {isToday && (
@@ -1140,11 +1304,70 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             {/* FULL LAYER MASTER SCHEDULE (1-72 WEEKS) */}
             {activeTab === 'full_chart' && poultryBreed === 'layer' && (
               <div className="space-y-3">
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                {/* Mobile Cards for Layer */}
+                <div className="sm:hidden space-y-2.5">
+                  {LAYER_SOP_SCHEDULE.map((row) => {
+                    const isCurrentWeek = selectedLayerWeek === row.week;
+                    const rowFeedKg = Number(((effectiveLiveCount * row.feedDailyGm) / 1000).toFixed(1));
+                    const rowFeedBags = Number((rowFeedKg / 50).toFixed(2));
+                    const rowEggs = Math.round(effectiveLiveCount * (row.eggProductionPct / 100));
+
+                    return (
+                      <div
+                        key={row.week}
+                        className={`p-3 rounded-2xl border transition-all ${
+                          isCurrentWeek
+                            ? 'bg-amber-50/90 border-amber-400 shadow-md ring-2 ring-amber-400/50'
+                            : 'bg-white border-slate-200 shadow-2xs'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-150 pb-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-xl text-xs font-black ${
+                              isCurrentWeek ? 'bg-amber-400 text-slate-950' : 'bg-slate-900 text-white'
+                            }`}>
+                              সপ্তাহ {row.week}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-600">
+                              ({row.ageDaysStart}-{row.ageDaysEnd} দিন)
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+                            {isBn ? row.phaseBn : row.phaseEn}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-amber-100/60 p-2 rounded-xl border border-amber-200 space-y-0.5">
+                            <span className="text-[10px] font-bold text-amber-900 uppercase block">🌾 খাদ্য (আজ)</span>
+                            <div className="text-base font-black text-amber-950">{rowFeedKg} কেজি</div>
+                            <div className="text-[10px] text-amber-800 font-semibold">({rowFeedBags} বস্তা • ১টির: {row.feedDailyGm}g)</div>
+                          </div>
+
+                          <div className="bg-orange-50 p-2 rounded-xl border border-orange-200 space-y-0.5">
+                            <span className="text-[10px] font-bold text-orange-900 uppercase block">🥚 ডিম উৎপাদন</span>
+                            <div className="text-base font-black text-orange-950">{row.eggProductionPct}%</div>
+                            <div className="text-[10px] text-orange-800 font-semibold">{rowEggs > 0 ? `${rowEggs.toLocaleString()} টি/দিন` : 'উৎপাদন পূর্ব'}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600">
+                          <span className="font-bold text-amber-900 block mb-0.5">{isBn ? row.feedTypeBn : row.feedTypeEn} (আলো: {row.lightingHours} ঘণ্টা)</span>
+                          {(isBn ? row.keyTasksBn : row.keyTasksEn).slice(0, 2).map((t, idx) => (
+                            <div key={idx} className="text-slate-600">• {t}</div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Table for Tablet & Desktop with Sticky Column */}
+                <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-900 text-white font-black text-[11px]">
-                        <th className="py-3 px-3">{isBn ? 'সপ্তাহ (বয়স)' : 'Week'}</th>
+                        <th className="py-3 px-3 sticky left-0 z-20 bg-slate-900 text-amber-300">{isBn ? 'সপ্তাহ (বয়স)' : 'Week'}</th>
                         <th className="py-3 px-3">{isBn ? 'উৎপাদন পর্যায়' : 'Phase'}</th>
                         <th className="py-3 px-2 text-center">{isBn ? '১টির খাদ্য (gm)' : 'Feed/Hen'}</th>
                         <th className="py-3 px-3 text-center bg-amber-900/60 text-amber-200">
@@ -1169,8 +1392,10 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                         const rowEggs = Math.round(effectiveLiveCount * (row.eggProductionPct / 100));
 
                         return (
-                          <tr key={row.week} className={isCurrentWeek ? 'bg-amber-100/70 font-bold ring-1 ring-amber-400' : 'hover:bg-slate-50'}>
-                            <td className="py-2.5 px-3 font-black whitespace-nowrap">
+                          <tr key={row.week} className={`group ${isCurrentWeek ? 'bg-amber-100/70 font-bold ring-1 ring-amber-400' : 'hover:bg-slate-50'}`}>
+                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-10 ${
+                              isCurrentWeek ? 'bg-amber-100 text-slate-950' : 'bg-white text-slate-900 group-hover:bg-slate-50'
+                            } border-r border-slate-200`}>
                               সপ্তাহ {row.week} ({row.ageDaysStart}-{row.ageDaysEnd} দিন)
                             </td>
                             <td className="py-2.5 px-3 font-bold text-slate-800">{isBn ? row.phaseBn : row.phaseEn}</td>
