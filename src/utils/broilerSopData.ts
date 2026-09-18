@@ -124,58 +124,31 @@ export const FEEDER_SLOT_GUIDES: EquipmentSlotGuide[] = [
   }
 ];
 
-// 3. Complete 0-49 Days SOP & Work Schedule Table
+// 3. Complete 1-46 Days SOP & Work Schedule Table (Cobb 500 / Ross 308 Commercial Broiler Standard)
 export const BROILER_SOP_SCHEDULE: DailySopItem[] = [
-  {
-    day: 0,
-    week: 1,
-    feedDailyGm: 0,
-    feedCumGm: 0,
-    bodyWeightGm: 42,
-    fcrStd: 0,
-    tempFMin: 86,
-    tempFMax: 88,
-    relHumidityMin: 60,
-    relHumidityMax: 70,
-    tasks: [
-      'Pre-placement shed fumigation & disinfection completed',
-      'Airtight tent brooding set up (covering 33% shed space)',
-      'Round brooder arranged for 350 chicks with 100W bulb',
-      'Ensure 80kg coal / 1000 chicks heating backup ready',
-      'Water sanitizer in tank & drinker lid level water filled',
-      'Tyre & Bell drinker arrangement with Paper feeding laid out'
-    ],
-    tasksBn: [
-      'শেড জীবাণুমুক্তকরণ ও ফিউমিগেশন নিশ্চিত করুন',
-      'শেডের ৩৩% জায়গায় এয়ারটাইট ব্রুডিং টেন্ট স্থাপন করুন',
-      'প্রতি ৩৫০ বাচ্চার জন্য ১টি গোল ব্রুডার ও ১০০ ওয়াট বাল্ব প্রস্তুত রাখুন',
-      'প্রতি ১০০০ বাচ্চার জন্য ৮০ কেজি কয়লা/হিটার বিকল্প মজুদ রাখুন',
-      'পানিতে ওয়াটার স্যানিটাইজার যোগ করুন ও ড্রিংকারে ঢাকনা পর্যন্ত পানি দিন',
-      'টায়ার/বেল ড্রিংকার সাজান এবং পেপারের ওপর খাদ্য ছিটিয়ে দিন'
-    ],
-    isCritical: true
-  },
   {
     day: 1,
     week: 1,
-    feedDailyGm: 13,
-    feedCumGm: 13,
-    bodyWeightGm: 62,
-    fcrStd: 0.21,
-    tempFMin: 86,
-    tempFMax: 88,
+    feedDailyGm: 14,
+    feedCumGm: 14,
+    bodyWeightGm: 45,
+    fcrStd: 0.31,
+    tempFMin: 88,
+    tempFMax: 90,
     relHumidityMin: 60,
     relHumidityMax: 70,
     tasks: [
-      'Feed paper replenishment (13g feed intake per chick)',
+      'Pre-placement shed check, clean & warm brooder setup ready',
+      'Feed paper replenishment (14g feed intake per chick)',
       'Perform Crop Fill audit at 4, 8, 12, and 24 hours (Target 80-95%)',
-      'Clean chick drinkers 2 times daily',
+      'Clean chick drinkers 2 times daily and provide electrolyte water',
       'Check chick comfort & cluster behavior under brooder'
     ],
     tasksBn: [
-      'খাবারের পেপার পরিবর্তন বা খাবার ছিটানো (প্রতি বাচ্চার খাদ্য ১৩ গ্রাম)',
-      '৪, ৮, ১২ এবং ২৪ ঘণ্টা পর ক্রপ ফিল পরীক্ষা করুন (টার্গেট ৮০-৯৫%)',
-      'দিনে ২ বার ড্রিংকার পরিষ্কার করে বিশুদ্ধ পানি দিন',
+      'শেড জীবাণুমুক্তকরণ, ব্রুডার ও হিটার সঠিক তাপমাত্রায় প্রস্তুত রাখা',
+      'খাবারের পেপারের ওপর খাদ্য ছিটানো (প্রতি বাচ্চার খাদ্য ১৪ গ্রাম)',
+      '৪, ৮, ১২ এবং ২৪ ঘণ্টা পর ক্রপ ফিল (খাবার থলি) পরীক্ষা করুন (টার্গেট ৮০-৯৫%)',
+      'দিনে ২ বার ড্রিংকার পরিষ্কার করে ভিটামিন-সি ও ইলেকট্রোলাইট মিশ্রিত পানি দিন',
       'ব্রুডারে বাচ্চার আরাম ও তাপমাত্রা ঠিক আছে কিনা লক্ষ্য করুন'
     ],
     isCritical: true
@@ -1122,81 +1095,22 @@ export const BROILER_SOP_SCHEDULE: DailySopItem[] = [
   {
     day: 46,
     week: 7,
-    feedDailyGm: 222,
-    feedCumGm: 5511,
-    bodyWeightGm: 3386,
-    fcrStd: 1.63,
+    feedDailyGm: 215,
+    feedCumGm: 5200,
+    bodyWeightGm: 3100,
+    fcrStd: 1.68,
     tempFMin: 68,
     tempFMax: 72,
     relHumidityMin: 60,
     relHumidityMax: 70,
     tasks: [
-      'Monitor feed intake against growth',
-      'Clean water lines'
-    ],
-    tasksBn: [
-      'খাদ্যের বিপরীতে ওজন বৃদ্ধি যাচাই করুন',
-      'পানির লাইন পরিষ্কার রাখুন'
-    ]
-  },
-  {
-    day: 47,
-    week: 7,
-    feedDailyGm: 224,
-    feedCumGm: 5735,
-    bodyWeightGm: 3482,
-    fcrStd: 1.65,
-    tempFMin: 68,
-    tempFMax: 72,
-    relHumidityMin: 60,
-    relHumidityMax: 70,
-    tasks: [
-      'Marketing preparations: weigh scale verification and crates disinfection',
-      'Ensure zero medicine withdrawal violations'
-    ],
-    tasksBn: [
-      'বিক্রয়ের প্রস্তুতি: দাঁড়িপাল্লা ও খাঁচা জীবাণুমুক্ত করুন',
-      'কোনো অ্যান্টিবায়োটিকের উইথড্রয়াল পিরিয়ড বাকি নেই তা নিশ্চিত করুন'
-    ]
-  },
-  {
-    day: 48,
-    week: 7,
-    feedDailyGm: 226,
-    feedCumGm: 5961,
-    bodyWeightGm: 3577,
-    fcrStd: 1.67,
-    tempFMin: 68,
-    tempFMax: 72,
-    relHumidityMin: 60,
-    relHumidityMax: 70,
-    tasks: [
-      'Pre-harvest feed withdrawal plan (Withdraw feed 6-8 hours before lifting, never withdraw water)',
-      'Keep shed dim to avoid panic during catching'
-    ],
-    tasksBn: [
-      'ফিড প্রত্যাহার পরিকল্পনা (গাড়িতে তোলার ৬-৮ ঘণ্টা আগে খাদ্য বন্ধ করুন, পানি কখনোই বন্ধ করবেন না)',
-      'ধরা বা লোডিংয়ের সময় আলো ডিম করে রাখুন যাতে দৌড়াদৌড়ি না করে'
-    ],
-    isCritical: true
-  },
-  {
-    day: 49,
-    week: 7,
-    feedDailyGm: 228,
-    feedCumGm: 6189,
-    bodyWeightGm: 3671,
-    fcrStd: 1.69,
-    tempFMin: 68,
-    tempFMax: 72,
-    relHumidityMin: 60,
-    relHumidityMax: 70,
-    tasks: [
+      'Pre-harvest feed withdrawal plan (Withdraw feed 6-8 hours before lifting, continuous fresh water)',
       'Final flock harvesting, weighing & marketing',
       'Batch completion & inventory settlement (return remaining feed to stock)',
       'Shed clean-out, litter disposal >1000 ft away & disinfection for next batch'
     ],
     tasksBn: [
+      'ফিড প্রত্যাহার পরিকল্পনা (গাড়িতে তোলার ৬-৮ ঘণ্টা আগে খাদ্য বন্ধ করুন, পানি সচল রাখুন)',
       'চূড়ান্ত বিক্রয়, ওজন ও ক্যাশ মেমো সংগ্রহ',
       'অ্যাপে ব্যাচ সমাপ্তি ও অবশিষ্ট খাদ্যের স্টক গুদামে ফেরত সমন্বয়',
       'শেড পরিষ্কার, লিটার ১০০০ ফুট দূরে সংরক্ষণ ও পরবর্তী ব্যাচের জীবাণুমুক্তকরণ'
@@ -1206,7 +1120,7 @@ export const BROILER_SOP_SCHEDULE: DailySopItem[] = [
 ];
 
 export function getSopForDay(day: number): DailySopItem {
-  const boundedDay = Math.max(0, Math.min(49, Math.round(day)));
+  const boundedDay = Math.max(1, Math.min(46, Math.round(day)));
   const item = BROILER_SOP_SCHEDULE.find(s => s.day === boundedDay);
   if (item) return item;
   return BROILER_SOP_SCHEDULE[BROILER_SOP_SCHEDULE.length - 1];

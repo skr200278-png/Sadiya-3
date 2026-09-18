@@ -51,10 +51,12 @@ import {
   Bird,
   Scale,
   Calculator,
-  BookOpen
+  BookOpen,
+  ClipboardList
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getSopForDay } from '../utils/broilerSopData';
+import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 
 interface Chores {
   id: string;
@@ -78,6 +80,7 @@ export default function Dashboard() {
   const [isMarketRatesModalOpen, setIsMarketRatesModalOpen] = useState<boolean>(false);
   const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
+  const [isSopModalOpen, setIsSopModalOpen] = useState<boolean>(false);
   const [quickLogTab, setQuickLogTab] = useState<'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales'>('all');
   const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
 
@@ -1156,6 +1159,39 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Daily SOP & Feed Schedule Feature Launcher */}
+          <div className="bg-gradient-to-r from-teal-50/90 via-emerald-50/80 to-amber-50/80 p-2.5 rounded-xl border border-teal-200/90 mb-2.5 flex items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <ClipboardList size={16} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-black text-teal-950 uppercase tracking-wide">
+                    {language === 'bn' ? 'দৈনিক খাদ্য ও এসওপি শিডিউল' : 'Daily SOP & Feed Schedule'}
+                  </span>
+                  <span className="text-[9px] font-bold text-teal-800 bg-white/90 px-1.5 py-0.2 rounded border border-teal-200">
+                    {aliveBirdsCount.toLocaleString()} {language === 'bn' ? (selectedType === 'cattle' ? 'পশু' : selectedType === 'fish' ? 'মাছ' : 'পাখি') : 'heads'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 font-bold truncate">
+                  {language === 'bn' 
+                    ? `বয়স ${calculateAge(activeBatch.startDate)} দিন • জীবিত সংখ্যার সঠিক হিসাব অনুযায়ী খাদ্য ও কাজের তালিকা` 
+                    : `Age ${calculateAge(activeBatch.startDate)}d • Exact diet & management schedule`}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSopModalOpen(true)}
+              className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-black rounded-xl shadow-xs shrink-0 flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.02]"
+            >
+              <span>{language === 'bn' ? 'এসওপি দেখুন' : 'View SOP'}</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+
           {/* Active Batch Slim Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-slate-150/70 text-[11px] font-bold text-slate-500">
             <Link to="/batches" className="hover:text-emerald-700 flex items-center gap-1 transition-colors">
@@ -1305,21 +1341,22 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Row 4, Item 1: Farm Guidelines / খামার নির্দেশিকা ও গাইড */}
-          <Link 
-            to="/guidelines"
+          {/* Row 4, Item 1: Farm SOP & Feed Schedule / এসওপি চার্ট ও কাজের তালিকা */}
+          <button 
+            type="button"
+            onClick={() => setIsSopModalOpen(true)}
             className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative shadow-2xs"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <BookOpen size={16} strokeWidth={2.4} />
+            <div className="w-8 h-8 bg-gradient-to-br from-teal-700 to-emerald-700 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+              <ClipboardList size={16} strokeWidth={2.4} />
             </div>
             <span className="text-[10px] font-black text-emerald-950 tracking-tight block truncate">
-              {language === 'bn' ? 'খামার গাইড' : 'Farm Guide'}
+              {language === 'bn' ? 'এসওপি চার্ট' : 'SOP Chart'}
             </span>
-            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded-full uppercase border border-white tracking-wider">
-              SOP
+            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-amber-400 text-slate-950 rounded-full uppercase border border-white tracking-wider">
+              {language === 'bn' ? '১ দিন থেকে' : 'Day 1+'}
             </span>
-          </Link>
+          </button>
 
           {/* Row 4, Item 2: Live Market Rates with LIVE Badge */}
           <button 
@@ -1781,6 +1818,24 @@ export default function Dashboard() {
           fetchRecentActivitiesAndStats();
         }}
       />
+
+      {/* 9. Dynamic Batch SOP & Standard Feed Planner Modal */}
+      {isSopModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fadeIn">
+          <div className="max-w-5xl w-full my-auto">
+            <BroilerDailySopCard
+              batches={categoryBatches}
+              selectedBatchId={activeBatch?.id}
+              initialBatch={activeBatch}
+              farmCategory={selectedType}
+              isBn={language === 'bn'}
+              currentUser={currentUser}
+              isDemoUser={isDemoUser}
+              onClose={() => setIsSopModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );

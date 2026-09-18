@@ -467,6 +467,16 @@ export interface BatchFcrResult {
   ratingLabelEn: string;
   feedbackBn: string;
   feedbackEn: string;
+
+  // New strict age-continuity & sanity fields
+  isUpToDateForCurrentAge: boolean;
+  latestMeasurementAgeDays: number | null;
+  isAgeGapWaiting: boolean;
+  sanityWarning: {
+    isAbnormal: boolean;
+    messageBn: string;
+    messageEn: string;
+  } | null;
 }
 
 /**
@@ -483,7 +493,8 @@ export interface BatchFcrResult {
  */
 export function calculateStrictBatchFcr(
   batch: BatchIdentifier,
-  dailyRecords: DailyActualRecord[]
+  dailyRecords: DailyActualRecord[],
+  mortalityCountFromRecords?: number
 ): BatchFcrResult {
   const benchmark = getBreedBenchmark(batch.farmType, batch.subBreed);
 
@@ -502,33 +513,50 @@ export function calculateStrictBatchFcr(
     );
 
   /*
-   * ACTUAL FEED ONLY
+   * ACTUAL FEED
    *
-   * Never read:
-   * - feed_records
-   * - purchase quantity
-   * - stock quantity
-   * - expected feed
-   * - feed forecast
-   *
-   * Only actualFeedUsedKg from DailyActualRecord.
+   * 1. If farmer entered a dedicated cumulative FCR measurement (e.g., 340 kg at 13 days or 750 kg at 18 days),
+   *    we take that exact cumulative figure. We do NOT sum prior cumulative figures or daily entries.
+   * 2. If no cumulative measurement exists, we sum daily actual records.
+   * 3. Unused stock/purchases are NEVER counted as feed consumed.
    */
-  const feedRecords = batchRecords.filter(
+  const cumulativeFeedRecords = batchRecords.filter(
     record =>
+      (record.isFcrMeasurement || record.feedEntryType === 'cumulative') &&
       record.actualFeedUsedKg !== null &&
       record.actualFeedUsedKg !== undefined &&
       Number(record.actualFeedUsedKg) > 0
   );
 
-  const totalActualFeedUsedKg = Number(
-    feedRecords
-      .reduce(
-        (sum, record) =>
-          sum + Number(record.actualFeedUsedKg || 0),
-        0
-      )
-      .toFixed(2)
-  );
+  let totalActualFeedUsedKg = 0;
+  if (cumulativeFeedRecords.length > 0) {
+    // Latest cumulative record contains the true actual feed used up to that age
+    const latestCum = cumulativeFeedRecords[cumulativeFeedRecords.length - 1];
+    totalActualFeedUsedKg = Number(Number(latestCum.actualFeedUsedKg || 0).toFixed(2));
+  } else {
+    const feedRecords = batchRecords.filter(
+      record =>
+        record.actualFeedUsedKg !== null &&
+        record.actualFeedUsedKg !== undefined &&
+        Number(record.actualFeedUsedKg) > 0
+    );
+    totalActualFeedUsedKg = Number(
+      feedRecords
+        .reduce(
+          (sum, record) =>
+            sum + Number(record.actualFeedUsedKg || 0),
+          0
+        )
+        .toFixed(2)
+    );
+  }
+
+  const feedRecordsCount = batchRecords.filter(
+    record =>
+      record.actualFeedUsedKg !== null &&
+      record.actualFeedUsedKg !== undefined &&
+      Number(record.actualFeedUsedKg) > 0
+  ).length;
 
   /*
    * REAL WEIGHT SAMPLES ONLY
@@ -583,13 +611,15 @@ export function calculateStrictBatchFcr(
   /*
    * LIVE COUNT
    *
-   * Mortality is already calculated in DailyActualRecord.
+   * Mortality is taken from actual mortality records (mortality management)
+   * or fallback to DailyActualRecord.
    * No mortality weight is estimated.
    */
   let totalMortality = 0;
-  let currentLiveCount = Number(batch.totalChicks || 0);
 
-  if (batchRecords.length > 0) {
+  if (typeof mortalityCountFromRecords === 'number' && !isNaN(mortalityCountFromRecords)) {
+    totalMortality = Math.max(0, mortalityCountFromRecords);
+  } else if (batchRecords.length > 0) {
     const latestRecord =
       batchRecords[batchRecords.length - 1];
 
@@ -597,18 +627,12 @@ export function calculateStrictBatchFcr(
       0,
       Number(latestRecord.totalMortalityToDate || 0)
     );
-
-    currentLiveCount = Math.max(
-      0,
-      Number(
-        latestRecord.currentLiveCount ??
-          (
-            Number(batch.totalChicks || 0) -
-            totalMortality
-          )
-      )
-    );
   }
+
+  const currentLiveCount = Math.max(
+    0,
+    Number(batch.totalChicks || 0) - totalMortality
+  );
 
   const expectedStandard =
     getExpectedStandardForAge(
@@ -635,25 +659,40 @@ export function calculateStrictBatchFcr(
     missingReasons.push('missing_feed');
   }
 
-  /*
-   * A real measured baseline is mandatory.
-   * We NEVER substitute:
-   * - 40g chick
-   * - 35g chick
-   * - benchmark weight
-   * - expected age weight
-   */
+  // Baseline chick weight (e.g. 40g for broiler, 35g for sonali, 120kg for cattle, etc.)
+  const startingWeightGram = benchmark.defaultInitialWeightGram || 40;
+
   if (weightSamples.length === 0) {
     missingReasons.push('missing_weight');
   } else if (weightSamples.length === 1) {
-    baselineSample = weightSamples[0];
     latestSample = weightSamples[0];
+    baselineSample = {
+      date: batch.startDate,
+      ageDays: 1,
+      sampleBirds: 1,
+      totalSampleWeightKg: Number((startingWeightGram / 1000).toFixed(4)),
+      avgWeightGram: startingWeightGram,
+      avgWeightKg: Number((startingWeightGram / 1000).toFixed(4))
+    };
 
-    missingReasons.push('waiting_next_sample');
+    avgWeightGainGram = Math.max(0, latestSample.avgWeightGram - startingWeightGram);
+    avgWeightGainKg = Number((avgWeightGainGram / 1000).toFixed(3));
+
+    if (avgWeightGainGram <= 0 || currentLiveCount <= 0) {
+      missingReasons.push('zero_weight_gain');
+    } else {
+      totalFlockBiomassGainKg = Number(
+        (currentLiveCount * (avgWeightGainGram / 1000)).toFixed(2)
+      );
+      if (totalActualFeedUsedKg > 0 && totalFlockBiomassGainKg > 0) {
+        actualFcr = Number(
+          (totalActualFeedUsedKg / totalFlockBiomassGainKg).toFixed(2)
+        );
+      }
+    }
   } else {
     baselineSample = weightSamples[0];
-    latestSample =
-      weightSamples[weightSamples.length - 1];
+    latestSample = weightSamples[weightSamples.length - 1];
 
     avgWeightGainGram =
       latestSample.avgWeightGram -
@@ -668,12 +707,6 @@ export function calculateStrictBatchFcr(
     } else if (currentLiveCount <= 0) {
       missingReasons.push('zero_weight_gain');
     } else {
-      /*
-       * Only currently living animals contribute
-       * to biomass gain.
-       *
-       * Mortality weight is NEVER estimated.
-       */
       totalFlockBiomassGainKg = Number(
         (
           currentLiveCount *
@@ -691,6 +724,61 @@ export function calculateStrictBatchFcr(
             totalFlockBiomassGainKg
           ).toFixed(2)
         );
+      }
+    }
+  }
+
+  // Check if measurement is up to date for current batch age
+  let isUpToDateForCurrentAge = false;
+  let latestMeasurementAgeDays: number | null = null;
+  let isAgeGapWaiting = false;
+
+  if (latestSample) {
+    latestMeasurementAgeDays = latestSample.ageDays;
+    // If the batch has grown older (e.g. today is day 19, but latest sample was day 18),
+    // then current age FCR is not yet measured!
+    if (ageDays > latestMeasurementAgeDays) {
+      isAgeGapWaiting = true;
+      isUpToDateForCurrentAge = false;
+    } else {
+      isAgeGapWaiting = false;
+      isUpToDateForCurrentAge = true;
+    }
+  }
+
+  // Sanity Validation Engine
+  let sanityWarning: BatchFcrResult['sanityWarning'] = null;
+  if (latestSample) {
+    if (latestSample.ageDays <= 5 && latestSample.avgWeightGram > 250) {
+      sanityWarning = {
+        isAbnormal: true,
+        messageBn: `অস্বাভাবিক ওজন! ১-৫ দিনের বাচ্চার ওজন সাধারণত ৪০-১০০ গ্রাম হয়। কিন্তু এখানে গড় ওজন ${latestSample.avgWeightGram} গ্রাম (বা ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি) দেওয়া হয়েছে।`,
+        messageEn: `Abnormal weight! At age 1-5 days, weight is 40-100g. Entered average weight is ${latestSample.avgWeightGram}g.`
+      };
+    } else if (latestSample.avgWeightGram > 4500 && latestSample.ageDays <= 30) {
+      sanityWarning = {
+        isAbnormal: true,
+        messageBn: `অস্বাভাবিক ওজন! ৩০ দিনের মধ্যে মুরগির গড় ওজন ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি হওয়া অসম্ভব।`,
+        messageEn: `Abnormal weight! Average weight of ${(latestSample.avgWeightGram/1000).toFixed(1)} kg at 30 days is unrealistic.`
+      };
+    } else if (totalActualFeedUsedKg > 0 && currentLiveCount > 0) {
+      const feedPerBirdKg = totalActualFeedUsedKg / currentLiveCount;
+      if (latestSample.ageDays <= 14 && feedPerBirdKg > 2.5) {
+        sanityWarning = {
+          isAbnormal: true,
+          messageBn: `অস্বাভাবিক খাবার খরচ! ${currentLiveCount}টি বাচ্চার জন্য মোট ${totalActualFeedUsedKg} কেজি খাবার (প্রতি বাচ্চায় ${feedPerBirdKg.toFixed(2)} কেজি) অসম্ভব রকমের বেশি।`,
+          messageEn: `Abnormal feed consumption! ${totalActualFeedUsedKg} kg for ${currentLiveCount} chicks is unrealistically high.`
+        };
+      }
+    }
+
+    if (!sanityWarning && actualFcr !== null) {
+      if (actualFcr < 0.6 || actualFcr > 4.5) {
+        sanityWarning = {
+          isAbnormal: true,
+          messageBn: `অস্বাভাবিক FCR (${actualFcr})! সাধারণত ব্রয়লারের FCR ১.৪০ – ১.৭০ এর মধ্যে থাকে। খাদ্য বা ওজনের তথ্যে কোনো ভুল আছে কি না যাচাই করুন।`,
+          messageEn: `Abnormal FCR (${actualFcr})! Standard broiler FCR is 1.40 - 1.70. Please verify feed or weight entries.`
+        };
       }
     }
   }
@@ -742,14 +830,8 @@ export function calculateStrictBatchFcr(
     }
   }
 
-  /*
-   * IMPORTANT:
-   *
-   * initialWeightGram is ACTUAL baseline only.
-   * It is NOT benchmark.defaultInitialWeightGram.
-   */
   const initialWeightGram =
-    baselineSample?.avgWeightGram ?? null;
+    baselineSample?.avgWeightGram ?? startingWeightGram;
 
   const initialWeightKg =
     initialWeightGram !== null
@@ -783,10 +865,9 @@ export function calculateStrictBatchFcr(
     totalMortalityToDate: totalMortality,
 
     totalActualFeedUsedKg,
-    dailyFeedRecordCount: feedRecords.length,
+    dailyFeedRecordCount: feedRecordsCount,
 
-    totalWeightSamplesTaken:
-      weightSamples.length,
+    totalWeightSamplesTaken: weightSamples.length,
 
     baselineSample,
     latestSample,
@@ -812,6 +893,11 @@ export function calculateStrictBatchFcr(
     ratingLabelBn,
     ratingLabelEn,
     feedbackBn,
-    feedbackEn
+    feedbackEn,
+
+    isUpToDateForCurrentAge,
+    latestMeasurementAgeDays,
+    isAgeGapWaiting,
+    sanityWarning
   };
 }

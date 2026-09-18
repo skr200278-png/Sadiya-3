@@ -7,6 +7,8 @@ import {
   updateDoc, 
   deleteDoc, 
   doc, 
+  getDoc,
+  setDoc,
   onSnapshot 
 } from 'firebase/firestore';
 import { db, fastGetDocs } from '../firebase';
@@ -59,6 +61,19 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Helper to reliably identify default built-in demo listings vs user-posted listings
+export const isDefaultDemoChickAd = (ad?: DemoChickListing | { id?: string; userId?: string } | null): boolean => {
+  if (!ad || !ad.id) return false;
+  const knownDemoIds = ['chick_ad_1', 'chick_ad_2', 'chick_ad_3', 'chick_ad_4', 'chick_ad_5', 'chick_ad_6'];
+  if (knownDemoIds.includes(ad.id) || /^chick_ad_[1-6]$/.test(ad.id)) {
+    return true;
+  }
+  if (ad.userId && (ad.userId.startsWith('company_') || ad.userId === 'demo_hatchery_admin')) {
+    return true;
+  }
+  return false;
+};
+
 export const ChickMarket: React.FC = () => {
   const { currentUser, isDemoUser } = useAuth();
   const { language, t } = useLanguage();
@@ -67,6 +82,7 @@ export const ChickMarket: React.FC = () => {
   const isMasterAdmin = 
     Boolean(sysAdmin) || 
     currentUser?.email === 'skabusufian452@gmail.com' || 
+    currentUser?.email === 'sr0632890@gmail.com' ||
     currentUser?.email === 'admin@digitalfarm.pro' || 
     (currentUser as any)?.role === 'admin';
   const isAdmin = isMasterAdmin;
@@ -80,21 +96,33 @@ export const ChickMarket: React.FC = () => {
     }
   });
 
+  // Track deleted demo chick ads under admin control
+  const [deletedDemoChickAdIds, setDeletedDemoChickAdIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('deleted_demo_chick_ads');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // State
   const [rates, setRates] = useState<DemoChickRate[]>([]);
   const [listings, setListings] = useState<DemoChickListing[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modals & Confirmation
+  const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+  const [isRateEditModalOpen, setIsRateEditModalOpen] = useState(false);
+  const [editingRate, setEditingRate] = useState<DemoChickRate | null>(null);
+  const [listingToDelete, setListingToDelete] = useState<DemoChickListing | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Tab & Filters
   const [activeCategory, setActiveCategory] = useState<'all' | 'poultry' | 'birds' | 'fish' | 'cattle'>('all');
   const [selectedGrade, setSelectedGrade] = useState<'all' | 'A' | 'B' | 'C'>('all');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
-
-  // Modals
-  const [isPostModalOpen, setIsPostModalOpen] = useState(false);
-  const [isRateEditModalOpen, setIsRateEditModalOpen] = useState(false);
-  const [editingRate, setEditingRate] = useState<DemoChickRate | null>(null);
 
   // Post Form State
   const [postForm, setPostForm] = useState({
@@ -124,9 +152,37 @@ export const ChickMarket: React.FC = () => {
 
     const loadData = async () => {
       setLoading(true);
+
+      // 1. Sync deleted demo IDs from Firestore if connected
+      try {
+        if (!isDemoUser) {
+          const configSnap = await getDoc(doc(db, 'system_config', 'chick_market'));
+          if (configSnap.exists() && Array.isArray(configSnap.data()?.deletedDemoChickAdIds)) {
+            const remoteDeleted: string[] = configSnap.data()?.deletedDemoChickAdIds || [];
+            setDeletedDemoChickAdIds(prev => {
+              const merged = Array.from(new Set([...prev, ...remoteDeleted]));
+              try {
+                localStorage.setItem('deleted_demo_chick_ads', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
+        }
+      } catch (e) {
+        // Fallback to local
+      }
+
       if (isDemoUser) {
         setRates(demoStore.getChickRates());
-        setListings(demoStore.getChickListings());
+        const currentDeleted = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
+          } catch {
+            return [];
+          }
+        })();
+        const raw = demoStore.getChickListings();
+        setListings(raw.filter(l => !currentDeleted.includes(l.id)));
         setLoading(false);
         return;
       }
@@ -153,20 +209,48 @@ export const ChickMarket: React.FC = () => {
       try {
         const listingsQuery = query(collection(db, 'chick_listings'), orderBy('createdAt', 'desc'));
         unsubListings = onSnapshot(listingsQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DemoChickListing));
-            setListings(data);
-          } else {
-            setListings(demoStore.getChickListings());
-          }
+          const currentDeleted = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
+            } catch {
+              return [];
+            }
+          })();
+
+          const firestoreAds = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DemoChickListing));
+          const availableDemoAds = initialChickListings.filter(d => !currentDeleted.includes(d.id));
+          const firestoreIds = new Set(firestoreAds.map(a => a.id));
+
+          const combined = [
+            ...firestoreAds,
+            ...availableDemoAds.filter(d => !firestoreIds.has(d.id))
+          ];
+
+          setListings(combined);
           setLoading(false);
         }, (err) => {
           console.warn('Listings listener fallback to demo:', err);
-          setListings(demoStore.getChickListings());
+          const currentDeleted = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
+            } catch {
+              return [];
+            }
+          })();
+          const raw = demoStore.getChickListings();
+          setListings(raw.filter(l => !currentDeleted.includes(l.id)));
           setLoading(false);
         });
       } catch (err) {
-        setListings(demoStore.getChickListings());
+        const currentDeleted = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
+          } catch {
+            return [];
+          }
+        })();
+        const raw = demoStore.getChickListings();
+        setListings(raw.filter(l => !currentDeleted.includes(l.id)));
         setLoading(false);
       }
     };
@@ -298,41 +382,126 @@ export const ChickMarket: React.FC = () => {
     }
   };
 
-  // Delete Listing (Advertiser / Owner or Master Admin)
-  const handleDeleteListing = async (listingId: string) => {
-    if (!window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত এই বাচ্চার বিজ্ঞাপনটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this chick ad?')) {
-      return;
-    }
+  // Confirm Delete Listing (Creator can delete own ad; Master Admin can delete any ad, including default demo ads)
+  const confirmDeleteListing = async () => {
+    if (!listingToDelete) return;
+    setIsDeleting(true);
+
+    const listingId = listingToDelete.id;
+    const isDemo = isDefaultDemoChickAd(listingToDelete);
 
     try {
-      // 1. Delete from demoStore / localStorage
-      demoStore.deleteChickListing(listingId);
-
-      // 2. Remove from my locally tracked ads
-      setMyCreatedAdIds(prev => {
-        const next = prev.filter(id => id !== listingId);
+      if (isDemo) {
+        // Master Admin deleting a default demo listing
+        const updated = Array.from(new Set([...deletedDemoChickAdIds, listingId]));
+        setDeletedDemoChickAdIds(updated);
         try {
-          localStorage.setItem('my_created_chick_ads', JSON.stringify(next));
+          localStorage.setItem('deleted_demo_chick_ads', JSON.stringify(updated));
         } catch {}
-        return next;
-      });
 
-      // 3. Delete from Firestore if live
-      if (!isDemoUser) {
-        try {
-          await deleteDoc(doc(db, 'chick_listings', listingId));
-        } catch (err) {
-          console.warn('Firestore doc delete note:', err);
+        demoStore.deleteChickListing(listingId);
+
+        if (!isDemoUser) {
+          try {
+            await setDoc(doc(db, 'system_config', 'chick_market'), {
+              deletedDemoChickAdIds: updated,
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (err) {
+            console.warn('Firestore doc sync note:', err);
+          }
         }
-      }
 
-      // 4. Immediately remove from UI state
-      setListings(prev => prev.filter(ad => ad.id !== listingId));
-      toast.success(language === 'bn' ? 'বাচ্চার বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে' : 'Chick advertisement deleted successfully');
+        setListings(prev => prev.filter(ad => ad.id !== listingId));
+        toast.success(language === 'bn' ? 'অ্যাডমিন কর্তৃক ডেমো বাচ্চার বিজ্ঞাপনটি মুছে ফেলা হয়েছে' : 'Demo chick ad deleted by admin');
+      } else {
+        // Creator deleting own ad or Admin deleting user ad
+        demoStore.deleteChickListing(listingId);
+
+        setMyCreatedAdIds(prev => {
+          const next = prev.filter(id => id !== listingId);
+          try {
+            localStorage.setItem('my_created_chick_ads', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
+        if (!isDemoUser) {
+          try {
+            await deleteDoc(doc(db, 'chick_listings', listingId));
+          } catch (err) {
+            console.warn('Firestore doc delete note:', err);
+          }
+        }
+
+        setListings(prev => prev.filter(ad => ad.id !== listingId));
+        toast.success(language === 'bn' ? 'বাচ্চার বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে' : 'Chick advertisement deleted successfully');
+      }
     } catch (err: any) {
       console.error('Delete listing error:', err);
       toast.error(language === 'bn' ? 'বিজ্ঞাপন মুছতে সমস্যা হয়েছে' : 'Could not delete ad');
+    } finally {
+      setIsDeleting(false);
+      setListingToDelete(null);
     }
+  };
+
+  // Master Admin: Delete ALL default demo chick ads at once
+  const handleDeleteAllDemoAds = async () => {
+    if (!isMasterAdmin) return;
+    const allDemoIds = initialChickListings.map(d => d.id);
+    const updated = Array.from(new Set([...deletedDemoChickAdIds, ...allDemoIds]));
+
+    setDeletedDemoChickAdIds(updated);
+    try {
+      localStorage.setItem('deleted_demo_chick_ads', JSON.stringify(updated));
+    } catch {}
+
+    allDemoIds.forEach(id => demoStore.deleteChickListing(id));
+
+    if (!isDemoUser) {
+      try {
+        await setDoc(doc(db, 'system_config', 'chick_market'), {
+          deletedDemoChickAdIds: updated,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Firestore sync note:', err);
+      }
+    }
+
+    setListings(prev => prev.filter(ad => !allDemoIds.includes(ad.id)));
+    toast.success(language === 'bn' ? 'সকল ডেমো বাচ্চার বিজ্ঞাপন সফলভাবে মুছে ফেলা হয়েছে' : 'All demo chick advertisements removed by admin');
+  };
+
+  // Master Admin: Restore default demo chick ads
+  const handleRestoreDemoAds = async () => {
+    if (!isMasterAdmin) return;
+    setDeletedDemoChickAdIds([]);
+    try {
+      localStorage.removeItem('deleted_demo_chick_ads');
+    } catch {}
+
+    demoStore.restoreDefaultChickListings();
+
+    if (!isDemoUser) {
+      try {
+        await setDoc(doc(db, 'system_config', 'chick_market'), {
+          deletedDemoChickAdIds: [],
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Firestore sync note:', err);
+      }
+    }
+
+    setListings(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const toAdd = initialChickListings.filter(d => !existingIds.has(d.id));
+      return [...prev, ...toAdd];
+    });
+
+    toast.success(language === 'bn' ? 'সকল ডেমো বাচ্চার বিজ্ঞাপন রিস্টোর করা হয়েছে' : 'All demo chick ads restored successfully');
   };
 
   // WhatsApp Order helper
@@ -441,6 +610,51 @@ export const ChickMarket: React.FC = () => {
           <span>{language === 'bn' ? 'ড্যাশবোর্ডের বাজার দর দেখুন ➔' : 'View Dashboard Rates ➔'}</span>
         </a>
       </div>
+
+      {/* 2.1 Master Admin Moderation & Demo Ads Control Strip */}
+      {isMasterAdmin && (
+        <div className="bg-slate-900 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-500/30">
+              <Crown size={16} />
+            </div>
+            <div>
+              <span className="text-xs font-black text-white flex items-center gap-1.5">
+                {language === 'bn' ? 'মাস্টার অ্যাডমিন কন্ট্রোল: বাচ্চার বিজ্ঞাপন ও ডেমো মডারেশন' : 'Master Admin: Chick Listings & Demo Moderation'}
+              </span>
+              <p className="text-[10.5px] text-slate-300 font-medium mt-0.5">
+                {language === 'bn' 
+                  ? 'বর্তমান ডেমো বিজ্ঞাপন এবং ব্যবহারকারীদের যে কোনো বিজ্ঞাপন অ্যাডমিন হিসেবে মুছে ফেলতে পারেন।' 
+                  : 'You have full admin permission to delete default demo ads or moderate any user listings.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+            {listings.some(ad => isDefaultDemoChickAd(ad)) && (
+              <button
+                type="button"
+                onClick={handleDeleteAllDemoAds}
+                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-600 border border-rose-500/40 hover:border-rose-600 text-rose-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Trash2 size={13} />
+                <span>{language === 'bn' ? 'সকল ডেমো বিজ্ঞাপন মুছুন' : 'Delete All Demo Ads'}</span>
+              </button>
+            )}
+
+            {deletedDemoChickAdIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRestoreDemoAds}
+                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-600 border border-emerald-400/40 hover:border-emerald-500 text-emerald-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Sparkles size={13} />
+                <span>{language === 'bn' ? `ডেমো রিস্টোর (${deletedDemoChickAdIds.length})` : `Restore Demo Ads (${deletedDemoChickAdIds.length})`}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 3. Category Selector for Stores */}
       <div className="bg-white p-1.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center gap-1 overflow-x-auto scrollbar-thin">
@@ -586,14 +800,20 @@ export const ChickMarket: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredListings.map((ad) => {
-            const isDirectOwner = Boolean(
+            const isDemoAd = isDefaultDemoChickAd(ad);
+            const isDirectOwner = !isDemoAd && Boolean(
               (currentUser && ad.userId && currentUser.uid === ad.userId) ||
               (currentUser?.email && (ad as any).userEmail && currentUser.email === (ad as any).userEmail) ||
               (currentUser?.phoneNumber && ad.phone && (ad.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(ad.phone))) ||
               myCreatedAdIds.includes(ad.id) ||
-              (isDemoUser && (ad.userId === 'demo_user' || ad.userId === 'demo_khamari_user_1' || ad.id?.startsWith('chick_my_') || ad.id?.startsWith('chick_ad_')))
+              (isDemoUser && (ad.userId === 'demo_user' || ad.userId === 'demo_khamari_user_1' || ad.id?.startsWith('chick_my_')))
             );
-            const canManage = isDirectOwner || isMasterAdmin;
+
+            // Access control:
+            // - System default demo ads: ONLY Master Admin can manage/delete!
+            // - User-created ads: Creator OR Master Admin can manage/delete!
+            const canManage = isDemoAd ? isMasterAdmin : (isDirectOwner || isMasterAdmin);
+
             return (
               <div 
                 key={ad.id}
@@ -640,12 +860,26 @@ export const ChickMarket: React.FC = () => {
 
                       {canManage && (
                         <span className={`text-[9.5px] font-black px-2 py-0.8 rounded-lg flex items-center gap-1 border ${
-                          isMasterAdmin && !isDirectOwner
+                          isDemoAd
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : isMasterAdmin && !isDirectOwner
                             ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                         }`}>
-                          {isMasterAdmin && !isDirectOwner ? <Crown size={10} className="text-rose-600" /> : <CheckCircle2 size={10} className="text-emerald-600" />}
-                          <span>{isDirectOwner ? (language === 'bn' ? 'আপনার বিজ্ঞাপন' : 'Your Ad') : (language === 'bn' ? 'মাস্টার এডমিন' : 'Master Admin')}</span>
+                          {isDemoAd ? (
+                            <Crown size={10} className="text-purple-600" />
+                          ) : isMasterAdmin && !isDirectOwner ? (
+                            <Crown size={10} className="text-rose-600" />
+                          ) : (
+                            <CheckCircle2 size={10} className="text-emerald-600" />
+                          )}
+                          <span>
+                            {isDemoAd
+                              ? (language === 'bn' ? 'অ্যাডমিন নিয়ন্ত্রণ (ডেমো)' : 'Admin Demo Control')
+                              : isDirectOwner
+                              ? (language === 'bn' ? 'আপনার বিজ্ঞাপন' : 'Your Ad')
+                              : (language === 'bn' ? 'মাস্টার এডমিন' : 'Master Admin')}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -722,14 +956,22 @@ export const ChickMarket: React.FC = () => {
                   {canManage && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteListing(ad.id)}
+                      onClick={() => setListingToDelete(ad)}
                       className="flex items-center gap-1 px-2.5 py-2 text-rose-600 hover:text-white hover:bg-rose-600 bg-rose-50 border border-rose-200 rounded-xl transition-all cursor-pointer shrink-0 text-xs font-black active:scale-95"
-                      title={isMasterAdmin && !isDirectOwner 
+                      title={isDemoAd
+                        ? (language === 'bn' ? 'মাস্টার এডমিন: ডেমো বিজ্ঞাপন মুছুন' : 'Master Admin: Delete Demo Ad')
+                        : isMasterAdmin && !isDirectOwner 
                         ? (language === 'bn' ? 'মাস্টার এডমিন: বিজ্ঞাপন ডিলিট করুন' : 'Master Admin: Delete Ad') 
                         : (language === 'bn' ? 'বিজ্ঞাপন মুছে ফেলুন' : 'Delete Your Ad')}
                     >
                       <Trash2 size={14} />
-                      <span className="hidden xs:inline">{isMasterAdmin && !isDirectOwner ? (language === 'bn' ? 'এডমিন ডিলিট' : 'Admin Del') : (language === 'bn' ? 'মুছুন' : 'Delete')}</span>
+                      <span className="hidden xs:inline">
+                        {isDemoAd
+                          ? (language === 'bn' ? 'ডেমো মুছুন' : 'Delete Demo')
+                          : isMasterAdmin && !isDirectOwner 
+                          ? (language === 'bn' ? 'এডমিন ডিলিট' : 'Admin Del') 
+                          : (language === 'bn' ? 'মুছুন' : 'Delete')}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -1126,6 +1368,76 @@ export const ChickMarket: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. In-App Delete Confirmation Modal */}
+      {listingToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 relative animate-in fade-in zoom-in-95">
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => setListingToDelete(null)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  {isDefaultDemoChickAd(listingToDelete)
+                    ? (language === 'bn' ? 'ডেমো বিজ্ঞাপন মুছে ফেলুন' : 'Delete Demo Advertisement')
+                    : (language === 'bn' ? 'বিজ্ঞাপন মুছে ফেলুন' : 'Delete Advertisement')}
+                </h3>
+                <p className="text-xs text-slate-600 font-bold mt-0.5">
+                  {listingToDelete.companyName} • {listingToDelete.subCategory}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/80 border border-rose-200/90 rounded-2xl p-3.5 mb-4 text-xs text-rose-900 font-medium space-y-1.5">
+              <p>
+                {isDefaultDemoChickAd(listingToDelete)
+                  ? (language === 'bn' 
+                      ? 'এটি একটি সিস্টেম ডেমো বিজ্ঞাপন। মাস্টার অ্যাডমিন হিসেবে এটি মুছে ফেললে তা তালিকা থেকে স্থায়ীভাবে মুছে যাবে।' 
+                      : 'This is a system demo advertisement. Deleting it will remove it from the market listings.')
+                  : (language === 'bn' 
+                      ? 'আপনি কি নিশ্চিত এই বাচ্চার বিজ্ঞাপনটি বাজার তালিকা থেকে মুছে ফেলতে চান? ক্রেতারা আর এটি দেখতে পাবে না।' 
+                      : 'Are you sure you want to delete this chick listing? Buyers will no longer be able to see it.')}
+              </p>
+              {isDefaultDemoChickAd(listingToDelete) && (
+                <p className="text-[11px] text-rose-700 font-bold">
+                  {language === 'bn' ? '💡 প্রয়োজনে পরে "ডেমো রিস্টোর" বাটন দিয়ে এটি ফিরিয়ে আনতে পারবেন।' : '💡 You can restore default demo ads later using the Restore button.'}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setListingToDelete(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                {language === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteListing}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20"
+              >
+                <Trash2 size={14} />
+                <span>{isDeleting ? (language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...') : (language === 'bn' ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete')}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

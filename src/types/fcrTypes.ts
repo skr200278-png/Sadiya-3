@@ -208,6 +208,9 @@ export interface DailyActualRecord {
   actualFeedUsedBags: number | null; // In bags
   bagWeightKgUsed: number; // Configured bag weight (e.g. 50, 25, etc.)
   cumulativeActualFeedUsedKg: number; // Running total of actual feed for this batch
+  feedEntryType?: 'cumulative' | 'daily'; // 'cumulative' = total feed up to this age
+  isFcrMeasurement?: boolean; // explicitly saved from FCR entry modal
+  sanityWarning?: string; // warning message if abnormal entry was flagged
 
   // Sample Weighing (Optional per day)
   weightSampleCount: number | null; // Number of birds/animals weighed

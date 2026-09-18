@@ -4,14 +4,13 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle, Activity } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
 import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
-import DailyActualRecordsView from '../components/DailyActualRecordsView';
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -29,15 +28,10 @@ export default function Feed() {
   const submitLock = useRef(false);
   
   const [searchParams] = useSearchParams();
-  const [feedTab, setFeedTab] = useState<'records' | 'daily'>('records');
   const [showForm, setShowForm] = useState(false);
   const [batchId, setBatchId] = useState('');
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'daily') setFeedTab('daily');
-    else setFeedTab('records');
-
     const batchParam = searchParams.get('batchId');
     if (batchParam) {
       setBatchId(batchParam);
@@ -370,67 +364,21 @@ export default function Feed() {
         onSelectProduct={handleSelectSponsorProduct} 
       />
 
-      {/* Main Header & View Tabs */}
-      <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
-            <ClipboardList className="text-orange-500" /> {t('feed.title')}
-          </h2>
-          <button 
-            onClick={() => {
-              setShowForm(!showForm);
-              if (!showForm) setFeedTab('records');
-            }}
-            className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1 font-bold text-xs shadow-sm transition-all"
-          >
-            <Plus size={16} />
-            <span>{language === 'bn' ? 'হিসাব যোগ করুন' : 'Add Record'}</span>
-          </button>
-        </div>
-
-        {/* Tab switch buttons */}
-        <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
-          <button
-            onClick={() => setFeedTab('records')}
-            className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              feedTab === 'records'
-                ? 'bg-white text-orange-700 shadow-2xs font-extrabold'
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            <ClipboardList size={14} />
-            <span className="truncate">{language === 'bn' ? 'খাবার স্টক ও ক্রয়' : 'Logs & Stock'}</span>
-          </button>
-
-          <button
-            onClick={() => setFeedTab('daily')}
-            className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              feedTab === 'daily'
-                ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            <Activity size={14} />
-            <span className="truncate">{language === 'bn' ? 'দৈনিক রেকর্ড' : 'Daily Records'}</span>
-          </button>
-        </div>
+      {/* Main Header */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+          <ClipboardList className="text-orange-500" /> {t('feed.title')}
+        </h2>
+        <button 
+          onClick={() => setShowForm(!showForm)}
+          className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1 font-bold text-xs shadow-sm transition-all"
+        >
+          <Plus size={16} />
+          <span>{language === 'bn' ? 'হিসাব যোগ করুন' : 'Add Record'}</span>
+        </button>
       </div>
 
-      {/* Render based on selected Tab */}
-      {feedTab === 'daily' ? (
-        <DailyActualRecordsView
-          selectedBatchId={batchId}
-          onBatchChange={handleBatchChange}
-          activeBatches={activeBatches}
-          allBatches={allBatches}
-          currentUser={currentUser}
-          isDemoUser={isDemoUser}
-          allMortalityRecords={allMortality}
-          allSalesRecords={allSales}
-        />
-      ) : (
-        <>
-          {showForm && (
+      {showForm && (
             <form onSubmit={handleSubmit} className="bg-white p-4 rounded-xl shadow border border-orange-100 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('feed.selectBatch')}</label>
@@ -610,8 +558,6 @@ export default function Feed() {
               </div>
             )}
           </div>
-        </>
-      )}
     
       <ConfirmModal 
         isOpen={!!deleteId}

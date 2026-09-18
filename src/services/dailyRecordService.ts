@@ -93,8 +93,8 @@ export async function saveDailyActualRecord(
     }
   }
 
-  // 3. Integration: Sync Mortality if today's mortality is explicitly provided
-  if (record.todayMortality !== null && record.todayMortality >= 0) {
+  // 3. Integration: Sync Mortality if today's mortality is explicitly provided by daily actual form (never duplicate from FCR measurement)
+  if (!record.isFcrMeasurement && record.todayMortality !== null && record.todayMortality > 0) {
     const mortId = `mort_${record.batchId}_${record.date}`;
     const mortData = {
       id: mortId,

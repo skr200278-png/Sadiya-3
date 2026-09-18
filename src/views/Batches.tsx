@@ -9,7 +9,6 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import BatchComparisonCard, { BatchSummaryStats } from '../components/BatchComparisonCard';
 import { BatchCompletionModal, BatchClosureReport } from '../components/BatchCompletionModal';
 import { CompletedBatchReportModal } from '../components/CompletedBatchReportModal';
-import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 import { demoStore } from '../utils/demoStore';
 import { useNavigate } from 'react-router-dom';
 import { fetchBatchFullRecords, downloadBatchCSV, downloadBatchPDF, purgeExpiredCompletedBatches } from '../utils/batchExportUtils';
@@ -172,7 +171,6 @@ export default function Batches() {
   const [completionDate, setCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [completingFinancials, setCompletingFinancials] = useState<any | null>(null);
   const [viewReportBatch, setViewReportBatch] = useState<any | null>(null);
-  const [activeSopBatch, setActiveSopBatch] = useState<any | null>(null);
 
   // Delete batch state with cascade protection
   const [deleteBatchItem, setDeleteBatchItem] = useState<any | null>(null);
@@ -1113,17 +1111,6 @@ export default function Batches() {
                       <Calculator size={13} className="text-indigo-600" />
                       <span>{language === 'bn' ? 'FCR হিসাব' : 'FCR'}</span>
                     </button>
-
-                    {batch.farmType === 'poultry' && (
-                      <button
-                        onClick={() => setActiveSopBatch(batch)}
-                        className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title={language === 'bn' ? 'দৈনিক কাজের শিডিউল ও এসওপি গাইড' : 'Daily SOP Schedule Guide'}
-                      >
-                        <ClipboardList size={13} className="text-teal-600" />
-                        <span>{language === 'bn' ? 'এসওপি গাইড' : 'SOP'}</span>
-                      </button>
-                    )}
                   </div>
 
                   <button 
@@ -1274,21 +1261,6 @@ export default function Batches() {
           isBn={language === 'bn'}
           onClose={() => setViewReportBatch(null)}
         />
-      )}
-
-      {/* Broiler Daily SOP & Farm Guide Modal */}
-      {activeSopBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
-          <div className="max-w-4xl w-full my-auto">
-            <BroilerDailySopCard
-              batchName={activeSopBatch.batchName}
-              batchId={activeSopBatch.id}
-              batchAgeDays={calculateAge(activeSopBatch.startDate)}
-              isBn={language === 'bn'}
-              onClose={() => setActiveSopBatch(null)}
-            />
-          </div>
-        </div>
       )}
 
       {/* Prominent Red Warning Modal for Batch Cascade Deletion */}

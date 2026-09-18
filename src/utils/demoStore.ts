@@ -1258,7 +1258,16 @@ export const demoStore = {
 
   // ----------------- Chick & DOC Listings (Hatchery / Company Ads) -----------------
   getChickListings(): DemoChickListing[] {
-    return getItem<DemoChickListing[]>('chick_listings', initialChickListings);
+    const deletedDemoIds = (() => {
+      try {
+        const raw = localStorage.getItem('deleted_demo_chick_ads');
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    })();
+    const all = getItem<DemoChickListing[]>('chick_listings', initialChickListings);
+    return all.filter(item => !deletedDemoIds.includes(item.id));
   },
   saveChickListing(listing: Omit<DemoChickListing, 'id' | 'createdAt'> & { id?: string }): DemoChickListing {
     const records = this.getChickListings();
@@ -1272,7 +1281,7 @@ export const demoStore = {
     }
     const newRecord: DemoChickListing = {
       ...listing,
-      id: 'chick_ad_' + Date.now(),
+      id: listing.id || ('chick_ad_' + Date.now()),
       createdAt: new Date().toISOString()
     };
     records.unshift(newRecord);
@@ -1280,8 +1289,23 @@ export const demoStore = {
     return newRecord;
   },
   deleteChickListing(id: string): void {
+    const defaultDemoIds = ['chick_ad_1', 'chick_ad_2', 'chick_ad_3', 'chick_ad_4', 'chick_ad_5', 'chick_ad_6'];
+    if (defaultDemoIds.includes(id)) {
+      try {
+        const current = JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
+        if (!current.includes(id)) {
+          localStorage.setItem('deleted_demo_chick_ads', JSON.stringify([...current, id]));
+        }
+      } catch {}
+    }
     const records = this.getChickListings().filter(r => r.id !== id);
     setItem('chick_listings', records);
+  },
+  restoreDefaultChickListings(): void {
+    try {
+      localStorage.removeItem('deleted_demo_chick_ads');
+    } catch {}
+    setItem('chick_listings', initialChickListings);
   },
 
   // Clear all demo/test data for production readiness
