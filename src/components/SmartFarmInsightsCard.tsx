@@ -145,7 +145,7 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
               </span>
             ) : data.feedForecastNote ? (
               <span className={data.isFeedCoversEntireBatch ? 'text-emerald-900 font-bold' : (isFeedLow ? 'text-amber-900 font-bold' : 'text-slate-800 font-bold')}>
-                {isBn ? toBnDigits(data.feedForecastNote) : data.feedForecastNote}।
+                {isBn ? toBnDigits(data.feedForecastNote) : data.feedForecastNote}{!(data.feedForecastNote.endsWith('।') || data.feedForecastNote.endsWith('.')) ? (isBn ? '।' : '.') : ''}
               </span>
             ) : data.daysOfFeedLeft > 0 ? (
               <>

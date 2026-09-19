@@ -19,13 +19,16 @@ import {
   Package,
   Layers,
   Sparkles,
-  Lock
+  Lock,
+  Wallet,
+  Coins
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import { demoStore } from '../utils/demoStore';
+import { getRecordDueStatus } from '../utils/duesSync';
 
 interface SaleItem {
   id: string;
@@ -45,6 +48,7 @@ interface ExpenseItem {
   id: string;
   category?: string;
   amount: number;
+  amountPaid?: number;
   personName?: string;
   vendorName?: string;
   details?: string;
@@ -57,6 +61,9 @@ interface FeedItem {
   feedType?: string;
   quantityBags?: number;
   cost: number;
+  amountPaid?: number;
+  personName?: string;
+  personPhone?: string;
   date?: string;
 }
 
@@ -65,7 +72,30 @@ interface MedicineItem {
   medicineType?: string;
   medicineName?: string;
   cost: number;
+  amountPaid?: number;
+  personName?: string;
+  personPhone?: string;
   date?: string;
+}
+
+interface DueRecordItem {
+  id: string;
+  userId: string;
+  personName: string;
+  phone?: string;
+  type: 'payable' | 'receivable';
+  amount: number;
+  totalPaid: number;
+  batchId?: string;
+  sourceType?: string;
+  sourceId?: string;
+  details?: string;
+  recordDate?: string;
+  date?: string;
+  status?: string;
+  payments?: any[];
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export default function Reports() {
@@ -82,12 +112,14 @@ export default function Reports() {
   // Show detailed itemized logs toggles
   const [showItemizedSales, setShowItemizedSales] = useState(false);
   const [showItemizedExpenses, setShowItemizedExpenses] = useState(false);
+  const [showItemizedDues, setShowItemizedDues] = useState(false);
 
   // Raw fetched data
   const [salesList, setSalesList] = useState<SaleItem[]>([]);
   const [expensesList, setExpensesList] = useState<ExpenseItem[]>([]);
   const [feedList, setFeedList] = useState<FeedItem[]>([]);
   const [medicineList, setMedicineList] = useState<MedicineItem[]>([]);
+  const [duesList, setDuesList] = useState<DueRecordItem[]>([]);
   const [totalMortality, setTotalMortality] = useState(0);
 
   useEffect(() => {
@@ -137,6 +169,9 @@ export default function Reports() {
         const meds = demoStore.getMedicineRecords(batchId) as MedicineItem[];
         setMedicineList(meds || []);
 
+        const allDues = (demoStore.getDues() || []) as DueRecordItem[];
+        setDuesList(allDues);
+
         let tMort = 0;
         demoStore.getMortalityRecords(batchId).forEach(m => tMort += Number(m.count || 0));
         setTotalMortality(tMort);
@@ -166,6 +201,12 @@ export default function Reports() {
       const medSnap = await fastGetDocs(medQ);
       const fetchedMeds = medSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MedicineItem));
       setMedicineList(fetchedMeds);
+
+      // Fetch Dues (User's complete dues ledger for matching batch transactions)
+      const duesQ = query(collection(db, 'dues'), where('userId', '==', currentUser.uid));
+      const duesSnap = await fastGetDocs(duesQ);
+      const fetchedDues = duesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DueRecordItem));
+      setDuesList(fetchedDues);
 
       // Fetch Mortality
       const mortQ = query(collection(db, 'mortality'), where('userId', '==', currentUser.uid), where('batchId', '==', batchId));
@@ -207,6 +248,166 @@ export default function Reports() {
 
   const profitMarginPercent = totalSales > 0 ? ((finalNetProfit / totalSales) * 100).toFixed(1) : '0';
   const roiPercent = grandTotalCost > 0 ? ((finalNetProfit / grandTotalCost) * 100).toFixed(1) : '0';
+
+  // Batch-specific Dues & Cash Flow Calculations
+  const batchDuesAnalysis = useMemo(() => {
+    // 1. Customer Receivables (from sales for this batch)
+    let totalBatchReceivable = 0;
+    const receivableItems: {
+      id: string;
+      personName: string;
+      phone?: string;
+      date: string;
+      totalAmount: number;
+      paidAmount: number;
+      remainingDue: number;
+      details: string;
+      sourceType: string;
+    }[] = [];
+
+    salesList.forEach(sale => {
+      const status = getRecordDueStatus(sale, duesList, 'sale');
+      if (status.remainingDue > 0) {
+        totalBatchReceivable += status.remainingDue;
+        receivableItems.push({
+          id: sale.id,
+          personName: sale.buyerName || (language === 'bn' ? 'অজ্ঞাত ক্রেতা' : 'Customer'),
+          phone: sale.buyerPhone || '',
+          date: sale.date || '',
+          totalAmount: Number(sale.totalAmount) || 0,
+          paidAmount: status.totalPaid,
+          remainingDue: status.remainingDue,
+          details: sale.productName || sale.category || (language === 'bn' ? 'মুরগি/পণ্য বিক্রয়' : 'Sale'),
+          sourceType: 'sale'
+        });
+      }
+    });
+
+    // 2. Supplier Payables (from feed, medicine, expenses for this batch)
+    let totalBatchPayable = 0;
+    const payableItems: {
+      id: string;
+      personName: string;
+      phone?: string;
+      date: string;
+      totalAmount: number;
+      paidAmount: number;
+      remainingDue: number;
+      details: string;
+      sourceType: string;
+    }[] = [];
+
+    // Feed payables
+    feedList.forEach(feed => {
+      const status = getRecordDueStatus(feed, duesList, 'feed');
+      if (status.remainingDue > 0) {
+        totalBatchPayable += status.remainingDue;
+        payableItems.push({
+          id: feed.id,
+          personName: feed.personName || (language === 'bn' ? 'ফিড ডিলার' : 'Feed Dealer'),
+          phone: feed.personPhone || '',
+          date: feed.date || '',
+          totalAmount: Number(feed.cost) || 0,
+          paidAmount: status.totalPaid,
+          remainingDue: status.remainingDue,
+          details: feed.feedType || (language === 'bn' ? 'খাদ্য ক্রয়' : 'Feed'),
+          sourceType: 'feed'
+        });
+      }
+    });
+
+    // Medicine payables
+    medicineList.forEach(med => {
+      const status = getRecordDueStatus(med, duesList, 'medicine');
+      if (status.remainingDue > 0) {
+        totalBatchPayable += status.remainingDue;
+        payableItems.push({
+          id: med.id,
+          personName: med.personName || (language === 'bn' ? 'ফার্মেসি / ডাক্তার' : 'Supplier'),
+          phone: med.personPhone || '',
+          date: med.date || '',
+          totalAmount: Number(med.cost) || 0,
+          paidAmount: status.totalPaid,
+          remainingDue: status.remainingDue,
+          details: med.medicineName || med.medicineType || (language === 'bn' ? 'ঔষধ/ভ্যাকসিন' : 'Medicine'),
+          sourceType: 'medicine'
+        });
+      }
+    });
+
+    // Expenses payables
+    expensesList.forEach(exp => {
+      const status = getRecordDueStatus(exp, duesList, 'expense');
+      if (status.remainingDue > 0) {
+        totalBatchPayable += status.remainingDue;
+        payableItems.push({
+          id: exp.id,
+          personName: exp.personName || exp.vendorName || (language === 'bn' ? 'দোকান / সরবরাহকারী' : 'Vendor'),
+          phone: '',
+          date: exp.date || '',
+          totalAmount: Number(exp.amount) || 0,
+          paidAmount: status.totalPaid,
+          remainingDue: status.remainingDue,
+          details: exp.category || exp.details || exp.description || (language === 'bn' ? 'পরিচালন খরচ' : 'Expense'),
+          sourceType: 'expense'
+        });
+      }
+    });
+
+    // Check directly linked dues that have batchId matching this batch
+    duesList.forEach(due => {
+      if (due.batchId === selectedBatchId) {
+        const remaining = Math.max(0, (Number(due.amount) || 0) - (Number(due.totalPaid) || 0));
+        if (remaining > 0) {
+          if (due.type === 'receivable') {
+            const alreadyInList = receivableItems.some(item => item.id === due.sourceId || item.id === due.id);
+            if (!alreadyInList) {
+              totalBatchReceivable += remaining;
+              receivableItems.push({
+                id: due.id,
+                personName: due.personName || (language === 'bn' ? 'ক্রেতা' : 'Customer'),
+                phone: due.phone || '',
+                date: due.recordDate || due.date || '',
+                totalAmount: Number(due.amount) || 0,
+                paidAmount: Number(due.totalPaid) || 0,
+                remainingDue: remaining,
+                details: due.details || (language === 'bn' ? 'বকেয়া পাওনা' : 'Receivable Due'),
+                sourceType: 'manual_due'
+              });
+            }
+          } else {
+            const alreadyInList = payableItems.some(item => item.id === due.sourceId || item.id === due.id);
+            if (!alreadyInList) {
+              totalBatchPayable += remaining;
+              payableItems.push({
+                id: due.id,
+                personName: due.personName || (language === 'bn' ? 'দোকান/মহাজন' : 'Vendor'),
+                phone: due.phone || '',
+                date: due.recordDate || due.date || '',
+                totalAmount: Number(due.amount) || 0,
+                paidAmount: Number(due.totalPaid) || 0,
+                remainingDue: remaining,
+                details: due.details || (language === 'bn' ? 'বাকি দেনা' : 'Payable Due'),
+                sourceType: 'manual_due'
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // Realized Cash in Hand from Sales = Total Sales - Uncollected Receivables
+    const actualCashCollected = Math.max(0, totalSales - totalBatchReceivable);
+
+    return {
+      totalBatchReceivable,
+      totalBatchPayable,
+      receivableItems,
+      payableItems,
+      totalDueCount: receivableItems.length + payableItems.length,
+      actualCashCollected
+    };
+  }, [salesList, feedList, medicineList, expensesList, duesList, selectedBatchId, totalSales, language]);
 
   // Structured Income Categories
   const incomeCategories = useMemo(() => {
@@ -552,8 +753,11 @@ export default function Reports() {
     
     // Summary Overview Table
     const summaryTable = [
-      ['Total Sales Revenue (মোট আয়)', `BDT ${totalSales.toLocaleString()}`],
+      ['Total Sales Revenue (মোট বিক্রয় আয়)', `BDT ${totalSales.toLocaleString()}`],
+      ['Actual Cash Collected (হাতে পাওয়া নগদ)', `BDT ${batchDuesAnalysis.actualCashCollected.toLocaleString()} (বাকি: ৳${batchDuesAnalysis.totalBatchReceivable.toLocaleString()})`],
+      ['Customer Outstanding Due (ক্রেতার বাকি)', `BDT ${batchDuesAnalysis.totalBatchReceivable.toLocaleString()}`],
       ['Grand Total Farm Cost (সর্বমোট ব্যয়)', `BDT ${grandTotalCost.toLocaleString()}`],
+      ['Supplier Pending Due (সাপ্লায়ার দেনা)', `BDT ${batchDuesAnalysis.totalBatchPayable.toLocaleString()}`],
       ['NET PROFIT / LOSS (নিট লাভ/লোকসান)', `BDT ${finalNetProfit.toLocaleString()} (${profitMarginPercent}% Margin)`],
       ['Return on Investment (ROI)', `${roiPercent}%`],
       ['Total Mortality Count (মৃত্যু সংখ্যা)', `${totalMortality} (${selectedBatch.totalChicks > 0 ? ((totalMortality / selectedBatch.totalChicks) * 100).toFixed(2) : 0}%)`],
@@ -627,9 +831,26 @@ export default function Reports() {
     const data: any[] = [
       { Section: 'SUMMARY', Category: 'Net Profit / Loss', Amount_BDT: finalNetProfit, Notes: `Margin: ${profitMarginPercent}%, ROI: ${roiPercent}%` },
       { Section: 'SUMMARY', Category: 'Total Sales Revenue', Amount_BDT: totalSales, Notes: `${salesList.length} sales records` },
+      { Section: 'SUMMARY', Category: 'Actual Cash Collected', Amount_BDT: batchDuesAnalysis.actualCashCollected, Notes: `Total sales minus uncollected customer dues` },
+      { Section: 'SUMMARY', Category: 'Customer Outstanding Due (Receivable)', Amount_BDT: batchDuesAnalysis.totalBatchReceivable, Notes: `${batchDuesAnalysis.receivableItems.length} customer unpaid dues` },
       { Section: 'SUMMARY', Category: 'Grand Total Cost', Amount_BDT: grandTotalCost, Notes: 'Inc. stock, feed, meds, other' },
+      { Section: 'SUMMARY', Category: 'Supplier Pending Due (Payable)', Amount_BDT: batchDuesAnalysis.totalBatchPayable, Notes: `${batchDuesAnalysis.payableItems.length} supplier unpaid payables` },
       { Section: 'SUMMARY', Category: 'Mortality Count', Amount_BDT: totalMortality, Notes: `${selectedBatch.totalChicks > 0 ? ((totalMortality / selectedBatch.totalChicks) * 100).toFixed(2) : 0}% rate` },
       
+      // Dues Breakdown (Receivables and Payables for this batch)
+      ...batchDuesAnalysis.receivableItems.map(r => ({
+        Section: 'CUSTOMER DUES (পাবো)',
+        Category: r.personName,
+        Amount_BDT: r.remainingDue,
+        Notes: `Original: ৳${r.totalAmount}, Paid: ৳${r.paidAmount}, Phone: ${r.phone || 'N/A'}, Date: ${r.date}`
+      })),
+      ...batchDuesAnalysis.payableItems.map(p => ({
+        Section: 'SUPPLIER PAYABLES (দেনা)',
+        Category: p.personName,
+        Amount_BDT: p.remainingDue,
+        Notes: `Original: ৳${p.totalAmount}, Paid: ৳${p.paidAmount}, Head: ${p.details}, Date: ${p.date}`
+      })),
+
       // Income Breakdown
       ...incomeCategories.map(c => ({
         Section: 'INCOME BREAKDOWN (আয়)',
@@ -821,11 +1042,11 @@ export default function Reports() {
             <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
           </div>
 
-          {/* Quick Dual Summary Cards (Total Income vs Total Cost) */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Quick Summary Cards (Income, Cost, Receivables & Payables) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
             <div 
               onClick={() => setActiveTab('income')}
-              className={`bg-white p-3.5 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-emerald-300 ${
+              className={`bg-white p-3 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-emerald-300 ${
                 activeTab === 'income' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'
               }`}
             >
@@ -835,17 +1056,17 @@ export default function Reports() {
                   {salesList.length}
                 </span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-emerald-600 mt-1">
+              <p className="text-base sm:text-lg font-black text-emerald-600 mt-1">
                 ৳ {totalSales.toLocaleString()}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                {incomeCategories.length} {language === 'bn' ? 'টি আয়ের উৎস' : 'income sources'}
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5 truncate">
+                {incomeCategories.length} {language === 'bn' ? 'টি উৎস' : 'sources'}
               </p>
             </div>
 
             <div 
               onClick={() => setActiveTab('expense')}
-              className={`bg-white p-3.5 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-rose-300 ${
+              className={`bg-white p-3 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-rose-300 ${
                 activeTab === 'expense' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-slate-100'
               }`}
             >
@@ -855,11 +1076,63 @@ export default function Reports() {
                   {feedList.length + medicineList.length + expensesList.length + (originalChicksTotalCost > 0 ? 1 : 0)}
                 </span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-rose-600 mt-1">
+              <p className="text-base sm:text-lg font-black text-rose-600 mt-1">
                 ৳ {grandTotalCost.toLocaleString()}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                {language === 'bn' ? 'ক্রয়, খাদ্য, ঔষধ ও অন্যান্য' : 'Stock, feed, med & other'}
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5 truncate">
+                {language === 'bn' ? 'বাচ্চা, খাদ্য, ঔষধ' : 'Stock, feed, med'}
+              </p>
+            </div>
+
+            {/* Customer Due (Receivable) Card */}
+            <div 
+              onClick={() => setShowItemizedDues(true)}
+              className="bg-white p-3 rounded-2xl shadow-xs border border-blue-100 transition-all cursor-pointer hover:border-blue-300 hover:shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  <p className="text-[11px] font-extrabold text-slate-600 truncate">{t('reports.dueReceivable')}</p>
+                </div>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                  batchDuesAnalysis.totalBatchReceivable > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {batchDuesAnalysis.receivableItems.length}
+                </span>
+              </div>
+              <p className={`text-base sm:text-lg font-black mt-1 ${
+                batchDuesAnalysis.totalBatchReceivable > 0 ? 'text-blue-600' : 'text-slate-700'
+              }`}>
+                ৳ {batchDuesAnalysis.totalBatchReceivable.toLocaleString()}
+              </p>
+              <p className="text-[10px] font-bold text-blue-500/80 mt-0.5 truncate">
+                {language === 'bn' ? 'ক্রেতার কাছে অনাদায়ী' : 'Customer due'}
+              </p>
+            </div>
+
+            {/* Supplier Due (Payable) Card */}
+            <div 
+              onClick={() => setShowItemizedDues(true)}
+              className="bg-white p-3 rounded-2xl shadow-xs border border-amber-100 transition-all cursor-pointer hover:border-amber-300 hover:shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  <p className="text-[11px] font-extrabold text-slate-600 truncate">{t('reports.duePayable')}</p>
+                </div>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                  batchDuesAnalysis.totalBatchPayable > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {batchDuesAnalysis.payableItems.length}
+                </span>
+              </div>
+              <p className={`text-base sm:text-lg font-black mt-1 ${
+                batchDuesAnalysis.totalBatchPayable > 0 ? 'text-amber-600' : 'text-slate-700'
+              }`}>
+                ৳ {batchDuesAnalysis.totalBatchPayable.toLocaleString()}
+              </p>
+              <p className="text-[10px] font-bold text-amber-600/80 mt-0.5 truncate">
+                {language === 'bn' ? 'সাপ্লায়ারের কাছে বাকি' : 'Supplier payable'}
               </p>
             </div>
           </div>
@@ -1161,6 +1434,141 @@ export default function Reports() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 💼 BATCH OUTSTANDING DUES & CASH FLOW SECTION (ক্যাশ ফ্লো ও বকেয়া বিশ্লেষণ) */}
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50 p-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <Wallet size={16} />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-850 flex items-center gap-1.5">
+                    <span>{t('reports.duesCardTitle')}</span>
+                    {batchDuesAnalysis.totalDueCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700">
+                        {batchDuesAnalysis.totalDueCount} {language === 'bn' ? 'টি বকেয়া' : 'records'}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500">
+                    {t('reports.duesExplanation')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Realized Cash Highlight Badge */}
+              <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center justify-between sm:justify-start gap-2">
+                <div>
+                  <p className="text-[10px] font-extrabold text-emerald-800">{t('reports.cashRealized')}</p>
+                  <p className="text-xs sm:text-sm font-black text-emerald-700">৳ {batchDuesAnalysis.actualCashCollected.toLocaleString()}</p>
+                </div>
+                <Coins size={18} className="text-emerald-600 shrink-0" />
+              </div>
+            </div>
+
+            {/* Dues Details Grid */}
+            <div className="p-3.5 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 🔵 Customer Receivables Box */}
+                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                      <h4 className="text-xs font-black text-blue-950">{t('reports.dueReceivable')}</h4>
+                    </div>
+                    <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                      ৳ {batchDuesAnalysis.totalBatchReceivable.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-blue-700/80 mt-1">
+                    {language === 'bn' 
+                      ? `মুরগি বা পণ্য বিক্রয় বাবদ ${batchDuesAnalysis.receivableItems.length} জন ক্রেতার কাছে বকেয়া পাওনা` 
+                      : `${batchDuesAnalysis.receivableItems.length} customer sales with pending receivables`}
+                  </p>
+
+                  {/* List of customer dues */}
+                  {batchDuesAnalysis.receivableItems.length > 0 ? (
+                    <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                      {batchDuesAnalysis.receivableItems.map((item, idx) => (
+                        <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-blue-100 text-[11px] flex items-center justify-between shadow-2xs">
+                          <div className="min-w-0 pr-2">
+                            <p className="font-black text-slate-800 truncate">{item.personName}</p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {item.date} {item.phone ? `• ${item.phone}` : ''} {item.details ? `• ${item.details}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-blue-600">৳ {item.remainingDue.toLocaleString()}</p>
+                            {item.paidAmount > 0 && (
+                              <p className="text-[9px] font-bold text-slate-400">
+                                {language === 'bn' ? 'জমা:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-2.5 bg-white/70 rounded-lg border border-dashed border-blue-200 text-center">
+                      <p className="text-[11px] font-bold text-blue-600">
+                        {language === 'bn' ? '🎉 এই ব্যাচে কোনো কাস্টমার বকেয়া নেই (সব টাকা আদায় হয়েছে)!' : 'No pending receivables for this batch.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 🟠 Supplier Payables Box */}
+                <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                      <h4 className="text-xs font-black text-amber-950">{t('reports.duePayable')}</h4>
+                    </div>
+                    <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded-md border border-amber-200">
+                      ৳ {batchDuesAnalysis.totalBatchPayable.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-amber-800/80 mt-1">
+                    {language === 'bn' 
+                      ? `খাদ্য, ওষুধ বা খরচের বিল বাবদ ${batchDuesAnalysis.payableItems.length} জন সরবরাহকারীর বাকি দেনা` 
+                      : `${batchDuesAnalysis.payableItems.length} vendor/supplier pending payables`}
+                  </p>
+
+                  {/* List of supplier payables */}
+                  {batchDuesAnalysis.payableItems.length > 0 ? (
+                    <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                      {batchDuesAnalysis.payableItems.map((item, idx) => (
+                        <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-amber-100 text-[11px] flex items-center justify-between shadow-2xs">
+                          <div className="min-w-0 pr-2">
+                            <p className="font-black text-slate-800 truncate">{item.personName}</p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {item.date} {item.phone ? `• ${item.phone}` : ''} {item.details ? `• ${item.details}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-amber-600">৳ {item.remainingDue.toLocaleString()}</p>
+                            {item.paidAmount > 0 && (
+                              <p className="text-[9px] font-bold text-slate-400">
+                                {language === 'bn' ? 'পরিশোধ:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-2.5 bg-white/70 rounded-lg border border-dashed border-amber-200 text-center">
+                      <p className="text-[11px] font-bold text-amber-700">
+                        {language === 'bn' ? '✅ এই ব্যাচের সব খাদ্য, ওষুধ ও খরচের বিল পরিশোধিত!' : 'All supplier payables cleared for this batch.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Health & Mortality Summary Card */}

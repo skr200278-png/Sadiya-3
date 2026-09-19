@@ -57,6 +57,9 @@ import {
 import { Link } from 'react-router-dom';
 import { getSopForDay } from '../utils/broilerSopData';
 import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
+import { fetchBatchDailyRecords } from '../services/dailyRecordService';
+import { calculateStrictBatchFcr } from '../utils/fcrCalculationEngine';
+import { calculateProgressiveFeedForecast } from '../utils/feedStockCalculations';
 
 interface Chores {
   id: string;
@@ -354,7 +357,9 @@ export default function Dashboard() {
       if (isDemoUser) {
         demoStore.getFeedRecords(batch.id).forEach(f => {
           tFeedCost += Number(f.cost || 0);
-          tFeedBags += Number(f.quantityBags || 0);
+          if ((f as any).recordType !== 'actual_consumed') {
+            tFeedBags += Number(f.quantityBags || 0);
+          }
         });
         demoStore.getMedicineRecords(batch.id).forEach(m => {
           tMedCost += Number(m.cost || 0);
@@ -377,8 +382,11 @@ export default function Dashboard() {
         const feedQ = query(collection(db, 'feed_records'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
         const feedSnap = await fastGetDocs(feedQ);
         feedSnap.forEach(d => {
-          tFeedCost += Number(d.data().cost || 0);
-          tFeedBags += Number(d.data().quantityBags || d.data().quantity || 0);
+          const fData = d.data();
+          tFeedCost += Number(fData.cost || 0);
+          if (fData.recordType !== 'actual_consumed') {
+            tFeedBags += Number(fData.quantityBags || fData.quantity || 0);
+          }
         });
 
         const medQ = query(collection(db, 'medicine'), where('userId', '==', currentUser.uid), where('batchId', '==', batch.id));
@@ -414,130 +422,72 @@ export default function Dashboard() {
       const totalCost = chickCost + tFeedCost + tMedCost + tOtherExp;
       const netProfit = tSales - totalCost;
       const age = calculateAge(batch.startDate);
-      const aliveCount = Math.max(0, Number(batch.totalChicks || 0) - tMort);
 
-      const bagWeightKg = Math.max(1, Number(localStorage.getItem(`bag_weight_${batch.id}`)) || 50);
+      const bagWeightKg = Math.max(1, Number(batch.bagWeightKg) || Number(localStorage.getItem(`bag_weight_${batch.id}`)) || 50);
 
-      // Check realistic stock tracked in FCR & Stock Tracker
-      let feedPurchasedBags = tFeedBags;
-      let feedUsedBags = 0;
-      let remainingBags = 0;
+      // Fetch batch daily actual records for 100% exact parity with FCR calculations
+      const dailyRecords = await fetchBatchDailyRecords(batch.id, currentUser?.uid || 'demo', isDemoUser);
 
-      // 1. Check direct batch properties from Firestore / demoStore
-      // 2. Check localStorage with batch.id
-      let savedFeedIn = (batch.feedStockInKg !== undefined && batch.feedStockInKg !== null)
-        ? String(batch.feedStockInKg)
-        : localStorage.getItem(`fcr_stock_in_${batch.id}`);
-      let savedFeedUsed = (batch.feedStockUsedKg !== undefined && batch.feedStockUsedKg !== null)
-        ? String(batch.feedStockUsedKg)
-        : localStorage.getItem(`fcr_stock_used_${batch.id}`);
+      const batchScopeItem = {
+        id: batch.id,
+        userId: batch.userId || currentUser?.uid || 'demo',
+        batchName: batch.name || batch.batchName || 'Batch',
+        farmType: (batch.farmType || 'poultry') as any,
+        subBreed: batch.subBreed || batch.breed || 'broiler',
+        startDate: batch.startDate || new Date().toISOString().split('T')[0],
+        totalChicks: Number(batch.totalChicks || batch.birdCount || 1000),
+        costPerChick: Number(batch.costPerChick || 55),
+        status: (batch.status === 'completed' ? 'completed' : 'active') as any,
+        bagWeightKg
+      };
 
-      if (savedFeedIn !== null && savedFeedUsed !== null) {
-        const inKg = Number(savedFeedIn) || 0;
-        const usedKg = Number(savedFeedUsed) || 0;
-        feedPurchasedBags = Number((inKg / bagWeightKg).toFixed(1));
-        feedUsedBags = Number((usedKg / bagWeightKg).toFixed(1));
-        const remKg = Math.max(0, Number((inKg - usedKg).toFixed(1)));
-        remainingBags = Number((remKg / bagWeightKg).toFixed(1));
-      } else {
-        feedPurchasedBags = tFeedBags;
-        feedUsedBags = 0;
-        remainingBags = tFeedBags;
-      }
+      const fcrResult = calculateStrictBatchFcr(batchScopeItem, dailyRecords, tMort);
 
-      // Calculate accurate current daily feed consumption rate (in bags)
-      let dailyGramsPerBird = 20;
-      if (batch.farmType === 'cattle') {
-        dailyGramsPerBird = 1500;
-      } else if (batch.farmType === 'fish') {
-        dailyGramsPerBird = 50;
-      } else {
-        const batchNameLower = (batch.name || '').toLowerCase();
-        const isBroiler = !batchNameLower.includes('sonali') && !batchNameLower.includes('সোনালী') && !batchNameLower.includes('layer') && !batchNameLower.includes('লেয়ার');
-        if (isBroiler) {
-          const sop = getSopForDay(age);
-          dailyGramsPerBird = sop.feedDailyGm || 130;
+      let actualUsedFeedKg = fcrResult.totalActualFeedUsedKg;
+      if (actualUsedFeedKg === 0) {
+        if (batch.feedStockUsedKg !== undefined && Number(batch.feedStockUsedKg) > 0) {
+          actualUsedFeedKg = Number(batch.feedStockUsedKg);
         } else {
-          // Other poultry daily intake curve
-          if (age <= 7) dailyGramsPerBird = 15;
-          else if (age <= 14) dailyGramsPerBird = 25;
-          else if (age <= 21) dailyGramsPerBird = 40;
-          else if (age <= 28) dailyGramsPerBird = 55;
-          else if (age <= 35) dailyGramsPerBird = 65;
-          else dailyGramsPerBird = 75;
+          const savedUsed = localStorage.getItem(`fcr_stock_used_${batch.id}`);
+          if (savedUsed && Number(savedUsed) > 0) {
+            actualUsedFeedKg = Number(savedUsed);
+          }
         }
       }
 
-      const dailyConsumptionKg = (aliveCount * dailyGramsPerBird) / 1000;
-      const dailyConsumptionBags = dailyConsumptionKg > 0 ? (dailyConsumptionKg / 50) : (age > 0 ? (tFeedBags / age) : 1);
-      const avgDaily = Number(dailyConsumptionBags.toFixed(2));
-
-      // Realistic progressive feed forecast (accounts for growing feed intake and harvest cycles)
-      let daysLeft = 0;
-      let feedForecastNote = '';
-      let isFeedCoversEntireBatch = false;
-
-      const remainingKg = remainingBags * 50;
-      if (remainingKg > 0 && aliveCount > 0) {
-        const batchNameLower = (batch.name || '').toLowerCase();
-        const isBroiler = (batch.farmType === 'poultry' || !batch.farmType) && !batchNameLower.includes('sonali') && !batchNameLower.includes('সোনালী') && !batchNameLower.includes('layer') && !batchNameLower.includes('লেয়ার');
-        const isSonali = (batch.farmType === 'poultry' || !batch.farmType) && (batchNameLower.includes('sonali') || batchNameLower.includes('সোনালী'));
-
-        // Standard target slaughter/harvest age in days
-        const targetHarvestAge = isBroiler ? 35 : (isSonali ? 65 : (batch.farmType === 'fish' ? 150 : (batch.farmType === 'cattle' ? 120 : 365)));
-        const remainingBatchDays = Math.max(1, targetHarvestAge - age);
-
-        let rem = remainingKg;
-        let simDay = age;
-        let daysSimulated = 0;
-
-        while (rem > 0 && daysSimulated < 365) {
-          simDay++;
-          daysSimulated++;
-          let gPerBird = dailyGramsPerBird;
-          if (isBroiler) {
-            const sop = getSopForDay(simDay);
-            gPerBird = sop.feedDailyGm || 180;
-          } else if (isSonali) {
-            if (simDay <= 7) gPerBird = 10;
-            else if (simDay <= 14) gPerBird = 18;
-            else if (simDay <= 21) gPerBird = 26;
-            else if (simDay <= 28) gPerBird = 34;
-            else if (simDay <= 45) gPerBird = 48;
-            else if (simDay <= 60) gPerBird = 62;
-            else gPerBird = 75;
-          }
-
-          const dayNeedKg = (aliveCount * gPerBird) / 1000;
-          if (rem < dayNeedKg) {
-            break;
-          }
-          rem -= dayNeedKg;
-
-          // If the feed covers until the batch reaches harvest age
-          if ((isBroiler || isSonali) && simDay >= targetHarvestAge) {
-            isFeedCoversEntireBatch = true;
-            break;
-          }
-        }
-
-        if (isFeedCoversEntireBatch) {
-          daysLeft = remainingBatchDays;
-          const surplusBags = Number((rem / 50).toFixed(1));
-          feedForecastNote = surplusBags > 0
-            ? (language === 'bn'
-                ? `বর্তমান ব্যাচ শেষ হওয়া পর্যন্ত (বাকি ${remainingBatchDays} দিন) সম্পূর্ণ খাদ্য নিশ্চিত আছে (উদ্বৃত্ত ~${surplusBags} বস্তা)`
-                : `Feed covers entire batch until harvest (${remainingBatchDays} days left, ~${surplusBags} bags surplus)`)
-            : (language === 'bn'
-                ? `বর্তমান ব্যাচ শেষ হওয়া পর্যন্ত (বাকি ${remainingBatchDays} দিন) সম্পূর্ণ খাদ্য নিশ্চিত আছে`
-                : `Feed covers entire batch until harvest (${remainingBatchDays} days left)`);
+      let totalPurchasedBags = tFeedBags;
+      if (totalPurchasedBags === 0) {
+        if (batch.feedStockInKg !== undefined && Number(batch.feedStockInKg) > 0) {
+          totalPurchasedBags = Number((Number(batch.feedStockInKg) / bagWeightKg).toFixed(1));
         } else {
-          daysLeft = daysSimulated;
-          feedForecastNote = language === 'bn'
-            ? `ক্রমবর্ধমান চাহিদার ভিত্তিতে এই খাদ্য দিয়ে আর প্রায় ${daysLeft} দিন চলবে`
-            : `At progressive intake rate, this feed will last approx ${daysLeft} days`;
+          const savedIn = localStorage.getItem(`fcr_stock_in_${batch.id}`);
+          if (savedIn && Number(savedIn) > 0) {
+            totalPurchasedBags = Number((Number(savedIn) / bagWeightKg).toFixed(1));
+          }
         }
       }
+
+      const totalPurchasedKg = totalPurchasedBags * bagWeightKg;
+      const remainingKg = Math.max(0, totalPurchasedKg - actualUsedFeedKg);
+      const remainingBags = bagWeightKg > 0 ? Number((remainingKg / bagWeightKg).toFixed(1)) : 0;
+      const feedPurchasedBags = totalPurchasedBags;
+      const feedUsedBags = bagWeightKg > 0 ? Number((actualUsedFeedKg / bagWeightKg).toFixed(1)) : 0;
+
+      // Precision runway forecast identical to FCR view
+      const forecast = calculateProgressiveFeedForecast({
+        aliveCount: fcrResult.currentLiveCount,
+        currentAgeDays: fcrResult.batchAgeDays,
+        remainingStockKg: remainingKg,
+        bagWeightKg: bagWeightKg,
+        sector: batchScopeItem.farmType,
+        birdType: batchScopeItem.subBreed as any,
+        batchName: batchScopeItem.batchName
+      });
+
+      const daysLeft = forecast.daysStockWillLast;
+      const feedForecastNote = language === 'bn' ? forecast.forecastNoteBn : forecast.forecastNoteEn;
+      const isFeedCoversEntireBatch = forecast.isCoveredUntilHarvest;
+      const avgDaily = bagWeightKg > 0 ? Number((forecast.currentDailyRequirementKg / bagWeightKg).toFixed(2)) : 1;
 
       // Retrieve measured sample weight from storage if available
       let measuredWeightGram: number | undefined = undefined;
@@ -545,23 +495,15 @@ export default function Dashboard() {
       if (savedWeight && Number(savedWeight) > 0) {
         measuredWeightGram = Number(savedWeight);
         avgWeight = measuredWeightGram / 1000;
+      } else if (fcrResult.latestMeasuredAvgWeightGram) {
+        measuredWeightGram = fcrResult.latestMeasuredAvgWeightGram;
+        avgWeight = (fcrResult.latestMeasuredAvgWeightKg || measuredWeightGram / 1000);
       } else if (avgWeight > 0) {
         measuredWeightGram = Math.round(avgWeight * 1000);
       }
 
-      let actualUsedFeedKg = 0;
-      if (batch.feedStockUsedKg !== undefined && Number(batch.feedStockUsedKg) >= 0) {
-        actualUsedFeedKg = Number(batch.feedStockUsedKg);
-      } else if (savedFeedUsed !== null && !isNaN(Number(savedFeedUsed))) {
-        actualUsedFeedKg = Number(savedFeedUsed);
-      } else if (feedUsedBags > 0) {
-        actualUsedFeedKg = feedUsedBags * bagWeightKg;
-      } else if (tFeedBags > 0) {
-        actualUsedFeedKg = tFeedBags * bagWeightKg;
-      }
-
       const totalBirds = Number(batch.totalChicks || 0);
-      const aliveBirds = Math.max(0, totalBirds - tMort);
+      const aliveBirds = fcrResult.currentLiveCount;
       const mortRate = totalBirds > 0 ? Number(((tMort / totalBirds) * 100).toFixed(1)) : 0;
       const survivalRate = Number((100 - mortRate).toFixed(1));
 
@@ -572,7 +514,7 @@ export default function Dashboard() {
         mortalityRate: mortRate,
         survivalRate,
         feedBagsPurchased: feedPurchasedBags,
-        feedBagsUsed: Number((actualUsedFeedKg / bagWeightKg).toFixed(1)),
+        feedBagsUsed: feedUsedBags,
         feedStockRemainingBags: remainingBags,
         feedConsumedKg: actualUsedFeedKg,
         avgDailyFeedBags: avgDaily,
@@ -588,7 +530,7 @@ export default function Dashboard() {
         netProfit,
         avgWeightKg: avgWeight > 0 ? avgWeight : undefined,
         currentAvgWeightGram: measuredWeightGram,
-        batchAgeDays: age,
+        batchAgeDays: fcrResult.batchAgeDays || age,
         farmType: batch.farmType || 'poultry',
         species: batch.subBreed || batch.breed || 'broiler'
       });

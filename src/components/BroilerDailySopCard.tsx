@@ -56,6 +56,7 @@ import {
 import { fastGetDocs, db } from '../firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { demoStore } from '../utils/demoStore';
+import { calculateBatchAgeFromStartDate } from '../utils/fcrBatchScope';
 
 export interface BatchOption {
   id: string;
@@ -101,17 +102,11 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
     return selectedBatchId || initialBatch?.id || (batches.length > 0 ? batches[0].id : 'custom-sim');
   });
 
-  // Calculate age helper (in days)
+  // Calculate age helper (in days) - strictly matching app-wide standard flock age calculation
   const calculateAge = (startDateStr?: string): number => {
     if (!startDateStr) return 7;
     try {
-      const start = new Date(startDateStr);
-      if (isNaN(start.getTime())) return 7;
-      const today = new Date();
-      start.setHours(0, 0, 0, 0);
-      today.setHours(0, 0, 0, 0);
-      const diffTime = today.getTime() - start.getTime();
-      return Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      return calculateBatchAgeFromStartDate(startDateStr);
     } catch {
       return 7;
     }
@@ -269,8 +264,8 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
   });
 
   useEffect(() => {
-    setSelectedDay(prev => Math.max(1, Math.min(maxPoultryDays, prev)));
-  }, [maxPoultryDays]);
+    setSelectedDay(Math.max(1, Math.min(maxPoultryDays, Math.round(batchAgeDays))));
+  }, [batchAgeDays, maxPoultryDays]);
 
   // Layer age in weeks (1 to 72+)
   const layerAgeWeeks = useMemo(() => {
@@ -1202,26 +1197,26 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   </div>
                 )}
 
-                {/* Master Table with Sticky Day Column */}
-                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto rounded-2xl border border-slate-200`}>
-                  <table className="w-full text-left text-xs">
-                    <thead>
+                {/* Master Table with Sticky Day Column and Sticky Header */}
+                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto max-h-[68vh] sm:max-h-[74vh] overflow-y-auto rounded-2xl border border-slate-200 relative`}>
+                  <table className="w-full text-left text-xs border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-30 shadow-xs">
                       <tr className="bg-slate-900 text-white font-black text-[11px]">
-                        <th className="py-3 px-3 whitespace-nowrap sticky left-0 z-20 bg-slate-900 text-amber-300 shadow-xs">
+                        <th className="py-3 px-3 whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 text-amber-300 shadow-xs border-b border-slate-700">
                           {isBn ? 'দিন' : 'Day'}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? '১টির খাদ্য (gm)' : '1 Bird (gm)'}</th>
-                        <th className="py-3 px-3 text-center whitespace-nowrap bg-amber-900/60 text-amber-200">
+                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? '১টির খাদ্য (gm)' : '1 Bird (gm)'}</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-amber-950 text-amber-200 border-b border-amber-800">
                           {isBn ? `ব্যাচের মোট খাদ্য (${effectiveLiveCount}টি)` : `Batch Feed (Kg)`}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? 'সর্বমোট খাদ্য' : 'Cum Feed'}</th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? 'গড় ওজন (gm)' : 'Std Wt (gm)'}</th>
-                        <th className="py-3 px-3 text-center whitespace-nowrap bg-emerald-900/60 text-emerald-200">
+                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'সর্বমোট খাদ্য' : 'Cum Feed'}</th>
+                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'গড় ওজন (gm)' : 'Std Wt (gm)'}</th>
+                        <th className="py-3 px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-emerald-950 text-emerald-200 border-b border-emerald-800">
                           {isBn ? 'মোট ওজন (কেজি)' : 'Live Biomass (kg)'}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? 'STD FCR' : 'STD FCR'}</th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap">{isBn ? 'তাপমাত্রা (°F)' : 'Temp °F'}</th>
-                        <th className="py-3 px-4 min-w-[260px]">{isBn ? 'ফার্ম কাজের শিডিউল (SOP Work)' : 'Daily Work Schedule'}</th>
+                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'STD FCR' : 'STD FCR'}</th>
+                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'তাপমাত্রা (°F)' : 'Temp °F'}</th>
+                        <th className="py-3 px-4 min-w-[260px] sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'ফার্ম কাজের শিডিউল (SOP Work)' : 'Daily Work Schedule'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150">
@@ -1238,15 +1233,15 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                             key={row.day}
                             className={`group transition-colors ${
                               isToday 
-                                ? 'bg-amber-100/70 font-bold ring-1 ring-amber-400' 
+                                ? 'bg-amber-100/70 font-bold' 
                                 : row.isCritical 
                                   ? 'bg-emerald-50/40 hover:bg-emerald-50/70' 
                                   : 'hover:bg-slate-50'
                             }`}
                           >
-                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-10 ${
+                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-20 ${
                               isToday ? 'bg-amber-100 text-slate-950 font-black' : 'bg-white text-slate-900 group-hover:bg-slate-50'
-                            } border-r border-slate-200 shadow-2xs`}>
+                            } border-r border-b border-slate-200 shadow-2xs`}>
                               <div className="flex items-center gap-1.5">
                                 <span>{isBn ? `দিন ${row.day}` : `D ${row.day}`}</span>
                                 {isToday && (
@@ -1257,34 +1252,34 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                               </div>
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-700">{row.feedDailyGm}</td>
+                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-700 border-b border-slate-100">{row.feedDailyGm}</td>
 
-                            <td className="py-2.5 px-3 text-center font-black text-amber-900 bg-amber-50/80 whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center font-black text-amber-900 bg-amber-50/80 whitespace-nowrap border-b border-amber-100">
                               <span>{rowFlockFeedKg} কেজি</span>
                               <span className="text-[10px] text-slate-500 font-bold block">
                                 ({rowFlockFeedBags} বস্তা)
                               </span>
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-600 whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-600 whitespace-nowrap border-b border-slate-100">
                               {rowFlockCumFeedKg} kg
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-black text-slate-800">{row.bodyWeightGm}</td>
+                            <td className="py-2.5 px-2.5 text-center font-black text-slate-800 border-b border-slate-100">{row.bodyWeightGm}</td>
 
-                            <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-emerald-50/60 whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-emerald-50/60 whitespace-nowrap border-b border-emerald-100">
                               {rowFlockBiomassKg} কেজি
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-purple-900">
+                            <td className="py-2.5 px-2.5 text-center font-bold text-purple-900 border-b border-slate-100">
                               {row.fcrStd > 0 ? row.fcrStd.toFixed(2) : '-'}
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-semibold text-rose-700 whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 text-center font-semibold text-rose-700 whitespace-nowrap border-b border-slate-100">
                               {row.tempFMin}-{row.tempFMax}°F
                             </td>
 
-                            <td className="py-2.5 px-4 text-slate-700 text-[11px] leading-relaxed">
+                            <td className="py-2.5 px-4 text-slate-700 text-[11px] leading-relaxed border-b border-slate-100">
                               {tasks.map((t, tidx) => (
                                 <div key={tidx} className="flex items-start gap-1 py-0.5">
                                   <span className="text-emerald-600 font-bold">•</span>
@@ -1362,26 +1357,26 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   })}
                 </div>
 
-                {/* Table for Tablet & Desktop with Sticky Column */}
-                <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="w-full text-left text-xs">
-                    <thead>
+                {/* Table for Tablet & Desktop with Sticky Column & Sticky Header */}
+                <div className="hidden sm:block overflow-x-auto max-h-[68vh] sm:max-h-[74vh] overflow-y-auto rounded-2xl border border-slate-200 relative">
+                  <table className="w-full text-left text-xs border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-30 shadow-xs">
                       <tr className="bg-slate-900 text-white font-black text-[11px]">
-                        <th className="py-3 px-3 sticky left-0 z-20 bg-slate-900 text-amber-300">{isBn ? 'সপ্তাহ (বয়স)' : 'Week'}</th>
-                        <th className="py-3 px-3">{isBn ? 'উৎপাদন পর্যায়' : 'Phase'}</th>
-                        <th className="py-3 px-2 text-center">{isBn ? '১টির খাদ্য (gm)' : 'Feed/Hen'}</th>
-                        <th className="py-3 px-3 text-center bg-amber-900/60 text-amber-200">
+                        <th className="py-3 px-3 sticky left-0 top-0 z-40 bg-slate-900 text-amber-300 border-b border-slate-700 shadow-xs">{isBn ? 'সপ্তাহ (বয়স)' : 'Week'}</th>
+                        <th className="py-3 px-3 sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'উৎপাদন পর্যায়' : 'Phase'}</th>
+                        <th className="py-3 px-2 text-center sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? '১টির খাদ্য (gm)' : 'Feed/Hen'}</th>
+                        <th className="py-3 px-3 text-center sticky top-0 z-30 bg-amber-950 text-amber-200 border-b border-amber-800">
                           {isBn ? `ফ্লকের খাদ্য (${effectiveLiveCount}টি)` : 'Flock Feed'}
                         </th>
-                        <th className="py-3 px-2 text-center">{isBn ? 'গড় ওজন (gm)' : 'Weight'}</th>
-                        <th className="py-3 px-3 text-center bg-orange-900/60 text-orange-200">
+                        <th className="py-3 px-2 text-center sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'গড় ওজন (gm)' : 'Weight'}</th>
+                        <th className="py-3 px-3 text-center sticky top-0 z-30 bg-orange-950 text-orange-200 border-b border-orange-800">
                           {isBn ? 'ডিম উৎপাদন %' : 'Lay %'}
                         </th>
-                        <th className="py-3 px-3 text-center bg-emerald-900/60 text-emerald-200">
+                        <th className="py-3 px-3 text-center sticky top-0 z-30 bg-emerald-950 text-emerald-200 border-b border-emerald-800">
                           {isBn ? 'দৈনিক ডিম (টি)' : 'Daily Eggs'}
                         </th>
-                        <th className="py-3 px-2 text-center">{isBn ? 'আলো' : 'Light'}</th>
-                        <th className="py-3 px-4 min-w-[240px]">{isBn ? 'জরুরি ব্যবস্থাপনা ও খাদ্য' : 'Management & Diet'}</th>
+                        <th className="py-3 px-2 text-center sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'আলো' : 'Light'}</th>
+                        <th className="py-3 px-4 min-w-[240px] sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'জরুরি ব্যবস্থাপনা ও খাদ্য' : 'Management & Diet'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150">
@@ -1392,26 +1387,26 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                         const rowEggs = Math.round(effectiveLiveCount * (row.eggProductionPct / 100));
 
                         return (
-                          <tr key={row.week} className={`group ${isCurrentWeek ? 'bg-amber-100/70 font-bold ring-1 ring-amber-400' : 'hover:bg-slate-50'}`}>
-                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-10 ${
+                          <tr key={row.week} className={`group ${isCurrentWeek ? 'bg-amber-100/70 font-bold' : 'hover:bg-slate-50'}`}>
+                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-20 ${
                               isCurrentWeek ? 'bg-amber-100 text-slate-950' : 'bg-white text-slate-900 group-hover:bg-slate-50'
-                            } border-r border-slate-200`}>
+                            } border-r border-b border-slate-200`}>
                               সপ্তাহ {row.week} ({row.ageDaysStart}-{row.ageDaysEnd} দিন)
                             </td>
-                            <td className="py-2.5 px-3 font-bold text-slate-800">{isBn ? row.phaseBn : row.phaseEn}</td>
-                            <td className="py-2.5 px-2 text-center font-bold">{row.feedDailyGm}g</td>
-                            <td className="py-2.5 px-3 text-center font-black text-amber-900 bg-amber-50/80">
+                            <td className="py-2.5 px-3 font-bold text-slate-800 border-b border-slate-100">{isBn ? row.phaseBn : row.phaseEn}</td>
+                            <td className="py-2.5 px-2 text-center font-bold border-b border-slate-100">{row.feedDailyGm}g</td>
+                            <td className="py-2.5 px-3 text-center font-black text-amber-900 bg-amber-50/80 border-b border-amber-100">
                               {rowFeedKg} কেজি ({rowFeedBags} বস্তা)
                             </td>
-                            <td className="py-2.5 px-2 text-center font-bold">{row.bodyWeightGm}g</td>
-                            <td className="py-2.5 px-3 text-center font-black text-orange-800 bg-orange-50/80">
+                            <td className="py-2.5 px-2 text-center font-bold border-b border-slate-100">{row.bodyWeightGm}g</td>
+                            <td className="py-2.5 px-3 text-center font-black text-orange-800 bg-orange-50/80 border-b border-orange-100">
                               {row.eggProductionPct}%
                             </td>
-                            <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-emerald-50/80">
+                            <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-emerald-50/80 border-b border-emerald-100">
                               {rowEggs > 0 ? `${rowEggs.toLocaleString()} টি` : '-'}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-bold">{row.lightingHours}h</td>
-                            <td className="py-2.5 px-4 text-[11px] text-slate-700">
+                            <td className="py-2.5 px-2 text-center font-bold border-b border-slate-100">{row.lightingHours}h</td>
+                            <td className="py-2.5 px-4 text-[11px] text-slate-700 border-b border-slate-100">
                               <span className="font-bold text-amber-900 block mb-0.5">{isBn ? row.feedTypeBn : row.feedTypeEn}</span>
                               {(isBn ? row.keyTasksBn : row.keyTasksEn).map((t, idx) => (
                                 <div key={idx} className="text-slate-600">• {t}</div>
