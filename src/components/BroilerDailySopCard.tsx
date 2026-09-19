@@ -29,8 +29,11 @@ import {
   ChevronUp,
   Table,
   LayoutGrid,
-  Check
+  Check,
+  PackageX,
+  Plus
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { 
   BROILER_SOP_SCHEDULE, 
   CROP_FILL_MILESTONES, 
@@ -97,6 +100,52 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
   currentUser,
   isDemoUser = false
 }) => {
+  // If there are no batches at all in the system, do NOT show a phantom 1,000 birds / 7-day batch
+  if ((!batches || batches.length === 0) && !initialBatch) {
+    return (
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 text-center max-w-lg mx-auto relative animate-fadeIn">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            title={isBn ? 'বন্ধ করুন' : 'Close'}
+          >
+            ✕
+          </button>
+        )}
+        <div className="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xs">
+          <PackageX size={32} />
+        </div>
+        <h3 className="text-base sm:text-lg font-black text-slate-900 mb-2">
+          {isBn ? 'কোনো সক্রিয় ব্যাচ নেই' : 'No Active Batch Available'}
+        </h3>
+        <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+          {isBn 
+            ? 'আপনার খামারে বর্তমানে কোনো চলমান ব্যাচ নেই। সকল ব্যাচ ডিলিট বা সমাপ্ত হওয়ায় কোনো লাইভ ব্যাচ এসওপি বা খাদ্য শিডিউল সক্রিয় নেই। এসওপি হিসাব ও শিডিউল চালু করতে একটি নতুন ব্যাচ তৈরি করুন।' 
+            : 'You currently have no active batches. Since all batches are deleted or completed, no automated SOP schedule is running. Please create a new batch to track SOP.'}
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            to="/batches"
+            onClick={onClose}
+            className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={15} />
+            <span>{isBn ? 'নতুন ব্যাচ শুরু করুন' : 'Create New Batch'}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+          >
+            {isBn ? 'বন্ধ করুন' : 'Close'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Batch Selection State
   const [currentBatchId, setCurrentBatchId] = useState<string>(() => {
     return selectedBatchId || initialBatch?.id || (batches.length > 0 ? batches[0].id : 'custom-sim');
@@ -104,21 +153,25 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
 
   // Calculate age helper (in days) - strictly matching app-wide standard flock age calculation
   const calculateAge = (startDateStr?: string): number => {
-    if (!startDateStr) return 7;
+    if (!startDateStr) return 1;
     try {
       return calculateBatchAgeFromStartDate(startDateStr);
     } catch {
-      return 7;
+      return 1;
     }
   };
 
   // Find currently active batch from list or initialBatch
   const selectedBatch = useMemo(() => {
+    if (currentBatchId === 'custom-sim') return null;
     const found = batches.find(b => b.id === currentBatchId);
     if (found) return found;
     if (initialBatch && initialBatch.id === currentBatchId) return initialBatch;
     return batches[0] || initialBatch || null;
   }, [batches, currentBatchId, initialBatch]);
+
+  // Is this an authentic running batch on the farm (vs manual calculator simulation)
+  const isBatchLive = !!selectedBatch && currentBatchId !== 'custom-sim';
 
   // Determine Category (Poultry, Cattle, Fish)
   const detectedCategory = useMemo<FarmCategory>(() => {
@@ -241,7 +294,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
 
   // Actual batch age in days (starts from 1)
   const batchAgeDays = useMemo(() => {
-    if (!selectedBatch?.startDate) return 7;
+    if (!selectedBatch?.startDate) return 1;
     return Math.max(1, calculateAge(selectedBatch.startDate));
   }, [selectedBatch]);
 
@@ -397,9 +450,14 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             <span className="px-2 py-0.5 rounded-lg bg-white/15 text-white font-bold">
               {effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}
             </span>
-            {activeCategory === 'poultry' && (
+            {activeCategory === 'poultry' && isBatchLive && (
               <span className="px-2 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-200 font-bold">
                 {isBn ? `${batchAgeDays} দিন` : `Day ${batchAgeDays}`}
+              </span>
+            )}
+            {activeCategory === 'poultry' && !isBatchLive && (
+              <span className="px-2 py-0.5 rounded-lg bg-amber-500/25 text-amber-200 font-bold">
+                {isBn ? 'কাস্টম হিসাব' : 'Simulation'}
               </span>
             )}
           </div>
@@ -563,11 +621,11 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             {/* Counts Bar */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="px-2 py-0.5 bg-white/10 rounded-lg flex items-center gap-1 text-[11px] font-bold">
-                <span className="text-slate-300">{isBn ? 'শুরুর সংখ্যা:' : 'Initial:'}</span>
+                <span className="text-slate-300">{isBatchLive ? (isBn ? 'শুরুর সংখ্যা:' : 'Initial:') : (isBn ? 'নমুনা সংখ্যা:' : 'Sample:')}</span>
                 <span className="font-black text-white">{initialHeadCount.toLocaleString()}</span>
               </div>
 
-              {batchMortality > 0 && (
+              {isBatchLive && batchMortality > 0 && (
                 <div className="px-2 py-0.5 bg-rose-500/20 border border-rose-400/30 rounded-lg flex items-center gap-1 text-[11px] font-bold text-rose-200">
                   <span>{isBn ? 'মৃত্যু বাদ:' : 'Mortality:'}</span>
                   <span className="font-black text-white">{batchMortality.toLocaleString()}</span>
@@ -576,7 +634,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
 
               {/* Effective Live Count Highlight */}
               <div className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-xl flex items-center gap-1.5 font-black shadow-xs">
-                <span>{isBn ? 'বর্তমান জীবিত:' : 'Live Count:'}</span>
+                <span>{isBatchLive ? (isBn ? 'বর্তমান জীবিত:' : 'Live Count:') : (isBn ? 'হিসাব সংখ্যা:' : 'Count:')}</span>
                 <span className="text-xs underline">{effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}</span>
               </div>
 
@@ -705,7 +763,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                       </button>
                     </div>
 
-                    {Math.round(batchAgeDays) === selectedDay ? (
+                    {isBatchLive && (Math.round(batchAgeDays) === selectedDay ? (
                       <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[11px] sm:text-xs font-black flex items-center gap-1 border border-emerald-200">
                         <Sparkles size={11} />
                         {isBn ? 'আজকের বয়স' : 'Current Age'}
@@ -718,7 +776,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                       >
                         {isBn ? 'আজকের দিনে ফিরুন' : 'Back to Today'}
                       </button>
-                    )}
+                    ))}
                   </div>
 
                   {/* Climate & Target Specs - 2x2 grid on mobile, flex on desktop */}
@@ -1109,7 +1167,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                 {fullChartMobileMode === 'cards' && (
                   <div className="sm:hidden space-y-2.5">
                     {filteredPoultryDays.map((row) => {
-                      const isToday = Math.round(batchAgeDays) === row.day;
+                      const isToday = isBatchLive && Math.round(batchAgeDays) === row.day;
                       const tasks = isBn ? row.tasksBn : row.tasks;
                       const rowFlockFeedKg = Number(((effectiveLiveCount * row.feedDailyGm) / 1000).toFixed(2));
                       const rowFlockFeedBags = Number((rowFlockFeedKg / 50).toFixed(2));
@@ -1221,7 +1279,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-150">
                       {filteredPoultryDays.map((row) => {
-                        const isToday = Math.round(batchAgeDays) === row.day;
+                        const isToday = isBatchLive && Math.round(batchAgeDays) === row.day;
                         const tasks = isBn ? row.tasksBn : row.tasks;
                         const rowFlockFeedKg = Number(((effectiveLiveCount * row.feedDailyGm) / 1000).toFixed(2));
                         const rowFlockFeedBags = Number((rowFlockFeedKg / 50).toFixed(2));
