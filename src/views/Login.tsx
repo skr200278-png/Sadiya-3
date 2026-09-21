@@ -36,7 +36,8 @@ import {
   EyeOff,
   KeyRound,
   X,
-  Sparkles
+  Sparkles,
+  LogIn
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -412,23 +413,63 @@ export default function Login() {
         toast.success('সফলভাবে অ্যাকাউন্ট তৈরি ও লগইন হয়েছে!');
         navigate('/', { replace: true });
       } catch (error: any) {
-        console.error('Registration Auth Error:', error);
         const errCode = error?.code || '';
+        const errMsg = error?.message || '';
+        const isEmailInUse = errCode === 'auth/email-already-in-use' || errMsg.includes('auth/email-already-in-use') || errMsg.includes('email-already-in-use');
 
-        if (errCode === 'auth/email-already-in-use') {
-          setErrorMessage(
-            'এই জিমেইল/ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। উপরে "লগইন (Sign In)" ট্যাবে ক্লিক করে আপনার ৬-ডিজিটের পিন দিয়ে প্রবেশ করুন।'
-          );
-          toast.error('এই ইমেইলে ইতিমধ্যে রেজিস্ট্রেশন করা আছে।');
+        if (isEmailInUse) {
+          console.warn('Registration notice: Email already registered, attempting seamless sign-in with entered credentials...');
+          try {
+            const authedResult = await signInWithEmailAndPassword(
+              auth,
+              cleanEmail,
+              cleanPin
+            );
+
+            await bootstrapUser(
+              authedResult.user.uid,
+              cleanName || authedResult.user.displayName,
+              authedResult.user.email
+            );
+
+            toast.success(
+              language === 'bn'
+                ? 'আপনার পূর্বে তৈরিকৃত অ্যাকাউন্টে সফলভাবে লগইন হয়েছে!'
+                : 'Logged in to your existing account successfully!'
+            );
+            navigate('/', { replace: true });
+            return;
+          } catch (autoLoginErr: any) {
+            console.warn('Auto-login attempt notice:', autoLoginErr?.code || autoLoginErr?.message);
+            // Switch mode to login so user can enter their original PIN or reset it
+            setMode('login');
+            setErrorMessage(
+              language === 'bn'
+                ? 'এই জিমেইল/ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে আপনার ৬-ডিজিটের পিন দিয়ে সরাসরি লগইন করুন অথবা পিন মনে না থাকলে রিসেট করুন।'
+                : 'An account already exists with this email. Please log in with your 6-digit PIN below or reset your PIN.'
+            );
+            toast.error(
+              language === 'bn' 
+                ? 'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগইন ট্যাবে নেওয়া হয়েছে।' 
+                : 'Account already exists. Switched to login tab.'
+            );
+          }
         } else if (errCode === 'auth/invalid-email') {
-          setErrorMessage('সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন।');
-          toast.error('ইমেইল ফরম্যাট সঠিক নয়!');
+          console.warn('Registration validation notice: Invalid email', cleanEmail);
+          setErrorMessage(language === 'bn' ? 'সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন।' : 'Please enter a valid email address.');
+          toast.error(language === 'bn' ? 'ইমেইল ফরম্যাট সঠিক নয়!' : 'Invalid email format!');
         } else if (errCode === 'auth/weak-password') {
-          setErrorMessage('পিন কমপক্ষে ৬ ডিজিটের হতে হবে।');
-          toast.error('পিন অন্তত ৬ অক্ষরের হতে হবে।');
+          console.warn('Registration validation notice: Weak password');
+          setErrorMessage(language === 'bn' ? 'পিন কমপক্ষে ৬ ডিজিটের হতে হবে।' : 'PIN must be at least 6 characters.');
+          toast.error(language === 'bn' ? 'পিন অন্তত ৬ অক্ষরের হতে হবে।' : 'PIN must be at least 6 characters.');
         } else {
-          setErrorMessage(`রেজিস্ট্রেশন সম্পন্ন করা যায়নি: ${error?.message || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`);
-          toast.error('রেজিস্ট্রেশন সম্পন্ন করা যায়নি।');
+          console.error('Registration System Auth Error:', error);
+          setErrorMessage(
+            language === 'bn'
+              ? `রেজিস্ট্রেশন সম্পন্ন করা যায়নি (${errCode || 'Error'}): ${errMsg || 'অনুগ্রহ করে আবার চেষ্টা করুন।'}`
+              : `Registration could not be completed: ${errMsg || 'Please try again.'}`
+          );
+          toast.error(language === 'bn' ? 'রেজিস্ট্রেশন সম্পন্ন করা যায়নি।' : 'Registration could not be completed.');
         }
       } finally {
         setLoading(false);
@@ -813,7 +854,7 @@ export default function Login() {
                   <p className="leading-relaxed">{errorMessage}</p>
 
                   <div className="flex flex-wrap gap-2 pt-2">
-                    {mode === 'login' && (
+                    {mode === 'login' ? (
                       <button
                         type="button"
                         onClick={() => {
@@ -825,7 +866,34 @@ export default function Login() {
                         <UserPlus size={13} />
                         <span>{language === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন (Sign Up)' : 'Create Account'}</span>
                       </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setErrorMessage(null);
+                        }}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <LogIn size={13} />
+                        <span>{language === 'bn' ? 'লগইন ট্যাবে যান (Sign In)' : 'Go to Sign In'}</span>
+                      </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetEmail(email.trim());
+                        setResetErrorMessage(null);
+                        setResetSuccessMessage(null);
+                        setResetStep('input');
+                        setIsForgotModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <KeyRound size={13} />
+                      <span>{language === 'bn' ? 'পিন রিসেট করুন' : 'Reset PIN'}</span>
+                    </button>
 
                     <button
                       type="button"

@@ -10,7 +10,8 @@ import {
   query, 
   where, 
   orderBy, 
-  getDocs 
+  getDocs,
+  getDoc 
 } from 'firebase/firestore';
 import { db, offlineSafeDocWrite, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
 import { useAuth } from './AuthContext';
@@ -88,6 +89,7 @@ export interface PaymentRequest {
   planId: string;
   planTitle: string;
   planType: 'farmer_premium' | 'business_ad';
+  durationDays?: number;
   amount: number;
   paymentMethod: 'bkash' | 'nagad' | 'rocket' | 'bank' | 'manual';
   senderPhone: string;
@@ -100,21 +102,51 @@ export interface PaymentRequest {
 }
 
 export interface UserSubscription {
+  id?: string;
   userId: string;
   userIdentifier?: string;
+  userName?: string;
+  userPhone?: string;
+  userEmail?: string;
   planId: string;
+  planTitle?: string;
   planType: 'farmer_premium' | 'business_ad';
   status: 'active' | 'expired' | 'revoked';
   isLifetime: boolean;
+  durationDays?: number;
   startDate: string;
   expiresAt?: string | null;
   paymentMethod?: string;
   trxId?: string;
   grantedBy?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export const DEFAULT_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'weekly_plan',
+    nameBn: '৭ দিন মেয়াদি ট্রায়াল প্যাক',
+    nameEn: '7 Days Trial Pack',
+    type: 'farmer_premium',
+    price: 20,
+    originalPrice: 50,
+    durationDays: 7,
+    durationLabelBn: '৭ দিন (১ সপ্তাহ)',
+    durationLabelEn: '7 Days (1 Week)',
+    featuresBn: [
+      '৭ দিনের জন্য সব প্রিমিয়াম ফিচারের অ্যাক্সেস',
+      'এক্সেল ও রঙিন পিডিএফ রিপোর্ট ডাউনলোড',
+      'ডিজিটাল বকেয়া খাতা ও ক্যাশমেমো তৈরি'
+    ],
+    featuresEn: [
+      '7 days full access to all premium tools',
+      'PDF & Excel report trial export',
+      'Digital Dues ledger & Cash Memo'
+    ],
+    isPopular: false,
+    isActive: true
+  },
   {
     id: 'monthly_plan',
     nameBn: '১ মাস মেয়াদি প্ল্যান',
@@ -312,12 +344,14 @@ interface SystemConfigContextType {
   plans: SubscriptionPlan[];
   pendingRequests: PaymentRequest[];
   allRequests: PaymentRequest[];
+  allSubscriptions: UserSubscription[];
   hasAccess: (feature: keyof Omit<FeatureControls, 'whitelistedUsers' | 'paymentNumbers' | 'adminWhatsApp' | 'adminPhone' | 'adminEmail' | 'adminName' | 'disclaimerTextBn' | 'disclaimerTextEn' | 'subscriptionNoticeBn' | 'subscriptionNoticeEn'>) => boolean;
   updateConfig: (newConfig: Partial<FeatureControls>) => Promise<boolean>;
   addUserToWhitelist: (identifier: string) => Promise<boolean>;
   removeUserFromWhitelist: (identifier: string) => Promise<boolean>;
   submitPaymentRequest: (requestData: Omit<PaymentRequest, 'status' | 'createdAt'>) => Promise<boolean>;
   approvePaymentRequest: (requestId: string, targetUserId: string, durationDays: number, planId?: string) => Promise<boolean>;
+  extendOrReactivateSubscription: (targetUserId: string, additionalDays: number, isLifetime?: boolean, requestId?: string) => Promise<boolean>;
   rejectPaymentRequest: (requestId: string, adminNotes?: string) => Promise<boolean>;
   deletePaymentRequest: (requestId: string) => Promise<boolean>;
   grantUserSubscription: (userIdOrPhone: string, planId: string, durationDays: number, isLifetime?: boolean) => Promise<boolean>;
@@ -391,6 +425,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLANS);
   const [pendingRequests, setPendingRequests] = useState<PaymentRequest[]>([]);
   const [allRequests, setAllRequests] = useState<PaymentRequest[]>([]);
+  const [allSubscriptions, setAllSubscriptions] = useState<UserSubscription[]>([]);
 
   // Modal State
   const [subscriptionModal, setSubscriptionModal] = useState<{
@@ -568,6 +603,31 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     }
   }, [isAdmin]);
 
+  // 5b. If Admin, listen to all active/expired subscriptions
+  useEffect(() => {
+    if (!isAdmin) {
+      setAllSubscriptions([]);
+      return;
+    }
+
+    try {
+      const subsQuery = collection(db, 'subscriptions');
+      const unsub = onSnapshot(subsQuery, (snapshot) => {
+        const list = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        } as unknown as UserSubscription));
+        setAllSubscriptions(list);
+      }, (err) => {
+        console.warn("All subscriptions sync notice:", err);
+      });
+
+      return () => unsub();
+    } catch (e) {
+      console.warn("All subscriptions listener error:", e);
+    }
+  }, [isAdmin]);
+
   // Compute if current user is whitelisted
   const isWhitelisted = Boolean(
     currentUser &&
@@ -683,6 +743,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     try {
       const payload: PaymentRequest = {
         ...requestData,
+        durationDays: requestData.durationDays || 30,
         userId: currentUser.uid,
         userName: requestData.userName || userProfileData?.name || currentUser.displayName || 'খামারি',
         userPhone: requestData.userPhone || userProfileData?.phone || currentUser.phoneNumber || '',
@@ -722,6 +783,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
       const reqRef = doc(db, 'payment_requests', requestId);
       await updateDoc(reqRef, {
         status: 'approved',
+        durationDays,
         processedAt: now.toISOString(),
         expiresAt: expiryDate
       });
@@ -734,21 +796,115 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         planType: 'farmer_premium',
         status: 'active',
         isLifetime,
+        durationDays,
         startDate: now.toISOString(),
         expiresAt: expiryDate,
         grantedBy: 'admin_approval',
-        createdAt: now.toISOString()
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
       };
       await setDoc(subRef, subPayload, { merge: true });
 
-      // 3. Add to whitelist as well for instant dual recognition
-      await addUserToWhitelist(targetUserId);
+      // 3. For timed subscription, ensure user is NOT trapped in permanent whitelist so countdown auto-expires properly
+      if (!isLifetime) {
+        if (config.whitelistedUsers && config.whitelistedUsers.includes(targetUserId)) {
+          await removeUserFromWhitelist(targetUserId);
+        }
+      } else {
+        await addUserToWhitelist(targetUserId);
+      }
 
-      toast.success('✅ পেমেন্ট রিকোয়েস্ট সফলভাবে অনুমোদিত ও অ্যাক্টিভেট হয়েছে!');
+      toast.success(
+        isLifetime
+          ? '✅ পেমেন্ট রিকোয়েস্ট অনুমোদিত! গ্রাহককে আজীবন ভিআইপি সুবিধা দেওয়া হয়েছে।'
+          : `✅ পেমেন্ট রিকোয়েস্ট অনুমোদিত! গ্রাহকের ${durationDays} দিনের মেয়াদ সক্রিয় হয়েছে।`
+      );
       return true;
     } catch (err) {
       console.error("Approve payment error:", err);
       toast.error('অনুমোদন ব্যর্থ হয়েছে');
+      return false;
+    }
+  };
+
+  // Extend or Re-activate Subscription (Admin action - for renewing, unblocking or extending days)
+  const extendOrReactivateSubscription = async (
+    targetUserId: string,
+    additionalDays: number,
+    isLifetime: boolean = false,
+    requestId?: string
+  ): Promise<boolean> => {
+    if (!isAdmin) {
+      toast.error('কেবলমাত্র অ্যাডমিন এই সুবিধা দিতে পারেন');
+      return false;
+    }
+
+    try {
+      const now = new Date();
+      let newExpiryDate: string | null = null;
+
+      if (!isLifetime) {
+        // Check if there is already an active future expiration date
+        let baseTime = now.getTime();
+        try {
+          const subRef = doc(db, 'subscriptions', targetUserId);
+          const subSnap = await getDoc(subRef);
+          if (subSnap.exists()) {
+            const currentSub = subSnap.data() as UserSubscription;
+            if (currentSub.expiresAt && currentSub.status === 'active') {
+              const currentExp = new Date(currentSub.expiresAt).getTime();
+              if (currentExp > now.getTime()) {
+                baseTime = currentExp;
+              }
+            }
+          }
+        } catch (e) {}
+
+        const exp = new Date(baseTime + additionalDays * 24 * 60 * 60 * 1000);
+        newExpiryDate = exp.toISOString();
+      }
+
+      // 1. Update/Create Subscription
+      const subRef = doc(db, 'subscriptions', targetUserId);
+      await setDoc(subRef, {
+        userId: targetUserId,
+        status: 'active',
+        isLifetime,
+        durationDays: additionalDays,
+        expiresAt: newExpiryDate,
+        grantedBy: 'admin_extend',
+        updatedAt: now.toISOString()
+      }, { merge: true });
+
+      // If timed, ensure not in permanent whitelist
+      if (!isLifetime && config.whitelistedUsers?.includes(targetUserId)) {
+        await removeUserFromWhitelist(targetUserId);
+      } else if (isLifetime) {
+        await addUserToWhitelist(targetUserId);
+      }
+
+      // 2. If tied to a payment request, update that too
+      if (requestId) {
+        try {
+          const reqRef = doc(db, 'payment_requests', requestId);
+          await updateDoc(reqRef, {
+            status: 'approved',
+            durationDays: additionalDays,
+            expiresAt: newExpiryDate,
+            processedAt: now.toISOString()
+          });
+        } catch (e) {}
+      }
+
+      toast.success(
+        isLifetime 
+          ? '🎉 গ্রাহককে আজীবন (Lifetime) ভিআইপি হিসেবে সক্রিয় করা হয়েছে!' 
+          : `🎉 গ্রাহকের মেয়াদ সফলভাবে ${additionalDays} দিন বাড়ানো/সক্রিয় করা হয়েছে!`
+      );
+      return true;
+    } catch (err) {
+      console.error("Extend subscription error:", err);
+      toast.error('মেয়াদ বৃদ্ধি বা সক্রিয় করতে ব্যর্থ হয়েছে');
       return false;
     }
   };
@@ -794,29 +950,37 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         expiryDate = exp.toISOString();
       }
 
-      // 1. Add to Whitelist
-      await addUserToWhitelist(clean);
-
-      // 2. If it's a UID, also write to subscriptions collection
-      if (clean.length > 15) {
-        try {
-          const subRef = doc(db, 'subscriptions', clean);
-          await setDoc(subRef, {
-            userId: clean,
-            userIdentifier: clean,
-            planId,
-            planType: 'farmer_premium',
-            status: 'active',
-            isLifetime,
-            startDate: now.toISOString(),
-            expiresAt: expiryDate,
-            grantedBy: 'admin_manual',
-            createdAt: now.toISOString()
-          }, { merge: true });
-        } catch (e) {}
+      if (isLifetime) {
+        await addUserToWhitelist(clean);
+      } else {
+        // Timed subscription: remove from static whitelist so auto-expiry is respected
+        if (config.whitelistedUsers?.includes(clean)) {
+          await removeUserFromWhitelist(clean);
+        }
       }
 
-      toast.success(`🎉 ${clean} এর ভিআইপি সাবস্ক্রিপশন চালু হয়েছে!`);
+      // Write to subscriptions collection
+      const subRef = doc(db, 'subscriptions', clean);
+      await setDoc(subRef, {
+        userId: clean,
+        userIdentifier: clean,
+        planId,
+        planType: 'farmer_premium',
+        status: 'active',
+        isLifetime,
+        durationDays,
+        startDate: now.toISOString(),
+        expiresAt: expiryDate,
+        grantedBy: 'admin_manual',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      }, { merge: true });
+
+      toast.success(
+        isLifetime 
+          ? `🎉 ${clean} এর আজীবন ভিআইপি মেম্বারশিপ চালু হয়েছে!`
+          : `🎉 ${clean} এর ${durationDays} দিনের ভিআইপি সাবস্ক্রিপশন চালু হয়েছে!`
+      );
       return true;
     } catch (err) {
       console.error("Grant VIP error:", err);
@@ -923,12 +1087,14 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         plans,
         pendingRequests,
         allRequests,
+        allSubscriptions,
         hasAccess,
         updateConfig,
         addUserToWhitelist,
         removeUserFromWhitelist,
         submitPaymentRequest,
         approvePaymentRequest,
+        extendOrReactivateSubscription,
         rejectPaymentRequest,
         deletePaymentRequest,
         grantUserSubscription,

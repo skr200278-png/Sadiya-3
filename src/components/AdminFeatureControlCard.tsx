@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSystemConfig, FeatureControls, SubscriptionPlan, PaymentRequest } from '../contexts/SystemConfigContext';
+import { getSubscriptionExpiryInfo, formatPlanDurationBn, toBengaliDigits } from '../utils/subscriptionUtils';
+import AdminLiveCountdownTracking from './AdminLiveCountdownTracking';
 import { 
   Crown, 
   Settings2, 
@@ -34,7 +36,12 @@ import {
   Check,
   Building,
   Landmark,
-  Globe
+  Globe,
+  RefreshCw,
+  Timer,
+  Flame,
+  Hourglass,
+  Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -44,10 +51,14 @@ export default function AdminFeatureControlCard() {
     config, 
     isAdmin, 
     updateConfig, 
+    addUserToWhitelist,
+    removeUserFromWhitelist,
     plans,
     pendingRequests,
     allRequests,
+    allSubscriptions = [],
     approvePaymentRequest,
+    extendOrReactivateSubscription,
     rejectPaymentRequest,
     deletePaymentRequest,
     grantUserSubscription,
@@ -57,14 +68,39 @@ export default function AdminFeatureControlCard() {
   } = useSystemConfig();
   
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'master' | 'plans' | 'accounts'>('requests');
+  const [activeTab, setActiveTab] = useState<'countdown' | 'requests' | 'users' | 'master' | 'plans' | 'accounts'>('countdown');
+
+  // Live second ticker for synchronizing real-time timers across all admin views
+  const [nowTicker, setNowTicker] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTicker(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Search & Filter for Payment Requests
-  const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'expired' | 'rejected' | 'all'>('pending');
   const [requestSearchQuery, setRequestSearchQuery] = useState<string>('');
   const [rejectModalData, setRejectModalData] = useState<{ id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Extend / Reactivate Subscription Modal State (Allows adding days or unblocking if expired mistakenly)
+  const [extendModalData, setExtendModalData] = useState<{
+    isOpen: boolean;
+    userId: string;
+    userName: string;
+    userPhone?: string;
+    requestId?: string;
+    currentExpiry?: string | null;
+    isLifetime?: boolean;
+  } | null>(null);
+  const [extendDays, setExtendDays] = useState<number>(30);
+  const [customExtendDays, setCustomExtendDays] = useState<string>('');
+
+  // Pending custom duration overrides per request (Admin choice)
+  const [pendingDurations, setPendingDurations] = useState<Record<string, number>>({});
 
   // In-App Dedicated Delete & Revoke Confirmation Modal State
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
@@ -123,11 +159,29 @@ export default function AdminFeatureControlCard() {
   const approvedList = useMemo(() => (allRequests || []).filter(r => r.status === 'approved'), [allRequests]);
   const rejectedList = useMemo(() => (allRequests || []).filter(r => r.status === 'rejected'), [allRequests]);
 
+  // Active vs Expired Subscriptions
+  const expiredList = useMemo(() => (allRequests || []).filter(r => {
+    if (r.status !== 'approved') return false;
+    const isLifetime = (r.durationDays || 0) >= 9999;
+    if (isLifetime) return false;
+    if (!r.expiresAt) return false;
+    return new Date(r.expiresAt).getTime() <= Date.now();
+  }), [allRequests]);
+
+  const activeApprovedList = useMemo(() => (allRequests || []).filter(r => {
+    if (r.status !== 'approved') return false;
+    const isLifetime = (r.durationDays || 0) >= 9999;
+    if (isLifetime) return true;
+    if (!r.expiresAt) return true;
+    return new Date(r.expiresAt).getTime() > Date.now();
+  }), [allRequests]);
+
   // Filtered payment requests based on tab status & search query (TrxID, phone, name)
   const filteredRequests = useMemo(() => {
     let list = allRequests || [];
     if (requestStatusFilter === 'pending') list = pendingList;
-    else if (requestStatusFilter === 'approved') list = approvedList;
+    else if (requestStatusFilter === 'approved') list = activeApprovedList;
+    else if (requestStatusFilter === 'expired') list = expiredList;
     else if (requestStatusFilter === 'rejected') list = rejectedList;
 
     if (!requestSearchQuery.trim()) return list;
@@ -140,7 +194,7 @@ export default function AdminFeatureControlCard() {
       (req.planTitle && req.planTitle.toLowerCase().includes(q)) ||
       (req.userId && req.userId.toLowerCase().includes(q))
     );
-  }, [allRequests, requestStatusFilter, pendingList, approvedList, rejectedList, requestSearchQuery]);
+  }, [allRequests, requestStatusFilter, pendingList, activeApprovedList, expiredList, rejectedList, requestSearchQuery]);
 
   // Filtered Whitelist users
   const filteredWhitelistedUsers = useMemo(() => {
@@ -258,16 +312,58 @@ export default function AdminFeatureControlCard() {
     }
   };
 
-  const handleApproveRequest = async (req: PaymentRequest) => {
+  const handleApproveRequest = async (req: PaymentRequest, customDays?: number) => {
     if (!req.id) return;
     setProcessingRequestId(req.id);
     
     // Find plan duration days
     const matchedPlan = plans.find(p => p.id === req.planId);
-    const durationDays = matchedPlan?.durationDays || 30;
+    const durationDays = customDays !== undefined 
+      ? customDays 
+      : (pendingDurations[req.id] !== undefined 
+          ? pendingDurations[req.id] 
+          : (req.durationDays || matchedPlan?.durationDays || 30));
 
     await approvePaymentRequest(req.id, req.userId, durationDays, req.planId);
     setProcessingRequestId(null);
+  };
+
+  // Open Extend / Reactivate Modal
+  const handleOpenExtendModal = (target: {
+    userId: string;
+    userName: string;
+    userPhone?: string;
+    requestId?: string;
+    currentExpiry?: string | null;
+    isLifetime?: boolean;
+  }) => {
+    setExtendModalData({
+      isOpen: true,
+      userId: target.userId,
+      userName: target.userName,
+      userPhone: target.userPhone,
+      requestId: target.requestId,
+      currentExpiry: target.currentExpiry,
+      isLifetime: target.isLifetime
+    });
+    setExtendDays(30);
+    setCustomExtendDays('');
+  };
+
+  const handleConfirmExtend = async () => {
+    if (!extendModalData) return;
+    setIsSaving(true);
+    const finalDays = customExtendDays ? (parseInt(customExtendDays, 10) || 30) : extendDays;
+    const isLifetime = finalDays >= 9999;
+    
+    await extendOrReactivateSubscription(
+      extendModalData.userId,
+      finalDays,
+      isLifetime,
+      extendModalData.requestId
+    );
+    setIsSaving(false);
+    setExtendModalData(null);
   };
 
   const handleOpenRejectModal = (req: PaymentRequest) => {
@@ -390,13 +486,32 @@ export default function AdminFeatureControlCard() {
         <div className="space-y-4">
           
           {/* Main Top Navigation Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
             
+            {/* Tab 0: Live Countdown & Expiry Tracking (FEATURE ঘ) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('countdown')}
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                activeTab === 'countdown'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black ring-1 ring-amber-300/50'
+                  : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
+              }`}
+            >
+              <Timer size={14} className={activeTab === 'countdown' ? 'animate-spin' : 'animate-pulse'} style={{ animationDuration: '6s' }} />
+              <span>{language === 'bn' ? 'লাইভ কাউন্টডাউন' : 'Live Countdown'}</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                activeTab === 'countdown' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              }`}>
+                {allRequests.filter(r => r.status === 'approved').length + (config.whitelistedUsers?.length || 0)}
+              </span>
+            </button>
+
             {/* Tab 1: Payment Approvals */}
             <button
               type="button"
               onClick={() => setActiveTab('requests')}
-              className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'requests'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -417,14 +532,14 @@ export default function AdminFeatureControlCard() {
             <button
               type="button"
               onClick={() => setActiveTab('users')}
-              className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'users'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               <Users size={14} />
-              <span>{language === 'bn' ? 'ইউজার হোয়াইটলিস্ট' : 'VIP Users'}</span>
+              <span>{language === 'bn' ? 'ইউজার তালিকা' : 'VIP Users'}</span>
               <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
                 activeTab === 'users' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-400'
               }`}>
@@ -436,7 +551,7 @@ export default function AdminFeatureControlCard() {
             <button
               type="button"
               onClick={() => setActiveTab('master')}
-              className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'master'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -450,7 +565,7 @@ export default function AdminFeatureControlCard() {
             <button
               type="button"
               onClick={() => setActiveTab('plans')}
-              className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'plans'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -469,17 +584,44 @@ export default function AdminFeatureControlCard() {
             <button
               type="button"
               onClick={() => setActiveTab('accounts')}
-              className={`col-span-2 sm:col-span-1 py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+              className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'accounts'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               <Phone size={14} />
-              <span>{language === 'bn' ? 'বিকাশ/নগদ নম্বর' : 'Helpline'}</span>
+              <span>{language === 'bn' ? 'পেমেন্ট নম্বর' : 'Helpline'}</span>
             </button>
 
           </div>
+
+          {/* TAB 0: LIVE COUNTDOWN & EXPIRY TRACKING (ITEM ঘ) */}
+          {activeTab === 'countdown' && (
+            <AdminLiveCountdownTracking
+              allRequests={allRequests}
+              allSubscriptions={allSubscriptions}
+              whitelistedUsers={config.whitelistedUsers || []}
+              plans={plans}
+              config={config}
+              extendOrReactivateSubscription={extendOrReactivateSubscription}
+              deletePaymentRequest={deletePaymentRequest}
+              revokeUserSubscription={revokeUserSubscription}
+              removeUserFromWhitelist={removeUserFromWhitelist}
+              onOpenCustomExtendModal={(data) => {
+                setExtendModalData({
+                  isOpen: true,
+                  ...data
+                });
+              }}
+              onOpenDeleteModal={(data) => {
+                setDeleteConfirmModal({
+                  isOpen: true,
+                  ...data
+                });
+              }}
+            />
+          )}
 
           {/* TAB 1: PENDING & ALL PAYMENT REQUESTS WITH DELETE/REVOKE */}
           {activeTab === 'requests' && (
@@ -557,11 +699,29 @@ export default function AdminFeatureControlCard() {
                     }`}
                   >
                     <CheckCircle2 size={12} />
-                    <span>{language === 'bn' ? 'অনুমোদিত (Active VIP)' : 'Approved'}</span>
+                    <span>{language === 'bn' ? 'সক্রিয় ভিআইপি' : 'Active VIP'}</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
                       requestStatusFilter === 'approved' ? 'bg-slate-950 text-emerald-300' : 'bg-slate-800 text-emerald-400'
                     }`}>
-                      {approvedList.length}
+                      {activeApprovedList.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRequestStatusFilter('expired')}
+                    className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+                      requestStatusFilter === 'expired'
+                        ? 'bg-rose-500 text-white font-black shadow-xs'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    <AlertCircle size={12} />
+                    <span>{language === 'bn' ? 'মেয়াদ শেষ' : 'Expired'}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                      requestStatusFilter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-slate-800 text-rose-400'
+                    }`}>
+                      {expiredList.length}
                     </span>
                   </button>
 
@@ -570,11 +730,11 @@ export default function AdminFeatureControlCard() {
                     onClick={() => setRequestStatusFilter('rejected')}
                     className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
                       requestStatusFilter === 'rejected'
-                        ? 'bg-rose-500 text-white font-black shadow-xs'
+                        ? 'bg-slate-700 text-white font-black shadow-xs'
                         : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     }`}
                   >
-                    <AlertCircle size={12} />
+                    <XCircle size={12} />
                     <span>{language === 'bn' ? 'বাতিলকৃত' : 'Rejected'}</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
                       requestStatusFilter === 'rejected' ? 'bg-slate-950 text-rose-300' : 'bg-slate-800 text-rose-400'
@@ -605,161 +765,278 @@ export default function AdminFeatureControlCard() {
               {/* Request Cards List */}
               {filteredRequests.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {filteredRequests.map((req) => (
-                    <div 
-                      key={req.id} 
-                      className={`bg-slate-950 border rounded-2xl p-4 transition-all space-y-3 ${
-                        req.status === 'approved' 
-                          ? 'border-emerald-500/40 hover:border-emerald-500/60'
-                          : req.status === 'rejected'
-                          ? 'border-rose-500/30 hover:border-rose-500/50'
-                          : 'border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      {/* Top Plan Info & Status Badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-black text-white">{req.userName}</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              {req.planTitle}
-                            </span>
-                            {/* Status tag */}
-                            {req.status === 'approved' && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                                <CheckCircle2 size={10} />
-                                {language === 'bn' ? 'অনুমোদিত' : 'Approved'}
+                  {filteredRequests.map((req) => {
+                    const matchedPlan = plans.find(p => p.id === req.planId);
+                    const currentSelectedDuration = pendingDurations[req.id!] !== undefined
+                      ? pendingDurations[req.id!]
+                      : (req.durationDays || matchedPlan?.durationDays || 30);
+                    const isLifetimePlan = currentSelectedDuration >= 9999;
+                    const expiryInfo = getSubscriptionExpiryInfo(req.expiresAt, isLifetimePlan, req.status);
+
+                    return (
+                      <div 
+                        key={req.id} 
+                        className={`bg-slate-950 border rounded-2xl p-4 transition-all space-y-3 ${
+                          req.status === 'approved' 
+                            ? expiryInfo.isExpired
+                              ? 'border-rose-500/40 hover:border-rose-500/60'
+                              : 'border-emerald-500/40 hover:border-emerald-500/60'
+                            : req.status === 'rejected'
+                            ? 'border-rose-500/30 hover:border-rose-500/50'
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Top Plan Info & Status Badge */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-black text-white">{req.userName}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {req.planTitle} ({formatPlanDurationBn(currentSelectedDuration)})
                               </span>
-                            )}
-                            {req.status === 'rejected' && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">
-                                <AlertCircle size={10} />
-                                {language === 'bn' ? 'বাতিলকৃত' : 'Rejected'}
-                              </span>
-                            )}
-                            {req.status === 'pending' && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                                <Clock size={10} />
-                                {language === 'bn' ? 'অপেক্ষমাণ' : 'Pending'}
-                              </span>
-                            )}
+                              
+                              {/* Status tag */}
+                              {req.status === 'approved' && (
+                                expiryInfo.isExpired ? (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                                    <AlertCircle size={10} />
+                                    {language === 'bn' ? 'মেয়াদ শেষ' : 'Expired'}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                    <CheckCircle2 size={10} />
+                                    {language === 'bn' ? 'সক্রিয় ভিআইপি' : 'Active VIP'}
+                                  </span>
+                                )
+                              )}
+                              {req.status === 'rejected' && (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                                  <AlertCircle size={10} />
+                                  {language === 'bn' ? 'বাতিলকৃত' : 'Rejected'}
+                                </span>
+                              )}
+                              {req.status === 'pending' && (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                  <Clock size={10} />
+                                  {language === 'bn' ? 'অপেক্ষমাণ' : 'Pending'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {req.userPhone || req.userEmail || req.userId}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                            {req.userPhone || req.userEmail || req.userId}
-                          </p>
-                        </div>
 
-                        <div className="text-right shrink-0">
-                          <span className="text-base font-black text-emerald-400 font-sans">৳{req.amount}</span>
-                          <span className="block text-[10px] text-slate-400 uppercase font-bold">{req.paymentMethod}</span>
-                        </div>
-                      </div>
-
-                      {/* TrxID & Sender Phone Highlight Box */}
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            {language === 'bn' ? 'প্রেরক নম্বর ও TrxID' : 'Sender Phone & TrxID'}
-                          </span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs font-bold text-slate-200 font-mono">{req.senderPhone}</span>
-                            <span className="text-slate-600">•</span>
-                            <span className="text-xs font-black text-amber-400 font-mono tracking-wide truncate">
-                              {req.trxId}
-                            </span>
+                          <div className="text-right shrink-0">
+                            <span className="text-base font-black text-emerald-400 font-sans">৳{req.amount}</span>
+                            <span className="block text-[10px] text-slate-400 uppercase font-bold">{req.paymentMethod}</span>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(req.trxId, req.id || '')}
-                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs cursor-pointer shrink-0 transition-colors"
-                          title="Copy TrxID"
-                        >
-                          {copiedId === req.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                        </button>
-                      </div>
+                        {/* TrxID & Sender Phone Highlight Box */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {language === 'bn' ? 'প্রেরক নম্বর ও TrxID' : 'Sender Phone & TrxID'}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs font-bold text-slate-200 font-mono">{req.senderPhone}</span>
+                              <span className="text-slate-600">•</span>
+                              <span className="text-xs font-black text-amber-400 font-mono tracking-wide truncate">
+                                {req.trxId}
+                              </span>
+                            </div>
+                          </div>
 
-                      {/* Date & Action Buttons */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-900 text-[11px] text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {new Date(req.createdAt).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US', {
-                            dateStyle: 'short',
-                            timeStyle: 'short'
-                          })}
-                        </span>
-
-                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          {/* DELETE RECORD BUTTON (Available for all statuses) */}
                           <button
                             type="button"
-                            onClick={() => handleOpenDeleteRequestModal(req)}
-                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                            title={language === 'bn' ? 'রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলুন' : 'Delete record'}
+                            onClick={() => handleCopy(req.trxId, req.id || '')}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs cursor-pointer shrink-0 transition-colors"
+                            title="Copy TrxID"
                           >
-                            <Trash2 size={13} />
-                            <span>{language === 'bn' ? 'ডিলিট' : 'Delete'}</span>
+                            {copiedId === req.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                           </button>
-
-                          {/* IF PENDING: Show Reject & Approve */}
-                          {req.status === 'pending' && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenRejectModal(req)}
-                                disabled={processingRequestId === req.id}
-                                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl font-bold text-xs cursor-pointer transition-colors"
-                              >
-                                {language === 'bn' ? 'বাতিল' : 'Reject'}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleApproveRequest(req)}
-                                disabled={processingRequestId === req.id}
-                                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md hover:shadow-lg active:scale-95 cursor-pointer transition-all"
-                              >
-                                <CheckCircle2 size={14} className="stroke-[2.5]" />
-                                <span>
-                                  {processingRequestId === req.id 
-                                    ? (language === 'bn' ? 'অনুমোদন হচ্ছে...' : 'Approving...') 
-                                    : (language === 'bn' ? 'অনুমোদন দিন' : 'Approve')}
-                                </span>
-                              </button>
-                            </>
-                          )}
-
-                          {/* IF APPROVED: Show Revoke VIP Button */}
-                          {req.status === 'approved' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenRevokeApprovedUserModal(req)}
-                              className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                              title="Revoke active subscription access"
-                            >
-                              <UserCheck size={13} />
-                              <span>{language === 'bn' ? 'ভিআইপি বাতিল' : 'Revoke VIP'}</span>
-                            </button>
-                          )}
-
-                          {/* IF REJECTED: Allow Re-approving */}
-                          {req.status === 'rejected' && (
-                            <button
-                              type="button"
-                              onClick={() => handleApproveRequest(req)}
-                              disabled={processingRequestId === req.id}
-                              className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer transition-all"
-                            >
-                              <CheckCircle2 size={13} />
-                              <span>{language === 'bn' ? 'পুনরায় অনুমোদন' : 'Re-Approve'}</span>
-                            </button>
-                          )}
                         </div>
-                      </div>
 
-                    </div>
-                  ))}
+                        {/* Approved Subscription Expiry Status Banner & Live Digital HUD */}
+                        {req.status === 'approved' && (
+                          <div className="space-y-2">
+                            <div className={`p-2.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 ${expiryInfo.badgeBgColor} ${expiryInfo.badgeTextColor} ${expiryInfo.badgeBorderColor}`}>
+                              <div className="flex items-center gap-1.5 font-bold">
+                                {expiryInfo.isExpired ? (
+                                  <AlertCircle size={14} className="text-rose-400 shrink-0" />
+                                ) : expiryInfo.isLifetime ? (
+                                  <Sparkles size={14} className="text-amber-400 shrink-0" />
+                                ) : (
+                                  <Clock size={14} className="text-emerald-400 shrink-0" />
+                                )}
+                                <span>
+                                  {language === 'bn' ? 'সাবস্ক্রিপশন অবস্থা:' : 'Subscription:'} {language === 'bn' ? expiryInfo.statusLabelBn : expiryInfo.statusLabelEn}
+                                </span>
+                              </div>
+                              <div className="font-mono text-[11px] opacity-90">
+                                {expiryInfo.isLifetime 
+                                  ? (language === 'bn' ? 'আজীবন কোনো মেয়াদ শেষ হবে না' : 'Lifetime Unlimited')
+                                  : (language === 'bn' ? `মেয়াদ: ${expiryInfo.formattedExpiryBn}` : `Expires: ${expiryInfo.formattedExpiryEn}`)}
+                              </div>
+                            </div>
+
+                            {/* Digital HUD Live Seconds Timer for Active Request */}
+                            {!expiryInfo.isLifetime && !expiryInfo.isExpired && (
+                              <div className="grid grid-cols-4 gap-1 text-center bg-slate-900/90 border border-slate-800/80 p-1.5 rounded-xl">
+                                <div className="bg-slate-950 py-1 rounded">
+                                  <span className="text-xs font-mono font-black text-amber-400">{expiryInfo.liveDigitsBn.days}</span>
+                                  <span className="block text-[8px] text-slate-400">দিন</span>
+                                </div>
+                                <div className="bg-slate-950 py-1 rounded">
+                                  <span className="text-xs font-mono font-black text-amber-400">{expiryInfo.liveDigitsBn.hours}</span>
+                                  <span className="block text-[8px] text-slate-400">ঘণ্টা</span>
+                                </div>
+                                <div className="bg-slate-950 py-1 rounded">
+                                  <span className="text-xs font-mono font-black text-amber-400">{expiryInfo.liveDigitsBn.minutes}</span>
+                                  <span className="block text-[8px] text-slate-400">মিনিট</span>
+                                </div>
+                                <div className="bg-slate-950 py-1 rounded ring-1 ring-emerald-500/40">
+                                  <span className="text-xs font-mono font-black text-emerald-400 animate-pulse">{expiryInfo.liveDigitsBn.seconds}</span>
+                                  <span className="block text-[8px] text-emerald-400">সেকেন্ড</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* If Pending: Admin can adjust duration right before approval */}
+                        {req.status === 'pending' && (
+                          <div className="flex items-center justify-between gap-2 text-xs bg-slate-900 border border-slate-800 p-2 rounded-xl">
+                            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                              <Calendar size={13} className="text-amber-400" />
+                              {language === 'bn' ? 'অনুমোদনের মেয়াদ সিলেক্ট করুন:' : 'Set Duration:'}
+                            </span>
+                            <select
+                              value={currentSelectedDuration}
+                              onChange={(e) => setPendingDurations(prev => ({ ...prev, [req.id!]: Number(e.target.value) }))}
+                              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-amber-300 focus:outline-hidden cursor-pointer"
+                            >
+                              <option value={7}>৭ দিন (১ সপ্তাহ)</option>
+                              <option value={15}>১৫ দিন (অর্ধ মাস)</option>
+                              <option value={30}>৩০ দিন (১ মাস)</option>
+                              <option value={60}>৬০ দিন (২ মাস)</option>
+                              <option value={90}>৯০ দিন (৩ মাস)</option>
+                              <option value={180}>১৮০ দিন (৬ মাস)</option>
+                              <option value={365}>৩৬৫ দিন (১ বছর)</option>
+                              <option value={99999}>আজীবন (Lifetime)</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Date & Action Buttons */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-900 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Clock size={12} />
+                            {new Date(req.createdAt).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US', {
+                              dateStyle: 'short',
+                              timeStyle: 'short'
+                            })}
+                          </span>
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {/* DELETE RECORD BUTTON (Available for all statuses) */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteRequestModal(req)}
+                              className="px-2.5 py-1.5 bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                              title={language === 'bn' ? 'রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলুন' : 'Delete record'}
+                            >
+                              <Trash2 size={13} />
+                              <span>{language === 'bn' ? 'ডিলিট' : 'Delete'}</span>
+                            </button>
+
+                            {/* IF PENDING: Show Reject & Approve */}
+                            {req.status === 'pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRejectModal(req)}
+                                  disabled={processingRequestId === req.id}
+                                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+                                >
+                                  {language === 'bn' ? 'বাতিল' : 'Reject'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveRequest(req, currentSelectedDuration)}
+                                  disabled={processingRequestId === req.id}
+                                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md hover:shadow-lg active:scale-95 cursor-pointer transition-all"
+                                >
+                                  <CheckCircle2 size={14} className="stroke-[2.5]" />
+                                  <span>
+                                    {processingRequestId === req.id 
+                                      ? (language === 'bn' ? 'অনুমোদন হচ্ছে...' : 'Approving...') 
+                                      : (language === 'bn' ? 'অনুমোদন দিন' : 'Approve')}
+                                  </span>
+                                </button>
+                              </>
+                            )}
+
+                            {/* IF APPROVED: Show Extend / Reactivate Button & Revoke Button */}
+                            {req.status === 'approved' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenExtendModal({
+                                    userId: req.userId,
+                                    userName: req.userName,
+                                    userPhone: req.userPhone || req.senderPhone,
+                                    requestId: req.id,
+                                    currentExpiry: req.expiresAt,
+                                    isLifetime: (req.durationDays || 0) >= 9999
+                                  })}
+                                  className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 cursor-pointer transition-all shadow-sm ${
+                                    expiryInfo.isExpired
+                                      ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 animate-pulse'
+                                      : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40'
+                                  }`}
+                                  title={language === 'bn' ? 'মেয়াদ বাড়ান বা পুনরায় চালু করুন' : 'Extend or reactivate access'}
+                                >
+                                  <RefreshCw size={12} />
+                                  <span>
+                                    {expiryInfo.isExpired 
+                                      ? (language === 'bn' ? 'পুনরায় চালু (+Extend)' : 'Reactivate') 
+                                      : (language === 'bn' ? 'মেয়াদ বাড়ান' : 'Extend')}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRevokeApprovedUserModal(req)}
+                                  className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Revoke active subscription access"
+                                >
+                                  <UserCheck size={13} />
+                                  <span>{language === 'bn' ? 'ভিআইপি বাতিল' : 'Revoke'}</span>
+                                </button>
+                              </>
+                            )}
+
+                            {/* IF REJECTED: Allow Re-approving */}
+                            {req.status === 'rejected' && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveRequest(req, currentSelectedDuration)}
+                                disabled={processingRequestId === req.id}
+                                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>{language === 'bn' ? 'পুনরায় অনুমোদন' : 'Re-Approve'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-10 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
@@ -817,9 +1094,12 @@ export default function AdminFeatureControlCard() {
                     <select
                       value={whitelistDuration}
                       onChange={(e) => setWhitelistDuration(Number(e.target.value))}
-                      className="sm:col-span-3 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-hidden focus:border-amber-500"
+                      className="sm:col-span-3 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-hidden focus:border-amber-500 cursor-pointer"
                     >
+                      <option value={7}>৭ দিন (১ সপ্তাহ ট্রায়াল)</option>
+                      <option value={15}>১৫ দিন (অর্ধ মাস)</option>
                       <option value={30}>৩০ দিন (১ মাস)</option>
+                      <option value={60}>৬০ দিন (২ মাস)</option>
                       <option value={90}>৯০ দিন (৩ মাস)</option>
                       <option value={180}>১৮০ দিন (৬ মাস)</option>
                       <option value={365}>৩৬৫ দিন (১ বছর)</option>
@@ -894,6 +1174,21 @@ export default function AdminFeatureControlCard() {
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          {/* EXTEND / RENEW BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenExtendModal({
+                              userId: userIdent,
+                              userName: userIdent,
+                              userPhone: userIdent,
+                              isLifetime: true
+                            })}
+                            className="p-1.5 text-emerald-400 hover:text-white hover:bg-emerald-600/30 rounded-lg cursor-pointer transition-colors"
+                            title={language === 'bn' ? 'মেয়াদ বৃদ্ধি বা রিনিউ করুন' : 'Extend / Renew Days'}
+                          >
+                            <RefreshCw size={13} />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleCopy(userIdent, userIdent)}
@@ -951,50 +1246,82 @@ export default function AdminFeatureControlCard() {
                     </span>
                   </div>
 
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {approvedList.map((req) => (
-                      <div
-                        key={req.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-xl transition-all"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-black text-white">{req.userName}</span>
-                            <span className="text-[10px] font-bold px-2 py-0.2 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
-                              {req.planTitle} (৳{req.amount})
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              TrxID: {req.trxId}
-                            </span>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {approvedList.map((req) => {
+                      const isSubLifetime = (req.durationDays || 0) >= 9999;
+                      const expInfo = getSubscriptionExpiryInfo(req.expiresAt, isSubLifetime, req.status);
+
+                      return (
+                        <div
+                          key={req.id}
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-900 border rounded-xl transition-all ${
+                            expInfo.isExpired ? 'border-rose-500/40 hover:border-rose-500/60' : 'border-slate-800 hover:border-emerald-500/40'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-black text-white">{req.userName}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.2 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
+                                {req.planTitle} (৳{req.amount})
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.2 rounded border flex items-center gap-1 ${expInfo.badgeBgColor} ${expInfo.badgeTextColor} ${expInfo.badgeBorderColor}`}>
+                                {expInfo.isExpired ? <AlertCircle size={10} /> : <Clock size={10} />}
+                                <span>{language === 'bn' ? expInfo.statusLabelBn : expInfo.statusLabelEn}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                              <span>নম্বর: {req.userPhone || req.senderPhone || req.userId}</span>
+                              <span>•</span>
+                              <span>
+                                {isSubLifetime 
+                                  ? (language === 'bn' ? 'আজীবন ভিআইপি' : 'Lifetime') 
+                                  : (language === 'bn' ? `মেয়াদ: ${expInfo.formattedExpiryBn}` : `Expires: ${expInfo.formattedExpiryEn}`)}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-slate-400 font-mono">
-                            নম্বর: {req.userPhone || req.senderPhone || req.userId}
-                          </p>
-                        </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDeleteRequestModal(req)}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-lg text-xs font-bold flex items-center gap-1 border border-slate-700 cursor-pointer transition-colors"
-                            title="Delete payment history record"
-                          >
-                            <Trash2 size={12} />
-                            <span>{language === 'bn' ? 'রেকর্ড মুছুন' : 'Delete Record'}</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                            {/* EXTEND / REACTIVATE BUTTON */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenExtendModal({
+                                userId: req.userId,
+                                userName: req.userName,
+                                userPhone: req.userPhone || req.senderPhone,
+                                requestId: req.id,
+                                currentExpiry: req.expiresAt,
+                                isLifetime: (req.durationDays || 0) >= 9999
+                              })}
+                              className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-black flex items-center gap-1 border border-emerald-500/30 cursor-pointer transition-colors"
+                              title={language === 'bn' ? 'মেয়াদ বাড়ান বা পুনরায় চালু করুন' : 'Extend / Reactivate'}
+                            >
+                              <RefreshCw size={12} />
+                              <span>{expInfo.isExpired ? (language === 'bn' ? 'চালু করুন' : 'Reactivate') : (language === 'bn' ? '+মেয়াদ' : '+Extend')}</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRevokeApprovedUserModal(req)}
-                            className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-black flex items-center gap-1 cursor-pointer transition-all"
-                            title="Revoke subscription & remove user"
-                          >
-                            <UserCheck size={12} />
-                            <span>{language === 'bn' ? 'ভিআইপি বাতিল' : 'Revoke Access'}</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteRequestModal(req)}
+                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-lg text-xs font-bold flex items-center gap-1 border border-slate-700 cursor-pointer transition-colors"
+                              title="Delete payment history record"
+                            >
+                              <Trash2 size={12} />
+                              <span>{language === 'bn' ? 'রেকর্ড মুছুন' : 'Delete'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRevokeApprovedUserModal(req)}
+                              className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-black flex items-center gap-1 cursor-pointer transition-all"
+                              title="Revoke subscription & remove user"
+                            >
+                              <UserCheck size={12} />
+                              <span>{language === 'bn' ? 'ভিআইপি বাতিল' : 'Revoke'}</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1771,6 +2098,108 @@ export default function AdminFeatureControlCard() {
                   {isSaving 
                     ? (language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...') 
                     : (language === 'bn' ? 'হ্যাঁ, স্থায়ীভাবে মুছে ফেলুন' : 'Yes, Delete Permanently')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Subscription Extend / Reactivate Modal */}
+      {extendModalData && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-emerald-500/50 rounded-3xl p-5 max-w-md w-full shadow-2xl space-y-4 text-slate-100">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <RefreshCw size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    {language === 'bn' ? 'সাবস্ক্রিপশনের মেয়াদ বৃদ্ধি বা পুনরায় চালু' : 'Extend or Reactivate Subscription'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold">
+                    {language === 'bn' ? 'ভুলবশত বা মেয়াদ শেষে গ্রাহককে পুনরায় যুক্ত করুন' : 'Reinstate or add days to subscriber access'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setExtendModalData(null)} 
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            {/* User Details card */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">{language === 'bn' ? 'গ্রাহক:' : 'Customer:'}</span>
+                <span className="font-black text-white">{extendModalData.userName}</span>
+              </div>
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-slate-400">{language === 'bn' ? 'নম্বর / আইডি:' : 'Phone / ID:'}</span>
+                <span className="text-emerald-400">{extendModalData.userPhone || extendModalData.userId}</span>
+              </div>
+              {extendModalData.currentExpiry && !extendModalData.isLifetime && (
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-900">
+                  <span className="text-slate-400">{language === 'bn' ? 'বর্তমান শেষ তারিখ:' : 'Current Expiry:'}</span>
+                  <span className="text-amber-400 font-mono">
+                    {new Date(extendModalData.currentExpiry).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Select Days to Extend */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-black text-slate-200">
+                {language === 'bn' ? 'কত দিনের মেয়াদ বাড়াতে বা দিতে চান?' : 'Select Additional Duration:'}
+              </label>
+              <select
+                value={extendDays}
+                onChange={(e) => setExtendDays(Number(e.target.value))}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-emerald-400 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
+              >
+                <option value={7}>+৭ দিন (১ সপ্তাহ)</option>
+                <option value={15}>+১৫ দিন (অর্ধ মাস)</option>
+                <option value={30}>+৩০ দিন (১ মাস)</option>
+                <option value={60}>+৬০ দিন (২ মাস)</option>
+                <option value={90}>+৯০ দিন (৩ মাস)</option>
+                <option value={180}>+১৮০ দিন (৬ মাস)</option>
+                <option value={365}>+৩৬৫ দিন (১ বছর)</option>
+                <option value={99999}>আজীবন (Lifetime VIP)</option>
+              </select>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                {language === 'bn' 
+                  ? 'যদি মেয়াদ ইতিমধ্যে শেষ হয়ে গিয়ে থাকে তবে আজকের দিন থেকে হিসাব হবে, আর চলমান থাকলে বর্তমান মেয়াদের সাথে যুক্ত হবে।' 
+                  : 'If already expired, starts from today. If active, adds on top of remaining days.'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setExtendModalData(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+              >
+                {language === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExtend}
+                disabled={isSaving}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={14} className="stroke-[2.5]" />
+                <span>
+                  {isSaving 
+                    ? (language === 'bn' ? 'আপডেট হচ্ছে...' : 'Updating...') 
+                    : (language === 'bn' ? 'মেয়াদ আপডেট / চালু করুন' : 'Confirm & Activate')}
                 </span>
               </button>
             </div>

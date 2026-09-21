@@ -105,6 +105,7 @@ export default function SubscriptionModal() {
       planId: selectedPlan?.id || 'standard_farmer_monthly',
       planTitle: selectedPlanName,
       planType: selectedPlan?.type || 'farmer_premium',
+      durationDays: selectedPlan?.durationDays || 30,
       amount: finalAmount,
       paymentMethod,
       senderPhone: senderPhone.trim(),

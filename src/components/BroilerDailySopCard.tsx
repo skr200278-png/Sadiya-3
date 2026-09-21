@@ -100,8 +100,17 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
   currentUser,
   isDemoUser = false
 }) => {
-  // If there are no batches at all in the system, do NOT show a phantom 1,000 birds / 7-day batch
-  if ((!batches || batches.length === 0) && !initialBatch) {
+  // Filter active batches (exclude completed or invalid ones)
+  const activeBatches = useMemo(() => {
+    return (batches || []).filter(b => b && b.id && b.status !== 'completed');
+  }, [batches]);
+
+  const validInitialBatch = useMemo(() => {
+    return initialBatch && initialBatch.id && initialBatch.status !== 'completed' ? initialBatch : null;
+  }, [initialBatch]);
+
+  // If there are no active batches at all in the system, do NOT show a phantom batch or default dummy numbers
+  if (activeBatches.length === 0 && !validInitialBatch) {
     return (
       <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 text-center max-w-lg mx-auto relative animate-fadeIn">
         {onClose && (
@@ -148,7 +157,10 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
 
   // Batch Selection State
   const [currentBatchId, setCurrentBatchId] = useState<string>(() => {
-    return selectedBatchId || initialBatch?.id || (batches.length > 0 ? batches[0].id : 'custom-sim');
+    if (selectedBatchId && activeBatches.some(b => b.id === selectedBatchId)) return selectedBatchId;
+    if (validInitialBatch?.id) return validInitialBatch.id;
+    if (activeBatches.length > 0) return activeBatches[0].id;
+    return 'custom-sim';
   });
 
   // Calculate age helper (in days) - strictly matching app-wide standard flock age calculation
@@ -164,11 +176,11 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
   // Find currently active batch from list or initialBatch
   const selectedBatch = useMemo(() => {
     if (currentBatchId === 'custom-sim') return null;
-    const found = batches.find(b => b.id === currentBatchId);
+    const found = activeBatches.find(b => b.id === currentBatchId);
     if (found) return found;
-    if (initialBatch && initialBatch.id === currentBatchId) return initialBatch;
-    return batches[0] || initialBatch || null;
-  }, [batches, currentBatchId, initialBatch]);
+    if (validInitialBatch && validInitialBatch.id === currentBatchId) return validInitialBatch;
+    return activeBatches[0] || validInitialBatch || null;
+  }, [activeBatches, currentBatchId, validInitialBatch]);
 
   // Is this an authentic running batch on the farm (vs manual calculator simulation)
   const isBatchLive = !!selectedBatch && currentBatchId !== 'custom-sim';
@@ -266,19 +278,19 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
     return () => { isMounted = false; };
   }, [selectedBatch?.id, isDemoUser, currentUser]);
 
-  // Initial head count from selected batch
+  // Initial head count from selected batch (strictly based on real batch data; 0 when no batch)
   const initialHeadCount = useMemo(() => {
-    if (!selectedBatch) return activeCategory === 'cattle' ? 5 : (activeCategory === 'fish' ? 2000 : 1000);
+    if (!selectedBatch) return 0;
     const count = Number(selectedBatch.totalChicks || selectedBatch.quantity || 0);
-    if (count > 0) return count;
-    return activeCategory === 'cattle' ? 5 : (activeCategory === 'fish' ? 2000 : 1000);
-  }, [selectedBatch, activeCategory]);
+    return Math.max(0, count);
+  }, [selectedBatch]);
 
-  // Accurate Live Count: Initial count minus mortality (never locked to 100)
+  // Accurate Live Count: Initial count minus mortality
   const calculatedLiveCount = useMemo(() => {
+    if (!selectedBatch) return 0;
     const count = initialHeadCount - batchMortality;
-    return Math.max(1, count);
-  }, [initialHeadCount, batchMortality]);
+    return Math.max(0, count);
+  }, [selectedBatch, initialHeadCount, batchMortality]);
 
   // Manual simulation override allows farmer to test any count
   const [simulatedCount, setSimulatedCount] = useState<number>(calculatedLiveCount);

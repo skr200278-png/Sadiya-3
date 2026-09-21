@@ -183,6 +183,7 @@ export default function Dashboard() {
           setTotalMortality(0);
           loadActivities();
           setBatchMetrics(null);
+          localStorage.removeItem(`selected_batch_id_${selectedType}`);
         }
         setLoading(false);
       };
@@ -261,18 +262,50 @@ export default function Dashboard() {
       return () => unsub();
     }
 
-    fetchActiveBatches();
     fetchRecentActivitiesAndStats();
     
     if (currentUser && auth.currentUser) {
-      const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (docObj) => {
+      const unsubProfile = onSnapshot(doc(db, 'users', currentUser.uid), (docObj) => {
         if (docObj.exists()) {
           setProfileData(docObj.data());
         }
       }, (err) => {
         console.warn('Dashboard profile onSnapshot error:', err);
       });
-      return () => unsub();
+
+      const qBatches = query(
+        collection(db, 'batches'),
+        where('userId', '==', currentUser.uid)
+      );
+      const unsubBatches = onSnapshot(qBatches, (snapshot) => {
+        const allBatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const activeBatches = allBatches.filter((b: any) => b.status === 'active' && (b.farmType || 'poultry') === selectedType);
+        setCategoryBatches(activeBatches);
+
+        const savedBatchId = localStorage.getItem(`selected_batch_id_${selectedType}`);
+        const matched = activeBatches.find((b: any) => b.id === savedBatchId) || activeBatches[0] || null;
+
+        setActiveBatch(matched);
+        if (matched) {
+          fetchMortality(matched.id);
+          fetchBatchMetrics(matched);
+        } else {
+          setTotalMortality(0);
+          setBatchMetrics(null);
+          localStorage.removeItem(`selected_batch_id_${selectedType}`);
+        }
+        setLoading(false);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'batches');
+        setLoading(false);
+      });
+
+      return () => {
+        unsubProfile();
+        unsubBatches();
+      };
+    } else {
+      fetchActiveBatches();
     }
   }, [currentUser, isDemoUser, selectedType]);
 
