@@ -182,18 +182,22 @@ export default function FCR() {
     );
   }, [batches, selectedCategory, selectedBreed]);
 
-  // Auto select first batch if none selected
-  useEffect(() => {
-    if (availableBatches.length > 0 && !selectedBatchId) {
-      setSelectedBatchId(availableBatches[0].id);
-    } else if (availableBatches.length > 0 && !availableBatches.some(b => b.id === selectedBatchId)) {
-      setSelectedBatchId(availableBatches[0].id);
-    }
+  // Strictly bind currentBatch ONLY to availableBatches so other category batches never leak
+  const currentBatch = useMemo(() => {
+    if (!selectedBatchId) return null;
+    return availableBatches.find(b => b.id === selectedBatchId) || null;
   }, [availableBatches, selectedBatchId]);
 
-  const currentBatch = useMemo(() => {
-    return batches.find(b => b.id === selectedBatchId) || null;
-  }, [batches, selectedBatchId]);
+  // Auto select first batch if available, or reset to empty if none found
+  useEffect(() => {
+    if (availableBatches.length > 0) {
+      if (!selectedBatchId || !availableBatches.some(b => b.id === selectedBatchId)) {
+        setSelectedBatchId(availableBatches[0].id);
+      }
+    } else {
+      setSelectedBatchId('');
+    }
+  }, [availableBatches, selectedBatchId]);
 
   // Load daily & FCR records for selected batch
   const loadBatchRecords = useCallback(async () => {
@@ -567,6 +571,7 @@ export default function FCR() {
                   setSelectedCategory(cat);
                   const firstBreed = SUPPORTED_BREEDS[cat][0].code;
                   setSelectedBreed(firstBreed);
+                  setSelectedBatchId('');
                 }}
                 className={`py-2.5 px-3 rounded-lg text-sm font-semibold border transition text-center ${
                   selectedCategory === cat
@@ -586,7 +591,10 @@ export default function FCR() {
             {SUPPORTED_BREEDS[selectedCategory].map(br => (
               <button
                 key={br.code}
-                onClick={() => setSelectedBreed(br.code)}
+                onClick={() => {
+                  setSelectedBreed(br.code);
+                  setSelectedBatchId('');
+                }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
                   selectedBreed === br.code
                     ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
@@ -636,6 +644,37 @@ export default function FCR() {
             )}
           </div>
         </div>
+
+        {/* EMPTY STATE IF NO ACTIVE BATCH IN SELECTED CATEGORY/BREED */}
+        {!currentBatch && (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-12 text-center space-y-4 shadow-xs">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <Scale className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">
+                {isBn 
+                  ? 'এই ক্যাটাগরি ও জাতের কোনো সক্রিয় ব্যাচ নেই' 
+                  : 'No active batch in this category & breed'}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {isBn 
+                  ? 'অন্য ক্যাটাগরি (পোল্ট্রি, গবাদি পশু, মৎস্য) নির্বাচন করুন অথবা এই জাতের জন্য একটি নতুন ব্যাচ তৈরি করে FCR ও খাদ্য স্টক হিসাব শুরু করুন।' 
+                  : 'Switch category/breed or create a new batch to track FCR and feed inventory.'}
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => navigate('/batches')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{isBn ? 'নতুন ব্যাচ তৈরি করুন' : 'Create New Batch'}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ------------------------------------------------------------ */}
         {/* STEP 2: SELECTED BATCH HERO BANNER & LIVE COUNT */}

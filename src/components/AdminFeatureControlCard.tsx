@@ -106,6 +106,9 @@ export default function AdminFeatureControlCard() {
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     isOpen: boolean;
     id: string;
+    userId?: string;
+    requestId?: string;
+    phone?: string;
     name: string;
     type: 'whitelist' | 'subscription' | 'request';
     title?: string;
@@ -272,6 +275,9 @@ export default function AdminFeatureControlCard() {
     setDeleteConfirmModal({
       isOpen: true,
       id: req.id || '',
+      userId: req.userId,
+      requestId: req.id,
+      phone: req.userPhone || req.senderPhone,
       name: `${req.userName} (${req.trxId})`,
       type: 'request',
       title: language === 'bn' ? 'পেমেন্ট রিকোয়েস্ট রেকর্ড ডিলিট' : 'Delete Payment Request',
@@ -287,6 +293,9 @@ export default function AdminFeatureControlCard() {
     setDeleteConfirmModal({
       isOpen: true,
       id: userTarget,
+      userId: req.userId,
+      requestId: req.id,
+      phone: req.userPhone || req.senderPhone,
       name: `${req.userName} - ${userTarget}`,
       type: 'whitelist',
       title: language === 'bn' ? 'সাবস্ক্রিপশন বাতিল ও ইউজার ডিলিট' : 'Revoke Subscription Access',
@@ -301,10 +310,12 @@ export default function AdminFeatureControlCard() {
     if (!deleteConfirmModal) return;
     setIsSaving(true);
     try {
-      if (deleteConfirmModal.type === 'whitelist' || deleteConfirmModal.type === 'subscription') {
-        await revokeUserSubscription(deleteConfirmModal.id);
-      } else if (deleteConfirmModal.type === 'request') {
+      if (deleteConfirmModal.type === 'request' && !deleteConfirmModal.userId && !deleteConfirmModal.phone) {
         await deletePaymentRequest(deleteConfirmModal.id);
+      } else {
+        const targetUserId = deleteConfirmModal.userId || deleteConfirmModal.id;
+        const targetRequestId = deleteConfirmModal.requestId || (deleteConfirmModal.type === 'request' ? deleteConfirmModal.id : undefined);
+        await revokeUserSubscription(targetUserId, targetRequestId);
       }
     } finally {
       setIsSaving(false);

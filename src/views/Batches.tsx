@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, addDoc, updateDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X, ClipboardList, Award, Clock, FileSpreadsheet, Download, Wheat, Calculator } from 'lucide-react';
+import { Package, Plus, Trash2, CheckCircle2, ArrowRight, LayoutDashboard, Calendar, Users, DollarSign, LineChart as ChartIcon, AlertTriangle, X, ClipboardList, Award, Clock, FileSpreadsheet, Download, Wheat, Calculator, BookOpen, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import BatchComparisonCard, { BatchSummaryStats } from '../components/BatchComparisonCard';
@@ -172,9 +172,19 @@ export default function Batches() {
   const [completingFinancials, setCompletingFinancials] = useState<any | null>(null);
   const [viewReportBatch, setViewReportBatch] = useState<any | null>(null);
 
-  // Delete batch state with cascade protection
+  // Delete batch state with cascade protection & Dues notice
   const [deleteBatchItem, setDeleteBatchItem] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [batchDuesLoading, setBatchDuesLoading] = useState(false);
+  const [batchDuesInfo, setBatchDuesInfo] = useState<{
+    totalReceivable: number;
+    totalPayable: number;
+    totalDue: number;
+    receivableItems: Array<{ personName: string; phone?: string; remaining: number; totalAmount: number; details?: string }>;
+    payableItems: Array<{ personName: string; phone?: string; remaining: number; totalAmount: number; details?: string }>;
+    allCount: number;
+  } | null>(null);
+  const [confirmDeleteWithDues, setConfirmDeleteWithDues] = useState(false);
   const [exportingBatchId, setExportingBatchId] = useState<string | null>(null);
 
   const handleDownloadBatchArchive = async (batch: any, format: 'csv' | 'pdf') => {
@@ -469,6 +479,196 @@ export default function Batches() {
     setDeleteBatchItem(batch);
   };
 
+  const handleGoToDues = () => {
+    const bName = deleteBatchItem?.batchName;
+    setDeleteBatchItem(null);
+    toast.success(
+      language === 'bn'
+        ? `"${bName}"-এর বকেয়া আদায় বা পরিশোধ করতে বকেয়া খাতায় নেওয়া হয়েছে`
+        : 'Navigated to Dues Ledger to manage outstanding records',
+      { icon: '📖', duration: 4000 }
+    );
+    navigate('/dues');
+  };
+
+  // Audit batch dues whenever a batch is selected for deletion
+  useEffect(() => {
+    if (!deleteBatchItem) {
+      setBatchDuesInfo(null);
+      setBatchDuesLoading(false);
+      setConfirmDeleteWithDues(false);
+      return;
+    }
+
+    let isMounted = true;
+    setBatchDuesLoading(true);
+    setConfirmDeleteWithDues(false);
+
+    const auditBatchDues = async () => {
+      try {
+        const targetId = deleteBatchItem.id;
+        const targetBatchName = (deleteBatchItem.batchName || '').trim();
+
+        let allDuesList: any[] = [];
+        const relatedSourceIds = new Set<string>();
+        const relatedDueIds = new Set<string>();
+
+        if (isDemoUser) {
+          const demoSales = demoStore.getSales().filter(s => s.batchId === targetId);
+          const demoExpenses = demoStore.getExpenses().filter(e => e.batchId === targetId);
+          const demoFeed = demoStore.getFeedRecords().filter(f => f.batchId === targetId);
+          const demoMedicine = demoStore.getMedicineRecords().filter(m => m.batchId === targetId);
+
+          demoSales.forEach(s => {
+            if (s.id) relatedSourceIds.add(s.id);
+            if ((s as any).dueRecordId) relatedDueIds.add((s as any).dueRecordId);
+          });
+          demoExpenses.forEach(e => {
+            if (e.id) relatedSourceIds.add(e.id);
+            if ((e as any).dueRecordId) relatedDueIds.add((e as any).dueRecordId);
+          });
+          demoFeed.forEach(f => {
+            if (f.id) relatedSourceIds.add(f.id);
+            if ((f as any).dueRecordId) relatedDueIds.add((f as any).dueRecordId);
+          });
+          demoMedicine.forEach(m => {
+            if (m.id) relatedSourceIds.add(m.id);
+            if ((m as any).dueRecordId) relatedDueIds.add((m as any).dueRecordId);
+          });
+
+          allDuesList = demoStore.getDues();
+        } else if (currentUser) {
+          const collectionsToCascade = [
+            'feed_records',
+            'medicine',
+            'medicine_records',
+            'expenses',
+            'sales'
+          ];
+
+          await Promise.all(
+            collectionsToCascade.map(async collName => {
+              try {
+                const q = query(
+                  collection(db, collName),
+                  where('userId', '==', currentUser.uid),
+                  where('batchId', '==', targetId)
+                );
+                const snap = await fastGetDocs(q);
+                snap.docs.forEach(d => {
+                  relatedSourceIds.add(d.id);
+                  const data = d.data();
+                  if (data?.dueRecordId) relatedDueIds.add(data.dueRecordId);
+                });
+              } catch (e) {
+                console.warn(`Audit check error on ${collName}:`, e);
+              }
+            })
+          );
+
+          try {
+            const duesQ = query(
+              collection(db, 'dues'),
+              where('userId', '==', currentUser.uid)
+            );
+            const duesSnap = await fastGetDocs(duesQ);
+            allDuesList = duesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          } catch (e) {
+            console.warn('Audit check error on dues:', e);
+          }
+        }
+
+        // Filter dues linked to this batch
+        const matchedDues = allDuesList.filter(due => {
+          if (due.batchId && due.batchId === targetId) return true;
+          if (relatedDueIds.has(due.id)) return true;
+          if (due.sourceId && relatedSourceIds.has(due.sourceId)) return true;
+          if (targetBatchName && due.batchName && due.batchName.trim().toLowerCase() === targetBatchName.toLowerCase()) return true;
+          if (targetBatchName && targetBatchName.length >= 2 && due.details) {
+            const dText = due.details.toLowerCase();
+            const bNameLower = targetBatchName.toLowerCase();
+            if (
+              dText.startsWith(bNameLower) ||
+              dText.includes(`${bNameLower} -`) ||
+              dText.includes(`${bNameLower} (`) ||
+              dText.includes(`${bNameLower} এর`) ||
+              (targetBatchName.length >= 3 && dText.includes(bNameLower) && ['sale', 'expense', 'feed', 'medicine'].includes(due.sourceType || ''))
+            ) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        let totalRec = 0;
+        let totalPay = 0;
+        const receivableItems: any[] = [];
+        const payableItems: any[] = [];
+
+        matchedDues.forEach(d => {
+          const amount = Number(d.amount) || 0;
+          const totalPaid = Number(d.totalPaid) || 0;
+          const remaining = Math.max(0, amount - totalPaid);
+          const isSettled = d.status === 'paid' || remaining <= 0;
+          const isReceivable = d.type === 'receivable' || d.type === 'payable_to_me';
+
+          if (!isSettled && remaining > 0) {
+            if (isReceivable) {
+              totalRec += remaining;
+              receivableItems.push({
+                personName: d.personName || (language === 'bn' ? 'অজ্ঞাত ক্রেতা' : 'Customer'),
+                phone: d.phone,
+                remaining,
+                totalAmount: amount,
+                details: d.details || d.batchName
+              });
+            } else {
+              totalPay += remaining;
+              payableItems.push({
+                personName: d.personName || (language === 'bn' ? 'অজ্ঞাত সরবরাহকারী' : 'Supplier'),
+                phone: d.phone,
+                remaining,
+                totalAmount: amount,
+                details: d.details || d.batchName
+              });
+            }
+          }
+        });
+
+        if (isMounted) {
+          setBatchDuesInfo({
+            totalReceivable: totalRec,
+            totalPayable: totalPay,
+            totalDue: totalRec + totalPay,
+            receivableItems,
+            payableItems,
+            allCount: matchedDues.length
+          });
+          setBatchDuesLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to audit batch dues:', err);
+        if (isMounted) {
+          setBatchDuesLoading(false);
+          setBatchDuesInfo({
+            totalReceivable: 0,
+            totalPayable: 0,
+            totalDue: 0,
+            receivableItems: [],
+            payableItems: [],
+            allCount: 0
+          });
+        }
+      }
+    };
+
+    auditBatchDues();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [deleteBatchItem, currentUser, isDemoUser, language]);
+
   const calculateAge = (startDate: string) => {
     const start = new Date(startDate);
     const now = new Date();
@@ -480,10 +680,13 @@ export default function Batches() {
     if (!deleteBatchItem) return;
     const targetId = deleteBatchItem.id;
     setIsDeleting(true);
+
+    // Optimistically remove from local state immediately so UI feels instantaneous
+    setBatches(prev => prev.filter(b => b.id !== targetId));
+
     try {
       if (isDemoUser) {
         demoStore.deleteBatch(targetId);
-        // Clear active batch if it was the deleted one
         ['poultry', 'cattle', 'fish'].forEach(ft => {
           if (localStorage.getItem(`selected_batch_id_${ft}`) === targetId) {
             localStorage.removeItem(`selected_batch_id_${ft}`);
@@ -491,19 +694,16 @@ export default function Batches() {
         });
         toast.success(
           language === 'bn'
-            ? 'ব্যাচ এবং এর সাথে সম্পর্কিত সকল হিসাব (খাবার, ঔষধ, খরচ, বিক্রি) মুছে ফেলা হয়েছে'
+            ? 'ব্যাচ এবং এর সাথে সম্পর্কিত সকল হিসাব (খাবার, ঔষধ, খরচ, বিক্রি, বকেয়া) মুছে ফেলা হয়েছে'
             : t('batches.delSuccess'), 
           { duration: 3500 }
         );
         setDeleteBatchItem(null);
-        fetchBatches();
         return;
       }
 
-      // 1. Delete main batch doc
-      await offlineSafeDocWrite(deleteDoc(doc(db, 'batches', targetId)));
-
-      // 2. Cascade delete associated documents across all collections
+      // 1. Gather all sub-records and their IDs in PARALLEL to ensure lightning-fast & full cascade
+      const targetBatchName = (deleteBatchItem.batchName || '').trim();
       const collectionsToCascade = [
         'feed_records',
         'medicine',
@@ -511,24 +711,97 @@ export default function Batches() {
         'expenses',
         'sales',
         'mortality',
-        'dues'
+        'daily_actual_records',
+        'weight_records'
       ];
 
-      for (const collName of collectionsToCascade) {
-        try {
-          const q = query(
-            collection(db, collName),
-            where('userId', '==', currentUser?.uid),
-            where('batchId', '==', targetId)
-          );
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
-            await Promise.all(deletePromises);
+      const subDocRefsToDelete: any[] = [];
+      const relatedSourceIds = new Set<string>();
+      const relatedDueIds = new Set<string>();
+
+      // Query all collections concurrently
+      await Promise.all(
+        collectionsToCascade.map(async (collName) => {
+          try {
+            const q = query(
+              collection(db, collName),
+              where('userId', '==', currentUser?.uid),
+              where('batchId', '==', targetId)
+            );
+            const snap = await fastGetDocs(q);
+            snap.docs.forEach(d => {
+              subDocRefsToDelete.push(d.ref);
+              relatedSourceIds.add(d.id);
+              const data = d.data();
+              if (data?.dueRecordId) {
+                relatedDueIds.add(data.dueRecordId);
+              }
+            });
+          } catch (e) {
+            console.warn(`Cascade sub-records error on ${collName}:`, e);
           }
-        } catch (e) {
-          console.warn(`Cascade delete error on ${collName}:`, e);
-        }
+        })
+      );
+
+      // 2. Cascade delete all associated Dues (বকেয়া খাতা) for this batch
+      try {
+        const duesQ = query(
+          collection(db, 'dues'),
+          where('userId', '==', currentUser?.uid)
+        );
+        const duesSnap = await fastGetDocs(duesQ);
+        duesSnap.docs.forEach(dueDoc => {
+          const dueData = dueDoc.data();
+          const dueId = dueDoc.id;
+          let shouldDelete = false;
+
+          // Direct batchId match
+          if (dueData.batchId && String(dueData.batchId).trim() === targetId) {
+            shouldDelete = true;
+          }
+          // Linked dueRecordId from sub-record
+          else if (relatedDueIds.has(dueId)) {
+            shouldDelete = true;
+          }
+          // Linked sourceId from sub-record
+          else if (dueData.sourceId && relatedSourceIds.has(dueData.sourceId)) {
+            shouldDelete = true;
+          }
+          // Exact batchName match
+          else if (targetBatchName && dueData.batchName && dueData.batchName.trim().toLowerCase() === targetBatchName.toLowerCase()) {
+            shouldDelete = true;
+          }
+          // High-confidence batch title match in details text
+          else if (targetBatchName && targetBatchName.length >= 2 && dueData.details) {
+            const dText = dueData.details.toLowerCase();
+            const bNameLower = targetBatchName.toLowerCase();
+            if (
+              dText.startsWith(bNameLower) ||
+              dText.includes(`${bNameLower} -`) ||
+              dText.includes(`${bNameLower} (`) ||
+              dText.includes(`${bNameLower} এর`) ||
+              (targetBatchName.length >= 2 && dText.includes(bNameLower))
+            ) {
+              shouldDelete = true;
+            }
+          }
+
+          if (shouldDelete) {
+            subDocRefsToDelete.push(dueDoc.ref);
+          }
+        });
+      } catch (e) {
+        console.warn('Cascade delete error on dues:', e);
+      }
+
+      // 3. Atomically delete all sub-records, dues, and the main batch doc via Firestore writeBatch
+      const allRefsToDelete = [...subDocRefsToDelete, doc(db, 'batches', targetId)];
+      const chunkSize = 400; // Safe threshold within Firestore 500 ops limit
+      for (let i = 0; i < allRefsToDelete.length; i += chunkSize) {
+        const chunk = allRefsToDelete.slice(i, i + chunkSize);
+        const batchOp = writeBatch(db);
+        chunk.forEach(ref => batchOp.delete(ref));
+        await batchOp.commit();
       }
 
       // Reset active batch from localStorage if deleted
@@ -540,15 +813,21 @@ export default function Batches() {
 
       toast.success(
         language === 'bn'
-          ? 'ব্যাচ এবং এর সকল তথ্য ও হিসাব স্থায়ীভাবে মুছে ফেলা হয়েছে'
+          ? 'ব্যাচ এবং এর সকল তথ্য ও বকেয়া খাতার হিসাব স্থায়ীভাবে মুছে ফেলা হয়েছে'
           : t('batches.delSuccess'),
         { duration: 3500 }
       );
       setDeleteBatchItem(null);
-      fetchBatches();
     } catch (error) {
       toast.error(t('batches.delError'));
       handleFirestoreError(error, OperationType.DELETE, 'batches');
+      // If error occurs, reload batches
+      if (currentUser) {
+        const q = query(collection(db, 'batches'), where('userId', '==', currentUser.uid));
+        fastGetDocs(q).then(snap => {
+          setBatches(snap.docs.map(d => ({ id: d.id, ...d.data() as any })));
+        }).catch(() => {});
+      }
     } finally {
       setIsDeleting(false);
     }
@@ -1263,76 +1542,220 @@ export default function Batches() {
         />
       )}
 
-      {/* Prominent Red Warning Modal for Batch Cascade Deletion */}
+      {/* Prominent Red Warning Modal for Batch Cascade Deletion with Dues Audit & Notice */}
       {deleteBatchItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border-2 border-rose-300 space-y-4">
-            <div className="flex items-start justify-between border-b border-rose-150 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle size={22} className="text-rose-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border-2 border-rose-300 overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-rose-100 flex items-start justify-between bg-rose-50/70 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <AlertTriangle size={24} />
                 </div>
                 <div>
-                  <h3 className="font-black text-rose-950 text-base">
-                    {language === 'bn' ? 'ব্যাচ ও সকল তথ্য মুছে ফেলা' : 'Delete Batch & All Records'}
+                  <h3 className="font-black text-rose-950 text-base sm:text-lg">
+                    {language === 'bn' ? 'ব্যাচ মুছে ফেলার পূর্বে বকেয়া নোটিশ ও সতর্কতা' : 'Dues Audit & Batch Deletion Notice'}
                   </h3>
-                  <p className="text-xs text-rose-700 font-bold mt-0.5">
-                    "{deleteBatchItem.batchName}"
+                  <p className="text-xs text-rose-800 font-bold mt-0.5 flex items-center gap-1.5">
+                    <Package size={13} className="text-rose-600" />
+                    <span>"{deleteBatchItem.batchName}"</span>
                   </p>
                 </div>
               </div>
               <button
                 disabled={isDeleting}
                 onClick={() => setDeleteBatchItem(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-white/80 transition-colors cursor-pointer"
+                title={language === 'bn' ? 'বন্ধ করুন' : 'Close'}
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 space-y-2 text-xs text-rose-950 leading-relaxed font-medium">
-              <p className="font-bold text-rose-900">
-                ⚠️ {language === 'bn' 
-                  ? 'আপনি কি নিশ্চিত যে আপনি এই ব্যাচটি সম্পূর্ণ মুছে ফেলতে চান?' 
-                  : 'Are you sure you want to permanently delete this batch?'}
-              </p>
-              <p className="text-rose-800">
-                {language === 'bn' 
-                  ? 'সতর্কতা: এই ব্যাচটি ডিলিট করলে এর সাথে যুক্ত নিচের সকল তথ্য সম্পূর্ণ ও স্থায়ীভাবে ডেটাবেস থেকে মুছে যাবে এবং তা আর কখনোই ফিরিয়ে আনা সম্ভব হবে না:'
-                  : 'Warning: Deleting this batch will permanently remove all associated records from the database:'}
-              </p>
-              <ul className="list-disc list-inside space-y-1 font-bold text-rose-900 pl-1 text-[11px] bg-white/70 p-2.5 rounded-lg border border-rose-200/70">
-                <li>{language === 'bn' ? 'খাদ্য ও বস্তার হিসাব (Feed records)' : 'All feed & bags records'}</li>
-                <li>{language === 'bn' ? 'ঔষধ ও ভ্যাকসিনের হিসাব (Medicine records)' : 'All medicine & vaccine logs'}</li>
-                <li>{language === 'bn' ? 'দৈনিক মৃত্যুর হিসাব (Mortality records)' : 'All mortality entries'}</li>
-                <li>{language === 'bn' ? 'খরচের ভাউচার ও হিসাব (Expenses)' : 'All expense records'}</li>
-                <li>{language === 'bn' ? 'বিক্রয় ও বাকি খাতার এন্ট্রি (Sales & Dues)' : 'All sales and associated dues'}</li>
-              </ul>
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto text-xs sm:text-sm">
+              
+              {/* Dues Checking Loading State */}
+              {batchDuesLoading && (
+                <div className="flex items-center justify-center gap-2.5 p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold animate-pulse">
+                  <Clock size={16} className="animate-spin text-amber-600" />
+                  <span>{language === 'bn' ? 'এই ব্যাচের বকেয়া খাতা ও লেনদেন হিসাব যাচাই করা হচ্ছে...' : 'Auditing batch dues and pending ledger records...'}</span>
+                </div>
+              )}
+
+              {/* Dues Audit Result: If Outstanding Dues Exist */}
+              {!batchDuesLoading && batchDuesInfo && batchDuesInfo.totalDue > 0 && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-3.5 sm:p-4 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <ShieldAlert size={24} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-black text-amber-950 text-sm sm:text-base leading-snug">
+                        {language === 'bn' 
+                          ? `⚠️ সতর্কতা: এই ব্যাচে এখনও মোট ৳ ${batchDuesInfo.totalDue.toLocaleString()}-এর অপরিশোধিত বকেয়া হিসাব রয়েছে!`
+                          : `⚠️ Alert: This batch has ৳ ${batchDuesInfo.totalDue.toLocaleString()} in unsettled pending dues!`}
+                      </h4>
+                      <p className="text-xs text-amber-900 font-medium mt-1 leading-relaxed">
+                        {language === 'bn'
+                          ? 'পরামর্শ: ব্যাচটি মুছে ফেলার পূর্বে সংশ্লিষ্ট ক্রেতা বা মহাজন/সাপ্লায়ারের সাথে বকেয়া টাকা আদায় অথবা পরিশোধ করে হিসাব ক্লোজ করে নেওয়া উত্তম।'
+                          : 'Recommendation: It is highly recommended to collect or settle these outstanding dues in the Dues Ledger before deleting this batch.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    {/* Customer Receivables */}
+                    <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-2xs">
+                      <span className="text-[11px] font-bold text-blue-700 block">
+                        {language === 'bn' ? 'ক্রেতার কাছে পাওনা (বাকি)' : 'Customer Receivables'}
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-blue-900 mt-0.5">
+                        ৳ {batchDuesInfo.totalReceivable.toLocaleString()}
+                      </p>
+                      <span className="text-[10px] text-blue-600 font-bold">
+                        {batchDuesInfo.receivableItems.length} {language === 'bn' ? 'জন ক্রেতার কাছে বাকি' : 'unpaid customers'}
+                      </span>
+                    </div>
+
+                    {/* Supplier Payables */}
+                    <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-2xs">
+                      <span className="text-[11px] font-bold text-amber-800 block">
+                        {language === 'bn' ? 'সরবরাহকারীর দেনা (বাকি)' : 'Supplier Payables'}
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-amber-950 mt-0.5">
+                        ৳ {batchDuesInfo.totalPayable.toLocaleString()}
+                      </p>
+                      <span className="text-[10px] text-amber-700 font-bold">
+                        {batchDuesInfo.payableItems.length} {language === 'bn' ? 'জন সরবরাহকারীর দেনা' : 'unpaid suppliers'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pending Parties Preview */}
+                  {(batchDuesInfo.receivableItems.length > 0 || batchDuesInfo.payableItems.length > 0) && (
+                    <div className="bg-white/90 rounded-lg p-2.5 border border-amber-200 max-h-32 overflow-y-auto space-y-1.5 text-[11px]">
+                      <p className="font-bold text-slate-700 text-[11px] border-b border-slate-100 pb-1">
+                        {language === 'bn' ? 'এই ব্যাচের সাথে যুক্ত বকেয়ার বিবরণ:' : 'Pending parties list:'}
+                      </p>
+                      {batchDuesInfo.receivableItems.map((item, idx) => (
+                        <div key={`rec-${idx}`} className="flex justify-between items-center text-blue-950 font-medium">
+                          <span className="truncate pr-2">👤 {item.personName} <span className="text-[10px] text-blue-600">({language === 'bn' ? 'পাওনা' : 'Rec.'})</span></span>
+                          <span className="font-black text-blue-700 shrink-0">৳ {item.remaining.toLocaleString()}</span>
+                        </div>
+                      ))}
+                      {batchDuesInfo.payableItems.map((item, idx) => (
+                        <div key={`pay-${idx}`} className="flex justify-between items-center text-amber-950 font-medium">
+                          <span className="truncate pr-2">🏢 {item.personName} <span className="text-[10px] text-amber-700">({language === 'bn' ? 'দেনা' : 'Pay.'})</span></span>
+                          <span className="font-black text-amber-800 shrink-0">৳ {item.remaining.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recommendation Button: Go To Dues */}
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleGoToDues}
+                      className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <BookOpen size={16} />
+                      <span>
+                        {language === 'bn' 
+                          ? '👉 বকেয়া খাতা দেখতে যান ও টাকা আদায়/পরিশোধ করুন' 
+                          : 'Go to Dues Ledger to Settle Before Delete'}
+                      </span>
+                      <ArrowRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Dues Audit Result: If NO Outstanding Dues */}
+              {!batchDuesLoading && batchDuesInfo && batchDuesInfo.totalDue === 0 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5">
+                  <CheckCircle2 size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-emerald-950 text-xs sm:text-sm">
+                      {language === 'bn' ? 'এই ব্যাচে কোনো অপরিশোধিত বকেয়া নেই (Zero Pending Dues)' : 'No outstanding dues for this batch.'}
+                    </h4>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      {language === 'bn' 
+                        ? 'এই ব্যাচের সমস্ত কেনাবেচা ও খরচের হিসাব সম্পূর্ণ পরিশোধিত রয়েছে।' 
+                        : 'All financial dues associated with this batch have been fully settled.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cascade Deletion Warning Details */}
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 space-y-2 text-xs text-rose-950 font-medium">
+                <p className="font-bold text-rose-950 flex items-center gap-1.5">
+                  <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+                  <span>
+                    {language === 'bn' 
+                      ? 'স্থায়ীভাবে ডিলিট হওয়ার পর যেসকল তথ্য আর পাওয়া যাবে না:' 
+                      : 'Records that will be permanently purged:'}
+                  </span>
+                </p>
+                <ul className="list-disc list-inside space-y-1 font-bold text-rose-900 pl-1 text-[11px] bg-white/80 p-2.5 rounded-lg border border-rose-200/80">
+                  <li>{language === 'bn' ? 'খাদ্য ও বস্তার হিসাব (Feed & Bags records)' : 'All feed consumption & purchase logs'}</li>
+                  <li>{language === 'bn' ? 'ঔষধ ও ভ্যাকসিনের হিসাব (Medicine & vaccines)' : 'All medicine treatment records'}</li>
+                  <li>{language === 'bn' ? 'দৈনিক মৃত্যুর হিসাব (Mortality logs)' : 'Daily mortality numbers'}</li>
+                  <li>{language === 'bn' ? 'খরচের ভাউচার ও হিসাব (Expense records)' : 'All general expense entries'}</li>
+                  <li>{language === 'bn' ? 'মুরগি বিক্রয় ও বাকি খাতার এন্ট্রি (Sales & Dues records)' : 'Sales records & ALL associated dues'}</li>
+                </ul>
+              </div>
+
+              {/* Checkbox Protection if there are Pending Dues */}
+              {!batchDuesLoading && batchDuesInfo && batchDuesInfo.totalDue > 0 && (
+                <div className="bg-rose-100/70 border border-rose-300 rounded-xl p-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={confirmDeleteWithDues}
+                      onChange={(e) => setConfirmDeleteWithDues(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-rose-300 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-rose-950 leading-snug">
+                      {language === 'bn'
+                        ? `আমি সম্পূর্ণ সচেতনভাবে নিশ্চিত করছি যে, এই ব্যাচের ৳ ${batchDuesInfo.totalDue.toLocaleString()} অপরিশোধিত বকেয়া সহ সমস্ত হিসাব চিরতরে মুছে ফেলতে সম্মত।`
+                        : `I acknowledge and confirm that all ৳ ${batchDuesInfo.totalDue.toLocaleString()} in pending dues will be permanently deleted along with this batch.`}
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2 justify-end pt-1">
+            {/* Modal Footer Actions */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setDeleteBatchItem(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-all cursor-pointer disabled:opacity-50"
               >
                 {language === 'bn' ? 'না, বাতিল' : 'Cancel'}
               </button>
+
               <button
                 type="button"
-                disabled={isDeleting}
+                disabled={isDeleting || Boolean(batchDuesInfo && batchDuesInfo.totalDue > 0 && !confirmDeleteWithDues)}
                 onClick={executeDelete}
-                className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Trash2 size={14} />
+                <Trash2 size={15} className={isDeleting ? 'animate-spin' : ''} />
                 <span>
                   {isDeleting 
                     ? (language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...') 
-                    : (language === 'bn' ? 'হ্যাঁ, সকল তথ্যসহ মুছুন' : 'Yes, Delete Everything')}
+                    : (batchDuesInfo && batchDuesInfo.totalDue > 0
+                        ? (language === 'bn' ? 'হ্যাঁ, বকেয়াসহ সম্পূর্ণ ব্যাচ মুছুন' : 'Delete Batch With All Dues')
+                        : (language === 'bn' ? 'হ্যাঁ, সম্পূর্ণ ব্যাচ মুছুন' : 'Delete Batch'))}
                 </span>
               </button>
             </div>
+
           </div>
         </div>
       )}

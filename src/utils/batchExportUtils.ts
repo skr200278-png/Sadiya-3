@@ -314,19 +314,73 @@ export async function purgeExpiredCompletedBatches(
     });
 
     for (const b of expiredBatches) {
-      // 1. Delete associated sub-records
-      const collectionsToClean = ['sales', 'feed_records', 'expenses', 'medicine', 'medicine_records', 'mortality', 'dues'];
-      await Promise.all(
-        collectionsToClean.map(async (colName) => {
-          const subSnap = await fastGetDocs(
-            query(collection(db, colName), where('userId', '==', userId), where('batchId', '==', b.id))
-          );
-          const deletePromises = subSnap.docs.map(d => offlineSafeDocWrite(deleteDoc(d.ref)));
-          return Promise.all(deletePromises);
-        })
-      );
+      const targetBatchName = (b.batchName || '').trim();
+      const collectionsToClean = ['sales', 'feed_records', 'expenses', 'medicine', 'medicine_records', 'mortality'];
+      const relatedSourceIds = new Set<string>();
+      const relatedDueIds = new Set<string>();
+      const subDocsToDelete: any[] = [];
 
-      // 2. Delete batch document
+      // 1. Gather all sub-records
+      for (const colName of collectionsToClean) {
+        const subSnap = await fastGetDocs(
+          query(collection(db, colName), where('userId', '==', userId), where('batchId', '==', b.id))
+        );
+        subSnap.docs.forEach(d => {
+          subDocsToDelete.push(d.ref);
+          relatedSourceIds.add(d.id);
+          const data = d.data();
+          if (data?.dueRecordId) {
+            relatedDueIds.add(data.dueRecordId);
+          }
+        });
+      }
+
+      // 2. Cascade delete linked dues
+      try {
+        const duesSnap = await fastGetDocs(
+          query(collection(db, 'dues'), where('userId', '==', userId))
+        );
+        duesSnap.docs.forEach(dueDoc => {
+          const dueData = dueDoc.data();
+          const dueId = dueDoc.id;
+          let shouldDelete = false;
+
+          if (dueData.batchId && dueData.batchId === b.id) {
+            shouldDelete = true;
+          } else if (relatedDueIds.has(dueId)) {
+            shouldDelete = true;
+          } else if (dueData.sourceId && relatedSourceIds.has(dueData.sourceId)) {
+            shouldDelete = true;
+          } else if (targetBatchName && dueData.batchName && dueData.batchName.trim().toLowerCase() === targetBatchName.toLowerCase()) {
+            shouldDelete = true;
+          } else if (targetBatchName && targetBatchName.length >= 2 && dueData.details) {
+            const dText = dueData.details.toLowerCase();
+            const bNameLower = targetBatchName.toLowerCase();
+            if (
+              dText.startsWith(bNameLower) ||
+              dText.includes(`${bNameLower} -`) ||
+              dText.includes(`${bNameLower} (`) ||
+              dText.includes(`${bNameLower} এর`) ||
+              (targetBatchName.length >= 3 && dText.includes(bNameLower) && ['sale', 'expense', 'feed', 'medicine'].includes(dueData.sourceType))
+            ) {
+              shouldDelete = true;
+            }
+          }
+
+          if (shouldDelete) {
+            subDocsToDelete.push(dueDoc.ref);
+          }
+        });
+      } catch (e) {
+        console.warn('purge dues error:', e);
+      }
+
+      // 3. Delete all sub-records and dues
+      if (subDocsToDelete.length > 0) {
+        await Promise.all(subDocsToDelete.map(ref => offlineSafeDocWrite(deleteDoc(ref))));
+      }
+
+      // 4. Delete batch document
       const batchRef = doc(db, 'batches', b.id);
       await offlineSafeDocWrite(deleteDoc(batchRef));
       purgedCount++;

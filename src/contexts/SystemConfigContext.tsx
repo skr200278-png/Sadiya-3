@@ -355,7 +355,7 @@ interface SystemConfigContextType {
   rejectPaymentRequest: (requestId: string, adminNotes?: string) => Promise<boolean>;
   deletePaymentRequest: (requestId: string) => Promise<boolean>;
   grantUserSubscription: (userIdOrPhone: string, planId: string, durationDays: number, isLifetime?: boolean) => Promise<boolean>;
-  revokeUserSubscription: (userIdOrPhone: string) => Promise<boolean>;
+  revokeUserSubscription: (userIdOrPhone: string, requestId?: string) => Promise<boolean>;
   saveSubscriptionPlan: (plan: SubscriptionPlan) => Promise<boolean>;
   deleteSubscriptionPlan: (planId: string) => Promise<boolean>;
   // Subscription Modal Trigger
@@ -994,6 +994,9 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     if (!isAdmin) return false;
     try {
       await deleteDoc(doc(db, 'payment_requests', requestId));
+      // Immediate optimistic update
+      setAllRequests(prev => prev.filter(r => r.id !== requestId));
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
       toast.success('পেমেন্ট রিকোয়েস্ট রেকর্ড মুছে ফেলা হয়েছে');
       return true;
     } catch (err) {
@@ -1003,30 +1006,87 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Revoke VIP subscription (Admin action)
-  const revokeUserSubscription = async (userIdOrPhone: string): Promise<boolean> => {
+  // Revoke VIP subscription & Purge Completely (Admin action)
+  const revokeUserSubscription = async (userIdOrPhone: string, requestId?: string): Promise<boolean> => {
     if (!isAdmin) return false;
-    const clean = userIdOrPhone.trim();
-    if (!clean) return false;
+    const clean = (userIdOrPhone || '').trim();
+    if (!clean && !requestId) return false;
 
     try {
-      // 1. Remove from whitelist
-      await removeUserFromWhitelist(clean);
+      const cleanDigits = extractPhoneDigits(clean);
 
-      // 2. Revoke subscription document if UID or query
-      if (clean.length > 15) {
-        try {
-          const subRef = doc(db, 'subscriptions', clean);
-          await updateDoc(subRef, {
-            status: 'revoked',
-            revokedAt: new Date().toISOString()
-          });
-        } catch (e) {}
+      // 1. Remove from whitelist (exact and digits)
+      if (clean) {
+        await removeUserFromWhitelist(clean);
+        if (cleanDigits && cleanDigits !== clean) {
+          await removeUserFromWhitelist(cleanDigits);
+        }
       }
 
-      toast.success(`সাবস্ক্রিপশন বাতিল ও মুছে ফেলা হয়েছে (${clean})`);
+      // 2. Delete or revoke subscription document
+      if (clean && clean.length > 5) {
+        try {
+          const subRef = doc(db, 'subscriptions', clean);
+          await deleteDoc(subRef);
+        } catch {
+          try {
+            const subRef = doc(db, 'subscriptions', clean);
+            await updateDoc(subRef, {
+              status: 'revoked',
+              revokedAt: new Date().toISOString()
+            });
+          } catch {}
+        }
+      }
+
+      // 3. Delete matching payment request doc if requestId provided
+      if (requestId) {
+        try {
+          await deleteDoc(doc(db, 'payment_requests', requestId));
+        } catch {}
+      }
+
+      // 4. Also delete any payment requests linked to this user's UID or phone
+      if (clean) {
+        try {
+          const qUid = query(collection(db, 'payment_requests'), where('userId', '==', clean));
+          const snapUid = await fastGetDocs(qUid);
+          snapUid.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
+        } catch {}
+
+        if (cleanDigits) {
+          try {
+            const qPhone = query(collection(db, 'payment_requests'), where('senderPhone', '==', cleanDigits));
+            const snapPhone = await fastGetDocs(qPhone);
+            snapPhone.docs.forEach(d => deleteDoc(d.ref).catch(() => {}));
+          } catch {}
+        }
+      }
+
+      // 5. Immediate optimistic update across all subscriber state
+      setAllRequests(prev => prev.filter(r => 
+        r.id !== requestId && 
+        r.userId !== clean && 
+        r.senderPhone !== clean && 
+        r.userPhone !== clean &&
+        (!cleanDigits || (r.senderPhone !== cleanDigits && r.userPhone !== cleanDigits))
+      ));
+      setPendingRequests(prev => prev.filter(r => 
+        r.id !== requestId && 
+        r.userId !== clean && 
+        r.senderPhone !== clean && 
+        r.userPhone !== clean
+      ));
+      setAllSubscriptions(prev => prev.filter(s => 
+        s.userId !== clean && 
+        s.id !== clean && 
+        s.userIdentifier !== clean
+      ));
+
+      toast.success('সাবস্ক্রিপশন ও ইউজার স্থায়ীভাবে মুছে ফেলা হয়েছে');
       return true;
     } catch (err) {
+      console.error("Revoke error:", err);
       toast.error('বাতিল করা যায়নি');
       return false;
     }

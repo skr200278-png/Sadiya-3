@@ -108,6 +108,10 @@ export interface DemoSaleRecord {
 export interface DemoDueRecord {
   id: string;
   userId: string;
+  batchId?: string;
+  batchName?: string;
+  sourceType?: 'sale' | 'expense' | 'feed' | 'medicine' | string;
+  sourceId?: string;
   personName: string;
   phone?: string;
   type: 'payable' | 'receivable' | 'payable_to_me' | 'payable_by_me';
@@ -914,10 +918,12 @@ function getItem<T>(key: string, defaultVal: T): T {
   }
 }
 
-function setItem<T>(key: string, val: T): void {
+function setItem<T>(key: string, val: T, shouldNotify: boolean = true): void {
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(val));
-    notifyListeners();
+    if (shouldNotify) {
+      notifyListeners();
+    }
   } catch (e) {
     console.error('Demo store setItem error:', e);
   }
@@ -953,16 +959,78 @@ export const demoStore = {
     return newBatch;
   },
   deleteBatch(id: string): void {
-    const batches = this.getBatches().filter(b => b.id !== id);
-    setItem('batches', batches);
-    // Cascade remove all associated batch records so no orphaned data lingers
-    setItem('feed', this.getFeedRecords().filter(r => r.batchId !== id));
-    setItem('medicine', this.getMedicineRecords().filter(r => r.batchId !== id));
-    setItem('mortality', this.getMortalityRecords().filter(r => r.batchId !== id));
-    setItem('expenses', this.getExpenseRecords().filter(r => r.batchId !== id));
-    setItem('sales', this.getSales().filter(r => r.batchId !== id));
-    setItem('dues', this.getDues().filter(r => r.batchId !== id));
-    setItem('daily_actual_records', this.getDailyActualRecords().filter(r => r.batchId !== id));
+    const idStr = String(id).trim();
+    const batches = this.getBatches();
+    const targetBatch = batches.find(b => String(b.id).trim() === idStr);
+    const targetBatchName = targetBatch?.batchName?.trim() || '';
+
+    // Collect related IDs from sub-records of this batch before removing
+    const batchSales = this.getSales().filter(r => String(r.batchId).trim() === idStr);
+    const batchExpenses = this.getExpenses().filter(r => String(r.batchId).trim() === idStr);
+    const batchFeed = this.getFeedRecords().filter(r => String(r.batchId).trim() === idStr);
+    const batchMedicine = this.getMedicineRecords().filter(r => String(r.batchId).trim() === idStr);
+
+    const relatedSourceIds = new Set<string>();
+    const relatedDueIds = new Set<string>();
+
+    batchSales.forEach(s => {
+      if (s.id) relatedSourceIds.add(String(s.id));
+      if ((s as any).dueRecordId) relatedDueIds.add(String((s as any).dueRecordId));
+    });
+    batchExpenses.forEach(e => {
+      if (e.id) relatedSourceIds.add(String(e.id));
+      if ((e as any).dueRecordId) relatedDueIds.add(String((e as any).dueRecordId));
+    });
+    batchFeed.forEach(f => {
+      if (f.id) relatedSourceIds.add(String(f.id));
+      if ((f as any).dueRecordId) relatedDueIds.add(String((f as any).dueRecordId));
+    });
+    batchMedicine.forEach(m => {
+      if (m.id) relatedSourceIds.add(String(m.id));
+      if ((m as any).dueRecordId) relatedDueIds.add(String((m as any).dueRecordId));
+    });
+
+    // Write all updated stores to localStorage atomically without triggering multi-step re-renders
+    setItem('batches', batches.filter(b => String(b.id).trim() !== idStr), false);
+    setItem('feed', this.getFeedRecords().filter(r => String(r.batchId).trim() !== idStr), false);
+    setItem('medicine', this.getMedicineRecords().filter(r => String(r.batchId).trim() !== idStr), false);
+    setItem('mortality', this.getMortalityRecords().filter(r => String(r.batchId).trim() !== idStr), false);
+    setItem('expenses', this.getExpenses().filter(r => String(r.batchId).trim() !== idStr), false);
+    setItem('sales', this.getSales().filter(r => String(r.batchId).trim() !== idStr), false);
+
+    // Cascade remove all dues linked to this batch
+    const remainingDues = this.getDues().filter(due => {
+      if (due.batchId && String(due.batchId).trim() === idStr) return false;
+      if (due.id && relatedDueIds.has(String(due.id))) return false;
+      if (due.sourceId && relatedSourceIds.has(String(due.sourceId))) return false;
+      if (targetBatchName && due.batchName && due.batchName.trim().toLowerCase() === targetBatchName.toLowerCase()) return false;
+      if (targetBatchName && targetBatchName.length >= 2 && due.details) {
+        const dText = due.details.toLowerCase();
+        const bNameLower = targetBatchName.toLowerCase();
+        if (
+          dText.startsWith(bNameLower) ||
+          dText.includes(`${bNameLower} -`) ||
+          dText.includes(`${bNameLower} (`) ||
+          dText.includes(`${bNameLower} এর`) ||
+          (targetBatchName.length >= 2 && dText.includes(bNameLower))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+    setItem('dues', remainingDues, false);
+    setItem('daily_actual_records', this.getDailyActualRecords().filter(r => String(r.batchId).trim() !== idStr), false);
+
+    // Clear active batch pointer if deleted
+    ['poultry', 'cattle', 'fish'].forEach(ft => {
+      if (localStorage.getItem(`selected_batch_id_${ft}`) === idStr) {
+        localStorage.removeItem(`selected_batch_id_${ft}`);
+      }
+    });
+
+    // Notify listeners once at the end
+    notifyListeners();
   },
 
   // Feed
@@ -982,8 +1050,10 @@ export const demoStore = {
     return newRecord;
   },
   deleteFeedRecord(id: string): void {
+    const feed = this.getFeedRecords().find(r => r.id === id);
     const records = this.getFeedRecords().filter(r => r.id !== id);
     setItem('feed', records);
+    setItem('dues', this.getDues().filter(d => d.sourceId !== id && (!((feed as any)?.dueRecordId) || d.id !== (feed as any)?.dueRecordId)));
   },
 
   // Medicine
@@ -1003,8 +1073,10 @@ export const demoStore = {
     return newRecord;
   },
   deleteMedicineRecord(id: string): void {
+    const med = this.getMedicineRecords().find(r => r.id === id);
     const records = this.getMedicineRecords().filter(r => r.id !== id);
     setItem('medicine', records);
+    setItem('dues', this.getDues().filter(d => d.sourceId !== id && (!((med as any)?.dueRecordId) || d.id !== (med as any)?.dueRecordId)));
   },
 
   // Mortality
@@ -1045,8 +1117,10 @@ export const demoStore = {
     return newRecord;
   },
   deleteExpense(id: string): void {
+    const exp = this.getExpenses().find(r => r.id === id);
     const records = this.getExpenses().filter(r => r.id !== id);
     setItem('expenses', records);
+    setItem('dues', this.getDues().filter(d => d.sourceId !== id && (!((exp as any)?.dueRecordId) || d.id !== (exp as any)?.dueRecordId)));
   },
 
   // Sales
@@ -1066,8 +1140,10 @@ export const demoStore = {
     return newRecord;
   },
   deleteSale(id: string): void {
+    const sale = this.getSales().find(r => r.id === id);
     const records = this.getSales().filter(r => r.id !== id);
     setItem('sales', records);
+    setItem('dues', this.getDues().filter(d => d.sourceId !== id && (!((sale as any)?.dueRecordId) || d.id !== (sale as any)?.dueRecordId)));
   },
 
   // Dues

@@ -106,6 +106,24 @@ export default function Expenses() {
         return;
       }
 
+      // Cascade delete linked due in Dues Ledger
+      try {
+        const expDocSnap = records.find(e => e.id === targetId);
+        const linkedDueId = (expDocSnap as any)?.dueRecordId;
+        if (linkedDueId) {
+          await offlineSafeDocWrite(deleteDoc(doc(db, 'dues', linkedDueId)));
+        }
+        const duesQuery = query(
+          collection(db, 'dues'),
+          where('userId', '==', currentUser.uid),
+          where('sourceId', '==', targetId)
+        );
+        const duesSnap = await fastGetDocs(duesQuery);
+        duesSnap.docs.forEach(d => offlineSafeDocWrite(deleteDoc(d.ref)));
+      } catch (e) {
+        console.warn('Could not cascade delete linked expense due:', e);
+      }
+
       await offlineSafeDocWrite(deleteDoc(doc(db, 'expenses', targetId)));
       toast.success(t('common.success'), { duration: 3000 });
       fetchInitialData();
@@ -142,6 +160,8 @@ export default function Expenses() {
           const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
           const dueRecord = {
             userId: currentUser.uid,
+            batchId,
+            batchName,
             personName: normalizedPersonName,
             phone: personPhone,
             type: 'payable' as const,
@@ -194,6 +214,8 @@ export default function Expenses() {
         createdDueId = dueDocRef.id;
         const dueRecord = {
           userId: currentUser.uid,
+          batchId,
+          batchName,
           personName: normalizedPersonName,
           phone: personPhone,
           type: 'payable',

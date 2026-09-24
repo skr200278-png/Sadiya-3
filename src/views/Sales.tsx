@@ -314,6 +314,24 @@ export default function Sales() {
         return;
       }
 
+      // Check and cascade delete any linked due in Dues Ledger
+      try {
+        const saleDocSnap = records.find(s => s.id === targetId);
+        const linkedDueId = (saleDocSnap as any)?.dueRecordId;
+        if (linkedDueId) {
+          await offlineSafeDocWrite(deleteDoc(doc(db, 'dues', linkedDueId)));
+        }
+        const duesQuery = query(
+          collection(db, 'dues'),
+          where('userId', '==', currentUser.uid),
+          where('sourceId', '==', targetId)
+        );
+        const duesSnap = await fastGetDocs(duesQuery);
+        duesSnap.docs.forEach(d => offlineSafeDocWrite(deleteDoc(d.ref)));
+      } catch (e) {
+        console.warn('Could not cascade delete linked sale due:', e);
+      }
+
       await offlineSafeDocWrite(deleteDoc(doc(db, 'sales', targetId)));
       toast.success(t('common.success'), { duration: 3000 });
     } catch (error) {
@@ -400,6 +418,8 @@ export default function Sales() {
 
           const dueRecord = {
             userId: currentUser.uid,
+            batchId,
+            batchName,
             personName: normalizedBuyerName,
             phone: buyerPhone.trim(),
             type: 'receivable' as const,
@@ -460,6 +480,8 @@ export default function Sales() {
 
         const dueRecord = {
           userId: currentUser.uid,
+          batchId,
+          batchName,
           personName: normalizedBuyerName,
           phone: buyerPhone.trim(),
           type: 'receivable',

@@ -89,6 +89,9 @@ interface AdminLiveCountdownTrackingProps {
   }) => void;
   onOpenDeleteModal: (data: {
     id: string;
+    userId?: string;
+    requestId?: string;
+    phone?: string;
     name: string;
     type: 'whitelist' | 'subscription' | 'request';
     title?: string;
@@ -983,13 +986,16 @@ export default function AdminLiveCountdownTracking({
                   <button
                     type="button"
                     onClick={() => onOpenDeleteModal({
-                      id: sub.requestId || sub.userId,
+                      id: sub.userId || sub.userPhone || sub.id,
+                      userId: sub.userId,
+                      requestId: sub.requestId,
+                      phone: sub.userPhone,
                       name: sub.userName,
                       type: sub.source === 'whitelist' ? 'whitelist' : sub.source === 'subscription_doc' ? 'subscription' : 'request',
-                      title: language === 'bn' ? 'সাবস্ক্রিপশন বাতিল বা মুছুন' : 'Revoke Subscription',
+                      title: language === 'bn' ? 'সাবস্ক্রিপশন বাতিল ও ইউজার ডিলিট' : 'Revoke & Delete Subscription',
                       message: language === 'bn'
-                        ? `${sub.userName}-এর সাবস্ক্রিপশন কি আপনি স্থায়ীভাবে বাতিল করতে চান?`
-                        : `Are you sure you want to revoke subscription for ${sub.userName}?`
+                        ? `"${sub.userName}"-এর সাবস্ক্রিপশন কি আপনি স্থায়ীভাবে বাতিল ও তালিকা থেকে মুছে ফেলতে চান?`
+                        : `Are you sure you want to permanently revoke and delete subscription for ${sub.userName}?`
                     })}
                     className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
                     title="সাবস্ক্রিপশন বাতিল করুন"

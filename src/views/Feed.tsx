@@ -188,6 +188,24 @@ export default function Feed() {
         return;
       }
 
+      // Cascade delete linked due in Dues Ledger
+      try {
+        const feedDocSnap = records.find(r => r.id === targetId);
+        const linkedDueId = (feedDocSnap as any)?.dueRecordId;
+        if (linkedDueId) {
+          await offlineSafeDocWrite(deleteDoc(doc(db, 'dues', linkedDueId)));
+        }
+        const duesQuery = query(
+          collection(db, 'dues'),
+          where('userId', '==', currentUser.uid),
+          where('sourceId', '==', targetId)
+        );
+        const duesSnap = await getDocs(duesQuery);
+        duesSnap.docs.forEach(d => offlineSafeDocWrite(deleteDoc(d.ref)));
+      } catch (e) {
+        console.warn('Could not cascade delete linked feed due:', e);
+      }
+
       await offlineSafeDocWrite(deleteDoc(doc(db, 'feed_records', targetId)));
       toast.success(t('common.success'), { duration: 3000 });
       fetchInitialData();
@@ -226,6 +244,8 @@ export default function Feed() {
           const batchName = activeBatches.find(b => b.id === batchId)?.batchName || 'Unknown Batch';
           const dueRecord = {
             userId: currentUser.uid,
+            batchId,
+            batchName,
             personName: normalizedPersonName,
             phone: personPhone,
             type: 'payable' as const,
@@ -282,6 +302,8 @@ export default function Feed() {
         createdDueId = dueDocRef.id;
         const dueRecord = {
           userId: currentUser.uid,
+          batchId,
+          batchName,
           personName: normalizedPersonName,
           phone: personPhone,
           type: 'payable',
