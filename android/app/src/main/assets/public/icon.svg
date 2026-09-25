@@ -167,11 +167,11 @@
       </g>
     </g>
 
-    <!-- Bottom Ribbon: "ডিজিটাল খামার" -->
+    <!-- Bottom Ribbon: "FARM MANAGER" -->
     <g transform="translate(136, 400)">
       <rect x="0" y="0" width="240" height="42" rx="21" fill="url(#rimGrad)" filter="url(#elementShadow)"/>
       <rect x="2" y="2" width="236" height="38" rx="19" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
-      <text x="120" y="26" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="19" font-weight="900" text-anchor="middle" letter-spacing="1">ডিজিটাল খামার</text>
+      <text x="120" y="26" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="900" text-anchor="middle" letter-spacing="1">FARM MANAGER</text>
     </g>
   </g>
 </svg>

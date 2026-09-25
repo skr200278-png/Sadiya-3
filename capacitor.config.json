@@ -11,6 +11,9 @@
       "scopes": ["profile", "email"],
       "serverClientId": "430922454720.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
+    },
+    "AdMob": {
+      "appId": "ca-app-pub-3618509805187884~7910799044"
     }
   }
 }

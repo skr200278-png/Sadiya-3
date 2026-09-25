@@ -8,6 +8,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { SystemConfigProvider } from './contexts/SystemConfigContext';
+import { AdMobProvider } from './contexts/AdMobContext';
 import SubscriptionModal from './components/SubscriptionModal';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
@@ -39,31 +40,33 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 function AppRoutes() {
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route index element={<Home />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="batches" element={<Batches />} />
-          <Route path="feed" element={<Feed />} />
-          <Route path="fcr" element={<FCR />} />
-          <Route path="medicine" element={<Medicine />} />
-          <Route path="mortality" element={<Mortality />} />
-          <Route path="expenses" element={<Expenses />} />
-          <Route path="sales" element={<Sales />} />
-          <Route path="dues" element={<Dues />} />
-          <Route path="marketplace" element={<Marketplace />} />
-          <Route path="doctor" element={<DoctorConsultation />} />
-          <Route path="chicks" element={<ChickMarket />} />
-          <Route path="hatchery" element={<ChickMarket />} />
-          <Route path="store" element={<StoreDirectory />} />
-          <Route path="shop" element={<StoreDirectory />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="guidelines" element={<Guidelines />} />
-        </Route>
-      </Routes>
+      <AdMobProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
+            <Route index element={<Home />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="batches" element={<Batches />} />
+            <Route path="feed" element={<Feed />} />
+            <Route path="fcr" element={<FCR />} />
+            <Route path="medicine" element={<Medicine />} />
+            <Route path="mortality" element={<Mortality />} />
+            <Route path="expenses" element={<Expenses />} />
+            <Route path="sales" element={<Sales />} />
+            <Route path="dues" element={<Dues />} />
+            <Route path="marketplace" element={<Marketplace />} />
+            <Route path="doctor" element={<DoctorConsultation />} />
+            <Route path="chicks" element={<ChickMarket />} />
+            <Route path="hatchery" element={<ChickMarket />} />
+            <Route path="store" element={<StoreDirectory />} />
+            <Route path="shop" element={<StoreDirectory />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="guidelines" element={<Guidelines />} />
+          </Route>
+        </Routes>
+      </AdMobProvider>
     </Router>
   );
 }
