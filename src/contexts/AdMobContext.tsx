@@ -81,11 +81,14 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
     const isGeneral = GENERAL_VIEWING_SCREENS.some(p => currentPath === p || currentPath.startsWith(p + '/'));
 
     if (isSensitive) {
-      // Hide banner on sensitive data entry screens
-      admobService.hideBanner();
+      // Remove banner on sensitive data entry screens
+      admobService.removeBanner();
     } else if (isGeneral) {
       // Show banner on general non-intrusive viewing screens
       admobService.showBanner();
+    } else {
+      // On neutral screens, keep workspace clean
+      admobService.removeBanner();
     }
 
     // Attempt respectful interstitial transition only when visiting general reading screens (e.g. guidelines or reports)

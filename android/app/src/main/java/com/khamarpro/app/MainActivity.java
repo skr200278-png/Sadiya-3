@@ -14,10 +14,12 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
 import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
+import com.getcapacitor.community.admob.AdMob;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(AdMob.class);
         registerPlugin(GoogleAuth.class);
         super.onCreate(savedInstanceState);
     }
