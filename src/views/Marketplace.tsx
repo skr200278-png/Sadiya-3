@@ -62,6 +62,7 @@ import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
 import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
+import { admobService } from '../services/admobService';
 
 export default function Marketplace() {
   const { currentUser, isDemoUser } = useAuth();
@@ -98,6 +99,15 @@ export default function Marketplace() {
   const [postToDelete, setPostToDelete] = useState<DemoMarketPost | null>(null);
   const [buyerToDelete, setBuyerToDelete] = useState<DemoMarketBuyer | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Hide native AdMob banner when posting modals are open
+  useEffect(() => {
+    if (isPostModalOpen || isBuyerModalOpen) {
+      admobService.removeBanner();
+    } else {
+      admobService.showBanner();
+    }
+  }, [isPostModalOpen, isBuyerModalOpen]);
 
   // Helper for generating clean WhatsApp link
   const formatWhatsAppUrl = (whatsappNum?: string, phoneNum?: string, message: string = '') => {
@@ -295,6 +305,7 @@ export default function Marketplace() {
           : (language === 'bn' ? 'বিক্রয় বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে!' : 'Sell alert posted successfully!')
       );
       setIsPostModalOpen(false);
+      admobService.showInterstitialIfEligible('action:saved_market_post', true);
       // Reset
       setPostForm(prev => ({
         ...prev,
@@ -349,6 +360,7 @@ export default function Marketplace() {
       }
       toast.success(language === 'bn' ? 'পাইকার ডিরেক্টরিতে নাম যুক্ত হয়েছে!' : 'Buyer registered successfully!');
       setIsBuyerModalOpen(false);
+      admobService.showInterstitialIfEligible('action:saved_buyer', true);
       setBuyerForm(prev => ({
         ...prev,
         buyerName: '',

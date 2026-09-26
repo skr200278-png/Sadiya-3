@@ -32,6 +32,7 @@ import CashMemoModal, { CashMemoData } from '../components/CashMemoModal';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
+import { admobService } from '../services/admobService';
 
 export default function Sales() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -462,6 +463,7 @@ export default function Sales() {
         demoStore.saveSale(newRecord);
         toast.success(t('sales.addSuccess'));
         resetForm();
+        admobService.showInterstitialIfEligible('action:saved_sales', true);
         return;
       }
 
@@ -523,6 +525,7 @@ export default function Sales() {
 
       toast.success(t('sales.addSuccess'));
       resetForm();
+      admobService.showInterstitialIfEligible('action:saved_sales', true);
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.CREATE, 'sales');

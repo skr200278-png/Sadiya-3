@@ -7,6 +7,7 @@ import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
+import { admobService } from '../services/admobService';
 
 export default function Mortality() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -110,6 +111,7 @@ export default function Mortality() {
         setShowForm(false);
         setCount('');
         fetchInitialData();
+        admobService.showInterstitialIfEligible('action:saved_mortality', true);
         return;
       }
 
@@ -118,6 +120,7 @@ export default function Mortality() {
       setShowForm(false);
       setCount('');
       fetchInitialData();
+      admobService.showInterstitialIfEligible('action:saved_mortality', true);
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.CREATE, 'mortality');

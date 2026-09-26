@@ -12,6 +12,7 @@ import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
 import VaccineScheduleCard, { VaccineItem } from '../components/VaccineScheduleCard';
+import { admobService } from '../services/admobService';
 
 export default function Medicine() {
   const [searchParams] = useSearchParams();
@@ -220,6 +221,7 @@ export default function Medicine() {
         setPersonName('');
         setPersonPhone('');
         fetchInitialData();
+        admobService.showInterstitialIfEligible('action:saved_medicine', true);
         return;
       }
 
@@ -278,6 +280,7 @@ export default function Medicine() {
       setPersonName('');
       setPersonPhone('');
       fetchInitialData();
+      admobService.showInterstitialIfEligible('action:saved_medicine', true);
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.CREATE, 'medicine_records');

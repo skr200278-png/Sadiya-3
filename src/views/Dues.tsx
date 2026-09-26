@@ -30,6 +30,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
 import { syncPaymentToSourceRecord } from '../utils/duesSync';
 import CashMemoModal, { CashMemoData } from '../components/CashMemoModal';
+import { admobService } from '../services/admobService';
 
 export default function Dues() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -255,12 +256,14 @@ export default function Dues() {
         demoStore.saveDue(newRecord);
         toast.success(t('medicine.addSuccess'));
         resetForm();
+        admobService.showInterstitialIfEligible('action:saved_dues', true);
         return;
       }
 
       await offlineSafeDocWrite(addDoc(collection(db, 'dues'), newRecord));
       toast.success(t('medicine.addSuccess'));
       resetForm();
+      admobService.showInterstitialIfEligible('action:saved_dues', true);
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.CREATE, 'dues');

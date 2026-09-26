@@ -45,6 +45,7 @@ import {
   X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { admobService } from '../services/admobService';
 import {
   FarmCategory,
   SUPPORTED_BREEDS,
@@ -452,6 +453,7 @@ export default function FCR() {
       toast.success(isBn ? `${formAgeDays} দিনের FCR পরিমাপ সফলভাবে সংরক্ষিত হয়েছে!` : `Day ${formAgeDays} FCR record saved!`);
       setIsFcrModalOpen(false);
       await loadBatchRecords();
+      admobService.showInterstitialIfEligible('action:saved_fcr', true);
     } catch (err) {
       console.error('Error saving FCR entry:', err);
       toast.error(isBn ? 'সংরক্ষণে সমস্যা হয়েছে' : 'Failed to save record');

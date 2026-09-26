@@ -51,6 +51,7 @@ import {
 } from '../utils/bangladeshDistricts';
 import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
 import toast from 'react-hot-toast';
+import { admobService } from '../services/admobService';
 
 export const CATEGORY_OPTIONS = [
   { id: 'poultry_feed', labelBn: 'পোল্ট্রি ফিড (ব্রয়লার/লেয়ার/সোনালী)', labelEn: 'Poultry Feed', icon: Wheat, color: 'text-amber-600 bg-amber-50 border-amber-200' },
@@ -101,6 +102,15 @@ export default function StoreDirectory() {
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
+
+  // Safely hide native banner ad when store form modal is active to prevent overlapping Save buttons
+  useEffect(() => {
+    if (isFormOpen) {
+      admobService.removeBanner();
+    } else {
+      admobService.showBanner();
+    }
+  }, [isFormOpen]);
 
   // Form Fields
   const [country, setCountry] = useState<string>(() => detectedCountry.code || 'BD');
@@ -328,6 +338,7 @@ export default function StoreDirectory() {
       );
       setIsFormOpen(false);
       setEditingStoreId(null);
+      admobService.showInterstitialIfEligible('action:saved_store', true);
     } catch (err) {
       console.error('Error saving store:', err);
       toast.error(language === 'bn' ? 'সংরক্ষণ করতে সমস্যা হয়েছে' : 'Failed to save store');
@@ -1079,7 +1090,7 @@ export default function StoreDirectory() {
             </div>
 
             {/* Modal Form Content */}
-            <form onSubmit={handleSaveStore} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 flex-1 text-xs">
+            <form onSubmit={handleSaveStore} className="p-4 sm:p-5 pb-8 overflow-y-auto space-y-3.5 flex-1 text-xs">
               
               {/* Country Selection */}
               <div>

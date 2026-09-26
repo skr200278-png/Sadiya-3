@@ -12,6 +12,7 @@ import { CompletedBatchReportModal } from '../components/CompletedBatchReportMod
 import { demoStore } from '../utils/demoStore';
 import { useNavigate } from 'react-router-dom';
 import { fetchBatchFullRecords, downloadBatchCSV, downloadBatchPDF, purgeExpiredCompletedBatches } from '../utils/batchExportUtils';
+import { admobService } from '../services/admobService';
 
 const BatchSummary = ({ batchId, totalChicks, costPerChick }: { batchId: string, totalChicks: number, costPerChick: number }) => {
   const { currentUser, isDemoUser } = useAuth();
@@ -317,6 +318,7 @@ export default function Batches() {
         setBatchName('');
         setTotalChicks('');
         setCostPerChick('');
+        admobService.showInterstitialIfEligible('action:saved_batch', true);
         return;
       }
 
@@ -332,6 +334,7 @@ export default function Batches() {
       setTotalChicks('');
       setCostPerChick('');
       fetchBatches();
+      admobService.showInterstitialIfEligible('action:saved_batch', true);
     } catch (error) {
       toast.error(t('batches.addError'));
       handleFirestoreError(error, OperationType.CREATE, 'batches');

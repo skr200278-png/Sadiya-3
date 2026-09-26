@@ -20,6 +20,7 @@ import { db, fastGetDocs, offlineSafeDocWrite, handleFirestoreError, OperationTy
 import { demoStore, DemoBatch } from '../utils/demoStore';
 import { collection, addDoc, query, where } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { admobService } from '../services/admobService';
 
 interface QuickDailyLogModalProps {
   isOpen: boolean;
@@ -325,6 +326,7 @@ export default function QuickDailyLogModal({
       if (onSaved) onSaved();
       if (onSuccess) onSuccess();
       onClose();
+      admobService.showInterstitialIfEligible('action:quick_daily_log', true);
     } catch (error) {
       console.error("Error saving quick log:", error);
       toast.error(language === 'bn' ? 'সংরক্ষণ করতে সমস্যা হয়েছে' : 'Error saving entries');

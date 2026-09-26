@@ -9,6 +9,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
 import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
+import { admobService } from '../services/admobService';
 
 export default function Expenses() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -201,6 +202,7 @@ export default function Expenses() {
         setDetails('');
         setPersonName('');
         setPersonPhone('');
+        admobService.showInterstitialIfEligible('action:saved_expense', true);
         return;
       }
 
@@ -255,6 +257,7 @@ export default function Expenses() {
       setPersonName('');
       setPersonPhone('');
       fetchInitialData();
+      admobService.showInterstitialIfEligible('action:saved_expense', true);
     } catch (error) {
       toast.error(t('common.error'));
       handleFirestoreError(error, OperationType.CREATE, 'expenses');

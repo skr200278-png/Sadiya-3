@@ -12,7 +12,7 @@ interface AdMobContextType {
   isReady: boolean;
   isRewardedReady: boolean;
   showRewardedAd: (onReward?: (reward: any) => void) => Promise<boolean>;
-  triggerInterstitial: (contextName?: string) => Promise<boolean>;
+  triggerInterstitial: (contextName?: string, isDirectAction?: boolean) => Promise<boolean>;
   showBanner: () => Promise<void>;
   hideBanner: () => Promise<void>;
 }
@@ -102,7 +102,7 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
     isReady,
     isRewardedReady,
     showRewardedAd: (onReward?: (reward: any) => void) => admobService.showRewarded(onReward),
-    triggerInterstitial: (contextName?: string) => admobService.showInterstitialIfEligible(contextName),
+    triggerInterstitial: (contextName?: string, isDirectAction?: boolean) => admobService.showInterstitialIfEligible(contextName, isDirectAction),
     showBanner: () => admobService.showBanner(),
     hideBanner: () => admobService.hideBanner(),
   }), [isReady, isRewardedReady]);

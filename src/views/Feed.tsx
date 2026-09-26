@@ -11,6 +11,7 @@ import { demoStore } from '../utils/demoStore';
 import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
+import { admobService } from '../services/admobService';
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -289,6 +290,7 @@ export default function Feed() {
         setPersonName('');
         setPersonPhone('');
         fetchInitialData();
+        admobService.showInterstitialIfEligible('action:saved_feed', true);
         return;
       }
 
@@ -346,6 +348,7 @@ export default function Feed() {
       setPersonName('');
       setPersonPhone('');
       fetchInitialData();
+      admobService.showInterstitialIfEligible('action:saved_feed', true);
     } catch (error) {
       toast.error(t('feed.addError'));
       handleFirestoreError(error, OperationType.CREATE, 'feed_records');
