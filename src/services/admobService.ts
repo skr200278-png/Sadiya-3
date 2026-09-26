@@ -33,9 +33,13 @@ export const PRODUCTION_AD_CONFIG = {
 export const ADMOB_CONFIG = PRODUCTION_AD_CONFIG;
 
 // Frequency Capping & Policies (Non-intrusive)
-const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 3 * 60 * 1000; // 3 minutes between interstitials
-const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 30 * 1000; // 30 seconds after app start
-const MAX_INTERSTITIALS_PER_SESSION = 5;
+const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 4 * 60 * 1000; // 4 minutes minimum cooldown between interstitials
+const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 60 * 1000; // 60 seconds minimum after app launch
+const MAX_INTERSTITIALS_PER_SESSION = 4; // Maximum 4 interstitials per session
+const MIN_ACTIONS_BEFORE_INTERSTITIAL = 4; // At least 4 distinct navigation/actions before an ad is eligible
+
+const STORAGE_KEY_LAST_SHOWN = 'farm_admob_last_interstitial_time';
+const STORAGE_KEY_SESSION_COUNT = 'farm_admob_session_ad_count';
 
 class AdMobService {
   private isInitialized = false;
@@ -55,6 +59,8 @@ class AdMobService {
   private appStartTime = Date.now();
   private lastInterstitialShownTime = 0;
   private interstitialShownCount = 0;
+  private actionCounter = 0;
+  private lastContextReason = '';
 
   /**
    * Initialize AdMob on Android / Native platforms.
@@ -334,26 +340,85 @@ class AdMobService {
     }
   }
 
+  private getLastInterstitialTime(): number {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY_LAST_SHOWN);
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed > this.lastInterstitialShownTime) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Safe fallback
+    }
+    return this.lastInterstitialShownTime;
+  }
+
+  private getSessionAdCount(): number {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY_SESSION_COUNT);
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed > this.interstitialShownCount) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Safe fallback
+    }
+    return this.interstitialShownCount;
+  }
+
+  private recordInterstitialShown(timestamp: number, contextReason?: string): void {
+    this.lastInterstitialShownTime = timestamp;
+    this.interstitialShownCount += 1;
+    this.actionCounter = 0; // Reset action counter after ad is shown
+    if (contextReason) {
+      this.lastContextReason = contextReason;
+    }
+    try {
+      sessionStorage.setItem(STORAGE_KEY_LAST_SHOWN, timestamp.toString());
+      sessionStorage.setItem(STORAGE_KEY_SESSION_COUNT, this.interstitialShownCount.toString());
+    } catch {
+      // Safe fallback
+    }
+  }
+
   /**
    * Shows interstitial ad politely with frequency capping.
    */
   async showInterstitialIfEligible(contextReason?: string): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) return false;
 
+    // Increment user action / navigation counter
+    this.actionCounter += 1;
+
     const now = Date.now();
 
-    // 1. App uptime check (e.g. 30 seconds)
+    // 1. App uptime check (minimum 60s - never immediately upon opening app)
     if (now - this.appStartTime < MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS) {
       return false;
     }
 
-    // 2. Cooldown check
-    if (this.lastInterstitialShownTime > 0 && (now - this.lastInterstitialShownTime) < COOLDOWN_BETWEEN_INTERSTITIALS_MS) {
+    // 2. Minimum actions threshold (at least 4 user actions/views before an ad)
+    if (this.actionCounter < MIN_ACTIONS_BEFORE_INTERSTITIAL) {
       return false;
     }
 
-    // 3. Session limit check
-    if (this.interstitialShownCount >= MAX_INTERSTITIALS_PER_SESSION) {
+    // 3. Consecutive same action/screen check (prevent back-to-back ad on repeated action)
+    if (contextReason && contextReason === this.lastContextReason) {
+      return false;
+    }
+
+    // 4. Cooldown check (minimum 4 minutes between any interstitial ads)
+    const lastShownTime = this.getLastInterstitialTime();
+    if (lastShownTime > 0 && (now - lastShownTime) < COOLDOWN_BETWEEN_INTERSTITIALS_MS) {
+      return false;
+    }
+
+    // 5. Session limit check (maximum 4 interstitials per session)
+    if (this.getSessionAdCount() >= MAX_INTERSTITIALS_PER_SESSION) {
       return false;
     }
 
@@ -365,8 +430,7 @@ class AdMobService {
 
     try {
       await AdMob.showInterstitial();
-      this.interstitialShownCount += 1;
-      this.lastInterstitialShownTime = now;
+      this.recordInterstitialShown(now, contextReason);
       this.isInterstitialLoaded = false;
       this.interstitialFallbackAttempted = false;
       console.log('[AdMob] Interstitial shown successfully. Context:', contextReason);
