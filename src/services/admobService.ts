@@ -14,14 +14,6 @@ import {
   type AdMobRewardItem
 } from '@capacitor-community/admob';
 
-// Google Official Test Ad Unit IDs (Android)
-export const GOOGLE_TEST_AD_CONFIG = {
-  appId: 'ca-app-pub-3940256099942544~3347511713',
-  bannerId: 'ca-app-pub-3940256099942544/6300978111',
-  interstitialId: 'ca-app-pub-3940256099942544/1033173712',
-  rewardedId: 'ca-app-pub-3940256099942544/5224354917',
-};
-
 // Production Real Ad Unit IDs (User's real credentials)
 export const PRODUCTION_AD_CONFIG = {
   appId: 'ca-app-pub-3618509805187884~7910799044',
@@ -46,15 +38,12 @@ class AdMobService {
   private isInitializing = false;
   private isBannerVisible = false;
   private isBannerLoading = false;
-  private bannerFallbackAttempted = false;
 
   private isInterstitialLoaded = false;
   private isInterstitialLoading = false;
-  private interstitialFallbackAttempted = false;
 
   private isRewardedLoaded = false;
   private isRewardedLoading = false;
-  private rewardedFallbackAttempted = false;
 
   private appStartTime = Date.now();
   private lastInterstitialShownTime = 0;
@@ -63,7 +52,7 @@ class AdMobService {
   private lastContextReason = '';
 
   /**
-   * Initialize AdMob on Android / Native platforms.
+   * Initialize AdMob on Android / Native platforms in Production Mode.
    */
   async initialize(): Promise<boolean> {
     if (this.isInitialized) return true;
@@ -82,15 +71,16 @@ class AdMobService {
         // Ignored on Android
       }
 
+      // Production release configuration: testing disabled
       await AdMob.initialize({
-        initializeForTesting: true,
+        initializeForTesting: false,
       });
 
       this.setupEventListeners();
       this.isInitialized = true;
-      console.log('[AdMob] Initialized successfully on native platform');
+      console.log('[AdMob] Initialized successfully in production release mode');
 
-      // Silently pre-load interstitial in background
+      // Silently pre-load real interstitial in background
       setTimeout(() => {
         this.prepareInterstitial();
         this.prepareRewarded();
@@ -108,87 +98,53 @@ class AdMobService {
   private setupEventListeners(): void {
     try {
       AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
-        console.log('[AdMob] Banner loaded successfully');
+        console.log('[AdMob] Production Banner loaded successfully');
         this.isBannerVisible = true;
         this.isBannerLoading = false;
       });
 
-      AdMob.addListener(BannerAdPluginEvents.FailedToLoad, async (err) => {
-        console.warn('[AdMob] Banner failed to load with primary ID:', err);
+      AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (err) => {
+        console.warn('[AdMob] Production Banner failed to load:', err);
         this.isBannerVisible = false;
         this.isBannerLoading = false;
-
-        // Auto-fallback: If real ad had No-Fill (e.g. testing APK or pending approval), load Google Test Ad so ads always show
-        if (!this.bannerFallbackAttempted) {
-          console.log('[AdMob] Triggering test banner fallback...');
-          await this.showTestBannerFallback();
-        }
       });
 
       AdMob.addListener(InterstitialAdPluginEvents.Loaded, () => {
-        console.log('[AdMob] Interstitial loaded successfully');
+        console.log('[AdMob] Production Interstitial loaded successfully');
         this.isInterstitialLoaded = true;
         this.isInterstitialLoading = false;
       });
 
-      AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, async (err) => {
-        console.warn('[AdMob] Interstitial failed to load with primary ID:', err);
+      AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, (err) => {
+        console.warn('[AdMob] Production Interstitial failed to load:', err);
         this.isInterstitialLoaded = false;
         this.isInterstitialLoading = false;
-
-        if (!this.interstitialFallbackAttempted) {
-          console.log('[AdMob] Triggering test interstitial fallback...');
-          this.interstitialFallbackAttempted = true;
-          try {
-            await AdMob.prepareInterstitial({
-              adId: GOOGLE_TEST_AD_CONFIG.interstitialId,
-              isTesting: true,
-            });
-            this.isInterstitialLoaded = true;
-            console.log('[AdMob] Test interstitial fallback cached ready');
-          } catch (e) {
-            console.warn('[AdMob] Test interstitial fallback failed:', e);
-          }
-        }
+        // Retry preparing real interstitial after 30 seconds
+        setTimeout(() => this.prepareInterstitial(), 30000);
       });
 
       AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => {
         console.log('[AdMob] Interstitial dismissed');
         this.isInterstitialLoaded = false;
-        this.interstitialFallbackAttempted = false;
         this.lastInterstitialShownTime = Date.now();
         setTimeout(() => this.prepareInterstitial(), 20000);
       });
 
       AdMob.addListener(RewardAdPluginEvents.Loaded, () => {
-        console.log('[AdMob] Rewarded ad loaded successfully');
+        console.log('[AdMob] Production Rewarded ad loaded successfully');
         this.isRewardedLoaded = true;
         this.isRewardedLoading = false;
       });
 
-      AdMob.addListener(RewardAdPluginEvents.FailedToLoad, async (err) => {
-        console.warn('[AdMob] Rewarded ad failed to load with primary ID:', err);
+      AdMob.addListener(RewardAdPluginEvents.FailedToLoad, (err) => {
+        console.warn('[AdMob] Production Rewarded ad failed to load:', err);
         this.isRewardedLoaded = false;
         this.isRewardedLoading = false;
-
-        if (!this.rewardedFallbackAttempted) {
-          this.rewardedFallbackAttempted = true;
-          try {
-            await AdMob.prepareRewardVideoAd({
-              adId: GOOGLE_TEST_AD_CONFIG.rewardedId,
-              isTesting: true,
-            });
-            this.isRewardedLoaded = true;
-            console.log('[AdMob] Test rewarded fallback cached ready');
-          } catch (e) {
-            console.warn('[AdMob] Test rewarded fallback failed:', e);
-          }
-        }
+        setTimeout(() => this.prepareRewarded(), 30000);
       });
 
       AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
         this.isRewardedLoaded = false;
-        this.rewardedFallbackAttempted = false;
         setTimeout(() => this.prepareRewarded(), 15000);
       });
     } catch (e) {
@@ -210,7 +166,6 @@ class AdMobService {
 
     try {
       this.isBannerLoading = true;
-      this.bannerFallbackAttempted = false;
       await this.initialize();
 
       // Cleanly clear existing banner before showing to avoid Capacitor GONE bug
@@ -220,7 +175,7 @@ class AdMobService {
         // Safe ignore
       }
 
-      console.log('[AdMob] Requesting banner with ID:', PRODUCTION_AD_CONFIG.bannerId);
+      console.log('[AdMob] Requesting production banner with ID:', PRODUCTION_AD_CONFIG.bannerId);
       await AdMob.showBanner({
         adId: PRODUCTION_AD_CONFIG.bannerId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
@@ -231,38 +186,10 @@ class AdMobService {
 
       this.isBannerVisible = true;
     } catch (error) {
-      console.warn('[AdMob] showBanner error with real ID, falling back to test banner:', error);
-      await this.showTestBannerFallback(position);
+      console.warn('[AdMob] showBanner error with production ID:', error);
+      this.isBannerVisible = false;
     } finally {
       this.isBannerLoading = false;
-    }
-  }
-
-  private async showTestBannerFallback(position: BannerAdPosition = BannerAdPosition.BOTTOM_CENTER): Promise<void> {
-    if (this.bannerFallbackAttempted) return;
-    this.bannerFallbackAttempted = true;
-
-    try {
-      try {
-        await AdMob.removeBanner();
-      } catch {
-        // Safe ignore
-      }
-
-      console.log('[AdMob] Requesting fallback test banner:', GOOGLE_TEST_AD_CONFIG.bannerId);
-      await AdMob.showBanner({
-        adId: GOOGLE_TEST_AD_CONFIG.bannerId,
-        adSize: BannerAdSize.ADAPTIVE_BANNER,
-        position,
-        margin: 60,
-        isTesting: true,
-      });
-
-      this.isBannerVisible = true;
-      console.log('[AdMob] Fallback test banner active and displayed');
-    } catch (fallbackError) {
-      console.warn('[AdMob] Both real and test banner failed:', fallbackError);
-      this.isBannerVisible = false;
     }
   }
 
@@ -274,7 +201,6 @@ class AdMobService {
     try {
       await AdMob.removeBanner();
       this.isBannerVisible = false;
-      this.bannerFallbackAttempted = false;
     } catch (error) {
       console.warn('[AdMob] removeBanner failed:', error);
       this.isBannerVisible = false;
@@ -310,7 +236,6 @@ class AdMobService {
 
     try {
       this.isInterstitialLoading = true;
-      this.interstitialFallbackAttempted = false;
       await this.initialize();
 
       await AdMob.prepareInterstitial({
@@ -321,20 +246,9 @@ class AdMobService {
       this.isInterstitialLoaded = true;
       return true;
     } catch (error) {
-      console.warn('[AdMob] prepareInterstitial real ID failed, trying test ad:', error);
-      this.interstitialFallbackAttempted = true;
-      try {
-        await AdMob.prepareInterstitial({
-          adId: GOOGLE_TEST_AD_CONFIG.interstitialId,
-          isTesting: true,
-        });
-        this.isInterstitialLoaded = true;
-        return true;
-      } catch (testError) {
-        console.warn('[AdMob] prepareInterstitial fallback failed:', testError);
-        this.isInterstitialLoaded = false;
-        return false;
-      }
+      console.warn('[AdMob] prepareInterstitial production ID failed:', error);
+      this.isInterstitialLoaded = false;
+      return false;
     } finally {
       this.isInterstitialLoading = false;
     }
@@ -433,7 +347,6 @@ class AdMobService {
       await AdMob.showInterstitial();
       this.recordInterstitialShown(now, contextReason);
       this.isInterstitialLoaded = false;
-      this.interstitialFallbackAttempted = false;
       console.log('[AdMob] Interstitial shown successfully. Context:', contextReason);
       // Preload next interstitial cleanly after 8s
       setTimeout(() => this.prepareInterstitial(), 8000);
@@ -455,7 +368,6 @@ class AdMobService {
 
     try {
       this.isRewardedLoading = true;
-      this.rewardedFallbackAttempted = false;
       await this.initialize();
 
       await AdMob.prepareRewardVideoAd({
@@ -466,19 +378,9 @@ class AdMobService {
       this.isRewardedLoaded = true;
       return true;
     } catch (error) {
-      console.warn('[AdMob] prepareRewarded real ID failed, trying test ad:', error);
-      this.rewardedFallbackAttempted = true;
-      try {
-        await AdMob.prepareRewardVideoAd({
-          adId: GOOGLE_TEST_AD_CONFIG.rewardedId,
-          isTesting: true,
-        });
-        this.isRewardedLoaded = true;
-        return true;
-      } catch (testError) {
-        this.isRewardedLoaded = false;
-        return false;
-      }
+      console.warn('[AdMob] prepareRewarded production ID failed:', error);
+      this.isRewardedLoaded = false;
+      return false;
     } finally {
       this.isRewardedLoading = false;
     }
@@ -502,7 +404,6 @@ class AdMobService {
     try {
       const reward = await AdMob.showRewardVideoAd();
       this.isRewardedLoaded = false;
-      this.rewardedFallbackAttempted = false;
       if (onReward && reward) {
         onReward(reward);
       }

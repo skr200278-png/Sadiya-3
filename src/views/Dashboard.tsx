@@ -60,6 +60,7 @@ import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 import { fetchBatchDailyRecords } from '../services/dailyRecordService';
 import { calculateStrictBatchFcr } from '../utils/fcrCalculationEngine';
 import { calculateProgressiveFeedForecast } from '../utils/feedStockCalculations';
+import FeedQualityGuideModal from '../components/FeedQualityGuideModal';
 
 interface Chores {
   id: string;
@@ -84,6 +85,7 @@ export default function Dashboard() {
   const [isSponsorsModalOpen, setIsSponsorsModalOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isSopModalOpen, setIsSopModalOpen] = useState<boolean>(false);
+  const [isFeedQualityOpen, setIsFeedQualityOpen] = useState<boolean>(false);
   const [quickLogTab, setQuickLogTab] = useState<'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales'>('all');
   const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
 
@@ -1432,6 +1434,33 @@ export default function Dashboard() {
             <ChevronRight size={16} className="text-emerald-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
           </Link>
 
+          {/* Feed Quality & Nutrition Guide Button / ফিডের গুণাগুণ ও পুষ্টিমান */}
+          <button
+            type="button"
+            onClick={() => setIsFeedQualityOpen(true)}
+            className="col-span-3 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-yellow-500/15 p-2.5 rounded-xl border border-amber-300/80 flex items-center justify-between hover:border-amber-500 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-2.5 text-left min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <Wheat size={16} strokeWidth={2.3} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-slate-900 leading-tight">
+                    {language === 'bn' ? 'ফিডের গুণাগুণ ও পুষ্টিমান গাইড' : 'Feed Quality & Nutrition Guide'}
+                  </span>
+                  <span className="bg-orange-500 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-slate-500 font-bold truncate">
+                  {language === 'bn' ? 'কোন বয়সে কোন ফিড উপকারী? ভালো ফিড চেনার ৫টি উপায় ও পুষ্টি চার্ট' : 'Which feed is best by bird age? 5-step quality checklist & CP standards'}
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-amber-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
           {/* Row 5 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
           <Link
             to="/reports"
@@ -1811,6 +1840,13 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 10. Feed Quality & Nutrition Guide Modal */}
+      <FeedQualityGuideModal 
+        isOpen={isFeedQualityOpen}
+        onClose={() => setIsFeedQualityOpen(false)}
+        defaultFarmType={selectedType}
+      />
 
     </div>
   );

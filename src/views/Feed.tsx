@@ -4,7 +4,7 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -12,6 +12,7 @@ import { getRecordDueStatus } from '../utils/duesSync';
 import { DuesStatusBadge } from '../components/DuesStatusBadge';
 import SponsorCard from '../components/SponsorCard';
 import { admobService } from '../services/admobService';
+import FeedQualityGuideModal from '../components/FeedQualityGuideModal';
 
 export default function Feed() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export default function Feed() {
   const [personPhone, setPersonPhone] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [farmType, setFarmType] = useState('poultry');
+  const [isQualityGuideOpen, setIsQualityGuideOpen] = useState(false);
 
   // Handle batch selection
   const handleBatchChange = (id: string) => {
@@ -390,16 +392,55 @@ export default function Feed() {
       />
 
       {/* Main Header */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-2 justify-between items-center">
         <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
           <ClipboardList className="text-orange-500" /> {t('feed.title')}
         </h2>
-        <button 
-          onClick={() => setShowForm(!showForm)}
-          className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1 font-bold text-xs shadow-sm transition-all"
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => setIsQualityGuideOpen(true)}
+            className="bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 font-black text-xs shadow-2xs transition-all active:scale-95"
+          >
+            <Award size={16} className="text-amber-600" />
+            <span>{language === 'bn' ? 'ফিডের গুণাগুণ ও পুষ্টিমান' : 'Feed Quality Guide'}</span>
+          </button>
+          <button 
+            onClick={() => setShowForm(!showForm)}
+            className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1 font-bold text-xs shadow-sm transition-all"
+          >
+            <Plus size={16} />
+            <span>{language === 'bn' ? 'হিসাব যোগ করুন' : 'Add Record'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Feed Quality Quick Advisory Card */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 rounded-2xl p-3.5 border border-amber-200 shadow-2xs flex items-center justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+            <Wheat size={20} />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-black text-slate-850 flex items-center gap-1.5">
+              <span>{language === 'bn' ? 'ফিডের গুণাগুণ ও আদর্শ পুষ্টিমান নির্দেশিকা' : 'Feed Quality & Nutrition Standards'}</span>
+              <span className="text-[9px] bg-amber-200 text-amber-950 font-black px-1.5 py-0.2 rounded-md">
+                {language === 'bn' ? 'খামারি গাইড' : 'GUIDE'}
+              </span>
+            </h4>
+            <p className="text-[11px] text-slate-600 font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
+              {language === 'bn' 
+                ? 'ব্রয়লার, সোনালী ও লেয়ার মুরগির কোন বয়সে কোন ফিড উপকারী? খালি চোখে ভালো ফিড চেনার ৫টি উপায় ও প্রোটিন চার্ট দেখুন।'
+                : 'Learn optimal crude protein (CP%), metabolizable energy, and 5 practical physical inspection steps.'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsQualityGuideOpen(true)}
+          className="shrink-0 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 font-black text-xs px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer transition-all whitespace-nowrap"
         >
-          <Plus size={16} />
-          <span>{language === 'bn' ? 'হিসাব যোগ করুন' : 'Add Record'}</span>
+          {language === 'bn' ? 'গাইড দেখুন' : 'View Guide'}
         </button>
       </div>
 
@@ -590,6 +631,12 @@ export default function Feed() {
         message={t('common.confirmDeleteMsg')}
         onConfirm={executeDelete}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <FeedQualityGuideModal 
+        isOpen={isQualityGuideOpen}
+        onClose={() => setIsQualityGuideOpen(false)}
+        defaultFarmType={farmType}
       />
     </div>
   );

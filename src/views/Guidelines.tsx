@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ShieldCheck, Info, CheckCircle, ChevronDown } from 'lucide-react';
+import { ShieldCheck, Info, CheckCircle, ChevronDown, Wheat } from 'lucide-react';
+import FeedQualityGuideModal from '../components/FeedQualityGuideModal';
 
 export default function Guidelines() {
   const { t, language } = useLanguage();
   const [farmType, setFarmType] = useState('poultry');
+  const [isQualityGuideOpen, setIsQualityGuideOpen] = useState(false);
 
   const getSponsorText = () => {
     switch (farmType) {
@@ -37,22 +39,33 @@ export default function Guidelines() {
         <ShieldCheck size={36} className="text-white opacity-80" />
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <label className="block text-sm font-bold text-gray-700 mb-2">{t('guidelines.farmType')}</label>
-        <div className="relative">
-          <select 
-            value={farmType}
-            onChange={(e) => setFarmType(e.target.value)}
-            className="w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-3 px-4 pr-8 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-          >
-            <option value="poultry">{t('guidelines.poultry')}</option>
-            <option value="dairy">{t('guidelines.dairy')}</option>
-            <option value="goat">{t('guidelines.goat')}</option>
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-            <ChevronDown size={18} />
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between gap-3">
+        <div className="flex-1">
+          <label className="block text-sm font-bold text-gray-700 mb-1">{t('guidelines.farmType')}</label>
+          <div className="relative">
+            <select 
+              value={farmType}
+              onChange={(e) => setFarmType(e.target.value)}
+              className="w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-2.5 px-3 pr-8 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-sm"
+            >
+              <option value="poultry">{t('guidelines.poultry')}</option>
+              <option value="dairy">{t('guidelines.dairy')}</option>
+              <option value="goat">{t('guidelines.goat')}</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+              <ChevronDown size={18} />
+            </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsQualityGuideOpen(true)}
+          className="shrink-0 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 font-black text-xs shadow-2xs transition-all mt-4 self-end"
+        >
+          <Wheat size={16} className="text-amber-600" />
+          <span>{language === 'bn' ? 'ফিডের গুণাগুণ চার্ট' : 'Feed Quality Guide'}</span>
+        </button>
       </div>
 
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 relative overflow-hidden">
@@ -148,6 +161,11 @@ export default function Guidelines() {
         </div>
       )}
       
+      <FeedQualityGuideModal 
+        isOpen={isQualityGuideOpen}
+        onClose={() => setIsQualityGuideOpen(false)}
+        defaultFarmType={farmType}
+      />
     </div>
   );
 }

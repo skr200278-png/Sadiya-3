@@ -25,9 +25,11 @@ import {
   AlertCircle,
   Sparkles,
   Layers,
-  Stethoscope
+  Stethoscope,
+  Wheat
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import FeedQualityGuideModal from '../components/FeedQualityGuideModal';
 
 export default function Home() {
   const { currentUser, isDemoUser } = useAuth();
@@ -39,6 +41,8 @@ export default function Home() {
   const [selectedType, setSelectedType] = useState<'poultry' | 'cattle' | 'fish'>(
     () => (localStorage.getItem('selected_farm_type') as any) || 'poultry'
   );
+  
+  const [isFeedQualityOpen, setIsFeedQualityOpen] = useState(false);
   
   // Selected sub-category inside the category
   const [selectedSubBreed, setSelectedSubBreed] = useState<string>('all');
@@ -597,6 +601,36 @@ export default function Home() {
         </div>
       </Link>
 
+      {/* Feed Quality & Nutrition Guide Banner (ফিডের গুণাগুণ ও পুষ্টিমান) */}
+      <button
+        type="button"
+        onClick={() => setIsFeedQualityOpen(true)}
+        className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-800 text-white shadow-sm hover:from-amber-700 hover:to-orange-700 transition-all group border border-amber-400/40 cursor-pointer text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center text-yellow-200 shrink-0 group-hover:scale-105 transition-transform shadow-inner">
+            <Wheat size={20} />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white">
+                {language === 'bn' ? 'ফিডের গুণাগুণ ও পুষ্টিমান গাইড' : 'Feed Quality & Nutrition Guide'}
+              </span>
+              <span className="bg-yellow-300 text-amber-950 text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                {language === 'bn' ? 'নতুন' : 'NEW'}
+              </span>
+            </div>
+            <p className="text-[9.5px] text-amber-100 font-medium">
+              {language === 'bn' ? 'কোন বয়সে কোন ফিড উপকারী? ভালো ফিড চেনার ৫টি উপায় ও পুষ্টি চার্ট' : 'Which feed is best by bird age? 5-step quality checklist & CP standards'}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white/15 group-hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shrink-0 transition-colors">
+          <span>{language === 'bn' ? 'গাইড দেখুন' : 'View Guide'}</span>
+          <ChevronRight size={14} />
+        </div>
+      </button>
+
       {/* 7. Chick & Hatchery Market CTA (Grade A, B, C & Company Ads) */}
       <Link 
         to="/chicks" 
@@ -671,6 +705,12 @@ export default function Home() {
         </div>
         <ChevronRight size={16} className="text-white transform transition-transform group-hover:translate-x-0.5 duration-200" />
       </Link>
+
+      <FeedQualityGuideModal 
+        isOpen={isFeedQualityOpen}
+        onClose={() => setIsFeedQualityOpen(false)}
+        defaultFarmType={selectedType}
+      />
 
     </div>
   );
