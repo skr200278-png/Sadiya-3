@@ -16,10 +16,11 @@ import {
 
 // Production Real Ad Unit IDs (User's real credentials)
 export const PRODUCTION_AD_CONFIG = {
-  appId: 'ca-app-pub-3618509805187884~7910799044',
-  bannerId: 'ca-app-pub-3618509805187884/2127989321',
-  interstitialId: 'ca-app-pub-3618509805187884/9455815009',
-  rewardedId: 'ca-app-pub-3618509805187884/8434552386',
+  appId: 'ca-app-pub-7705479359559924~9344090205',
+  bannerId: 'ca-app-pub-7705479359559924/8197337524',
+  interstitialId: 'ca-app-pub-7705479359559924/9030983603',
+  interstitialBackupId: 'ca-app-pub-7705479359559924/8197337524',
+  rewardedId: 'ca-app-pub-7705479359559924/4122361141',
 };
 
 export const ADMOB_CONFIG = PRODUCTION_AD_CONFIG;
@@ -238,13 +239,25 @@ class AdMobService {
       this.isInterstitialLoading = true;
       await this.initialize();
 
-      await AdMob.prepareInterstitial({
-        adId: PRODUCTION_AD_CONFIG.interstitialId,
-        isTesting: false,
-      });
-
-      this.isInterstitialLoaded = true;
-      return true;
+      try {
+        await AdMob.prepareInterstitial({
+          adId: PRODUCTION_AD_CONFIG.interstitialId,
+          isTesting: false,
+        });
+        this.isInterstitialLoaded = true;
+        return true;
+      } catch (primaryErr) {
+        console.warn('[AdMob] Primary interstitial load note, trying backup unit:', primaryErr);
+        if (PRODUCTION_AD_CONFIG.interstitialBackupId && PRODUCTION_AD_CONFIG.interstitialBackupId !== PRODUCTION_AD_CONFIG.interstitialId) {
+          await AdMob.prepareInterstitial({
+            adId: PRODUCTION_AD_CONFIG.interstitialBackupId,
+            isTesting: false,
+          });
+          this.isInterstitialLoaded = true;
+          return true;
+        }
+        throw primaryErr;
+      }
     } catch (error) {
       console.warn('[AdMob] prepareInterstitial production ID failed:', error);
       this.isInterstitialLoaded = false;

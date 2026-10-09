@@ -4,5 +4,5 @@
     <string name="title_activity_main">Farm Manager</string>
     <string name="package_name">com.khamarpro.app</string>
     <string name="custom_url_scheme">com.khamarpro.app</string>
-    <string name="server_client_id">430922454720.apps.googleusercontent.com</string>
+    <string name="server_client_id">430922454720-8n5dnecapap2vuc0blmlqsa8c4fd900l.apps.googleusercontent.com</string>
 </resources>

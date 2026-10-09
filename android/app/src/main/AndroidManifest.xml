@@ -12,7 +12,7 @@
         <!-- Google AdMob Application ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3618509805187884~7910799044" />
+            android:value="ca-app-pub-7705479359559924~9344090205" />
         <meta-data
             android:name="com.google.android.gms.ads.DELAY_APP_MEASUREMENT_INIT"
             android:value="true" />
