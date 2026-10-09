@@ -19,8 +19,10 @@ interface AdMobContextType {
 
 const AdMobContext = createContext<AdMobContextType | null>(null);
 
-// General viewing screens where banner ads are appropriate and non-intrusive
-const GENERAL_VIEWING_SCREENS = [
+// General viewing screens where banner ads run consistently without disturbing work
+const BANNER_VIEWING_SCREENS = [
+  '/',
+  '/dashboard',
   '/reports',
   '/guidelines',
   '/profile',
@@ -30,6 +32,15 @@ const GENERAL_VIEWING_SCREENS = [
   '/shop',
   '/hatchery',
   '/marketplace',
+];
+
+// Content exploration screens where interstitial transition is pleasant
+const NAV_INTERSTITIAL_SCREENS = [
+  '/reports',
+  '/guidelines',
+  '/chicks',
+  '/marketplace',
+  '/store',
 ];
 
 // Critical data-entry or calculation screens where ads must NEVER disturb the user
@@ -78,21 +89,22 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
 
     // Check if current screen is sensitive for data entry
     const isSensitive = SENSITIVE_DATA_ENTRY_SCREENS.some(p => currentPath === p || currentPath.startsWith(p + '/'));
-    const isGeneral = GENERAL_VIEWING_SCREENS.some(p => currentPath === p || currentPath.startsWith(p + '/'));
+    const isBannerScreen = BANNER_VIEWING_SCREENS.some(p => currentPath === p || currentPath.startsWith(p + '/'));
+    const isNavInterstitialScreen = NAV_INTERSTITIAL_SCREENS.some(p => currentPath === p || currentPath.startsWith(p + '/'));
 
     if (isSensitive) {
-      // Remove banner on sensitive data entry screens
+      // Remove banner on sensitive data entry screens to avoid blocking keyboard or buttons
       admobService.removeBanner();
-    } else if (isGeneral) {
-      // Show banner on general non-intrusive viewing screens
+    } else if (isBannerScreen) {
+      // Show bottom banner ad on dashboard, home and browsing screens
       admobService.showBanner();
     } else {
       // On neutral screens, keep workspace clean
       admobService.removeBanner();
     }
 
-    // Attempt respectful interstitial transition only when visiting general reading screens (e.g. guidelines or reports)
-    if (isGeneral && !isSensitive) {
+    // Attempt respectful interstitial transition when visiting content exploration screens
+    if (isNavInterstitialScreen && !isSensitive) {
       admobService.showInterstitialIfEligible(`nav:${currentPath}`);
     }
   }, [location.pathname]);
