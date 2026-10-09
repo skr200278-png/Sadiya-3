@@ -25,11 +25,12 @@ export const PRODUCTION_AD_CONFIG = {
 
 export const ADMOB_CONFIG = PRODUCTION_AD_CONFIG;
 
-// Frequency Capping & Policies (Non-intrusive)
-const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 90 * 1000; // 90 seconds minimum cooldown between interstitials
-const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 15 * 1000; // 15 seconds after app launch
-const MAX_INTERSTITIALS_PER_SESSION = 10; // Up to 10 interstitials per session
-const MIN_ACTIONS_BEFORE_INTERSTITIAL = 2; // For general navigation
+// Frequency Capping & Policies (High Revenue & Non-Intrusive)
+const COOLDOWN_DIRECT_ACTION_MS = 15 * 1000; // 15 seconds cooldown for task completion (saving records)
+const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 35 * 1000; // 35 seconds cooldown for general screen browsing
+const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 4 * 1000; // 4 seconds after app launch
+const MAX_INTERSTITIALS_PER_SESSION = 100; // Generous session limit for active daily farm management
+const MIN_ACTIONS_BEFORE_INTERSTITIAL = 1; // 1 action is sufficient
 
 const STORAGE_KEY_LAST_SHOWN = 'farm_admob_last_interstitial_time';
 const STORAGE_KEY_SESSION_COUNT = 'farm_admob_session_ad_count';
@@ -128,7 +129,8 @@ class AdMobService {
         console.log('[AdMob] Interstitial dismissed');
         this.isInterstitialLoaded = false;
         this.lastInterstitialShownTime = Date.now();
-        setTimeout(() => this.prepareInterstitial(), 20000);
+        // Immediately reload next ad in background so chamber is always full
+        setTimeout(() => this.prepareInterstitial(), 1500);
       });
 
       AdMob.addListener(RewardAdPluginEvents.Loaded, () => {
@@ -334,14 +336,15 @@ class AdMobService {
       return false;
     }
 
-    // 3. Consecutive same action/screen check (prevent back-to-back ad on repeated action)
-    if (contextReason && contextReason === this.lastContextReason) {
+    // 3. Consecutive same action check applies only to background navigation, NOT direct save actions
+    if (!isDirectAction && contextReason && contextReason === this.lastContextReason) {
       return false;
     }
 
-    // 4. Cooldown check (minimum 90s between interstitials to keep app comfortable)
+    // 4. Cooldown check: 15s for completed tasks (saving records), 35s for general screen browsing
+    const activeCooldown = isDirectAction ? COOLDOWN_DIRECT_ACTION_MS : COOLDOWN_BETWEEN_INTERSTITIALS_MS;
     const lastShownTime = this.getLastInterstitialTime();
-    if (lastShownTime > 0 && (now - lastShownTime) < COOLDOWN_BETWEEN_INTERSTITIALS_MS) {
+    if (lastShownTime > 0 && (now - lastShownTime) < activeCooldown) {
       return false;
     }
 
@@ -350,10 +353,12 @@ class AdMobService {
       return false;
     }
 
-    // If not cached yet, trigger background load
+    // If not cached yet, quickly prepare on-the-fly for direct completed actions
     if (!this.isInterstitialLoaded) {
-      this.prepareInterstitial();
-      return false;
+      const prepared = await this.prepareInterstitial();
+      if (!prepared || !this.isInterstitialLoaded) {
+        return false;
+      }
     }
 
     try {
@@ -361,12 +366,13 @@ class AdMobService {
       this.recordInterstitialShown(now, contextReason);
       this.isInterstitialLoaded = false;
       console.log('[AdMob] Interstitial shown successfully. Context:', contextReason);
-      // Preload next interstitial cleanly after 8s
-      setTimeout(() => this.prepareInterstitial(), 8000);
+      // Preload next interstitial cleanly after 1.5s
+      setTimeout(() => this.prepareInterstitial(), 1500);
       return true;
     } catch (error) {
       console.warn('[AdMob] showInterstitial failed:', error);
       this.isInterstitialLoaded = false;
+      setTimeout(() => this.prepareInterstitial(), 4000);
       return false;
     }
   }
