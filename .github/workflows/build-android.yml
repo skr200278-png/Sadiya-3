@@ -60,10 +60,12 @@ jobs:
 
           printf '%s' "$CLEAN_BASE64" | base64 --decode > /tmp/release.keystore
 
-          keytool -list \
+          echo "=========================================================="
+          echo "🔑 YOUR RELEASE KEYSTORE FINGERPRINTS (ADD TO FIREBASE):"
+          keytool -list -v \
             -keystore /tmp/release.keystore \
-            -storepass "$RELEASE_STORE_PASSWORD" \
-            >/dev/null
+            -storepass "$RELEASE_STORE_PASSWORD" | grep -E "SHA1:|SHA256:" || true
+          echo "=========================================================="
 
           mkdir -p android/app
           cp /tmp/release.keystore android/app/release.keystore
