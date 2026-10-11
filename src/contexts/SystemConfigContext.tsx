@@ -61,6 +61,7 @@ export interface FeatureControls {
   disclaimerTextEn: string;
   subscriptionNoticeBn: string;
   subscriptionNoticeEn: string;
+  playStoreComplianceMode?: boolean; // When true, hides direct bKash/Nagad and shows compliant helpline mode
 }
 
 export interface SubscriptionPlan {
@@ -158,12 +159,14 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
     durationLabelBn: '১ মাস (৩০ দিন)',
     durationLabelEn: '1 Month (30 Days)',
     featuresBn: [
+      'সম্পূর্ণ বিজ্ঞাপন-মুক্ত অভিজ্ঞতা (১০০% Ad-Free)',
       'সকল এক্সেল ও রঙিন পিডিএফ রিপোর্ট ডাউনলোড',
       'ডিজিটাল বকেয়া খাতা ও কাস্টমার ক্যাশমেমো তৈরি',
       'ভয়েস অ্যাসিস্ট্যান্ট দিয়ে মুখে বলে হিসাব এন্ট্রি',
       'অফলাইন ব্যাকআপ ও আনলিমিটেড ব্যাচ পরিচালনা'
     ],
     featuresEn: [
+      '100% Ad-Free Experience (No Ads)',
       'Full Excel & Color PDF Report Export',
       'Digital Dues Ledger & Customer Cash Memo',
       'Voice Assistant for hands-free entry',
@@ -183,11 +186,13 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
     durationLabelBn: '৬ মাস (১৮০ দিন)',
     durationLabelEn: '6 Months (180 Days)',
     featuresBn: [
+      'সম্পূর্ণ বিজ্ঞাপন-মুক্ত অভিজ্ঞতা (১০০% Ad-Free)',
       'সব প্রিমিয়াম ফিচারের নিরবচ্ছিন্ন অ্যাক্সেস',
       'পিডিএফ, এক্সেল ও ক্যাশমেমো প্রিন্ট',
       'প্রাইওরিটি হেল্পলাইন ও ডাক্তার সাপোর্ট'
     ],
     featuresEn: [
+      '100% Ad-Free Experience (Zero Ads)',
       'Uninterrupted access to all premium features',
       'PDF, Excel & Cash Memo print',
       'Priority helpline & vet doctor support'
@@ -206,11 +211,13 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
     durationLabelBn: '১ বছর (৩৬৫ দিন)',
     durationLabelEn: '1 Year (365 Days)',
     featuresBn: [
+      'সম্পূর্ণ বিজ্ঞাপন-মুক্ত ভিআইপি অভিজ্ঞতা (১০০% Ad-Free)',
       'পুরো ১ বছর কোনো চিন্তা ছাড়াই সব ফিচার ফ্রি',
       'মার্কেটপ্লেস ও ডিরেক্টরিতে প্রিমিয়াম ভেরিফাইড ব্যাজ',
       'সার্বক্ষণিক ব্যাকআপ ও ডেডিকেটেড সাপোর্ট'
     ],
     featuresEn: [
+      '100% Ad-Free VIP Experience (No Ads)',
       'Full 1-year unlimited access to all tools',
       'Verified VIP Badge in Marketplace & Directory',
       'Continuous Cloud Backup & Dedicated Support'
@@ -229,11 +236,13 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
     durationLabelBn: 'আজীবন (Lifetime)',
     durationLabelEn: 'Lifetime Access',
     featuresBn: [
+      'আজীবন সম্পূর্ণ বিজ্ঞাপন-মুক্ত অভিজ্ঞতা (Lifetime Ad-Free)',
       'একবার সাবস্ক্রিপশন নিলেই আজীবন সব ফিচার ফ্রি',
       'ভবিষ্যতে আসা সব নতুন ফিচারের সম্পূর্ণ ফ্রি অ্যাক্সেস',
       'গোল্ড ভিআইপি মেম্বার মর্যাদা ও ডিরেক্ট কল সুবিধা'
     ],
     featuresEn: [
+      'Lifetime 100% Ad-Free Experience',
       'Pay once, enjoy all tools forever',
       'Free access to all future updates & modules',
       'Gold VIP Member status & direct founder call'
@@ -331,7 +340,8 @@ const DEFAULT_CONFIG: FeatureControls = {
   disclaimerTextBn: 'সতর্কতা: পণ্য বা ডেলিভারি বুঝে নেওয়ার আগে কোনো অবস্থাতেই কাউকে বিকাশ, নগদ বা ব্যাংকে অগ্রিম টাকা পাঠাবেন না। কেউ আগে টাকা পাঠিয়ে প্রতারিত হলে অথবা বাকিতে বিক্রয় করে ক্ষতিগ্রস্থ হলে অ্যাপ মালিক বা অ্যাপ কর্তৃপক্ষ কোনোভাবেই দায়ী থাকবে না। লেনদেনের পূর্বে নিজ দায়িত্বে যাচাই-বাছাই করুন।',
   disclaimerTextEn: 'Warning: Never send advance payment (bKash/Nagad/Bank) before physically receiving the goods. The app owner or authority is strictly NOT responsible for any advance money fraud, non-delivery, or unpaid credit. Please verify all parties independently before transacting.',
   subscriptionNoticeBn: 'এই প্রিমিয়াম সেবাটি আপনার অ্যাকাউন্টে সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।',
-  subscriptionNoticeEn: 'To activate this premium feature on your account, please contact the app admin.'
+  subscriptionNoticeEn: 'To activate this premium feature on your account, please contact the app admin.',
+  playStoreComplianceMode: false
 };
 
 interface SystemConfigContextType {
@@ -652,16 +662,24 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     })()
   );
 
+  const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
+
   // Compute if current user is active VIP / Premium
   const hasActiveSub = Boolean(
+    !isPlayStoreBuild &&
     userSubscription && 
     userSubscription.status === 'active' && 
     (userSubscription.isLifetime || (userSubscription.expiresAt && new Date(userSubscription.expiresAt).getTime() > Date.now()))
   );
 
-  const isPremium = Boolean(isAdmin || isWhitelisted || hasActiveSub);
+  const isPremium = Boolean(isAdmin || (!isPlayStoreBuild && (isWhitelisted || hasActiveSub)));
 
   const hasAccess = (feature: keyof Omit<FeatureControls, 'whitelistedUsers' | 'paymentNumbers' | 'adminWhatsApp' | 'adminPhone' | 'adminEmail' | 'adminName' | 'disclaimerTextBn' | 'disclaimerTextEn' | 'subscriptionNoticeBn' | 'subscriptionNoticeEn'>): boolean => {
+    // In Google Play Store build, all features are 100% free and open for all farmers (zero digital paywalls)
+    if (isPlayStoreBuild) {
+      return true;
+    }
+
     // 0. If Global Monetization is disabled by Admin, everything is 100% FREE for all users
     if (config.monetizationEnabled === false) {
       return true;
@@ -1124,6 +1142,7 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
   };
 
   const openSubscriptionModal = (featureTitle: string, featureDesc?: string) => {
+    if (isPlayStoreBuild) return;
     setSubscriptionModal({
       isOpen: true,
       featureTitle,

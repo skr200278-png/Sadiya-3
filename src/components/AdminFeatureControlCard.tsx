@@ -1387,6 +1387,21 @@ export default function AdminFeatureControlCard() {
                 </div>
               </div>
 
+              {/* Play Store Auto-Immunity Notice */}
+              <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center gap-3">
+                <ShieldCheck size={20} className="text-emerald-400 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-black text-emerald-200">
+                    {language === 'bn' ? '🛡️ গুগল প্লে-স্টোর সেফগার্ড সক্রিয়' : '🛡️ Google Play Safeguard Active'}
+                  </p>
+                  <p className="text-slate-300 text-[11px] mt-0.5 leading-relaxed">
+                    {language === 'bn' 
+                      ? 'আপনি নিচে যেকোনো ফিচার বা সম্পূর্ণ অ্যাপ লক করলেও প্লে-স্টোরের খামারিদের অ্যাপে কখনোই কোনো লক পড়বে না (গুগল পলিসি অনুযায়ী প্লে-স্টোর সবসময় স্বয়ংক্রিয়ভাবে ১০০% ফ্রি ও সুরক্ষিত থাকবে)। এই লক শুধুমাত্র সরাসরি দেওয়া APK ইউজারদের জন্য প্রযোজ্য হবে।' 
+                      : 'Locks configured here only apply to standalone APK users. Play Store users remain permanently unlocked for 100% compliance.'}
+                  </p>
+                </div>
+              </div>
+
               {/* Master Global App Lock */}
               <div className="bg-slate-950 border border-rose-500/30 rounded-2xl p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1421,6 +1436,49 @@ export default function AdminFeatureControlCard() {
                       {config.appLockRequired 
                         ? (language === 'bn' ? 'সম্পূর্ণ অ্যাপ লকড' : 'App Locked') 
                         : (language === 'bn' ? 'উন্মুক্ত' : 'Open')}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Google Play Store Compliance Mode Switch */}
+              <div className="bg-slate-950 border border-amber-500/30 rounded-2xl p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-white">
+                        {language === 'bn' ? '🛡️ প্লে-স্টোর পলিসি সেফ মোড (Play Store Compliance)' : '🛡️ Google Play Compliance Mode'}
+                      </span>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                        config.playStoreComplianceMode 
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}>
+                        {config.playStoreComplianceMode ? 'COMPLIANT (বিকাশ লুকানো)' : 'NORMAL (বিকাশ চালু)'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {language === 'bn'
+                        ? 'প্লে-স্টোর রিভিউ চলাকালীন বা প্রয়োজনবোধে এটি চালু রাখলে সকল ইউজারের জন্য বিকাশ/নগদ ফর্ম ও নম্বর সম্পূর্ণ লুকিয়ে অফিসিয়াল হেল্পডেস্ক মোড প্রদর্শন করবে। আর ডিরেক্ট APK-এর জন্য এটি স্বয়ংক্রিয়ভাবে বিকাশ/নগদ দেখায়।'
+                        : 'When enabled, hides bKash/Nagad and TrxID form for compliance with Google Play Store review policies.'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggle('playStoreComplianceMode')}
+                    disabled={isSaving}
+                    className={`px-4 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-all active:scale-95 ${
+                      config.playStoreComplianceMode 
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md' 
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                    }`}
+                  >
+                    <ShieldCheck size={14} />
+                    <span>
+                      {config.playStoreComplianceMode 
+                        ? (language === 'bn' ? 'প্লে-স্টোর সেফ মোড চালু' : 'Compliance ON') 
+                        : (language === 'bn' ? 'স্বাভাবিক (বিকাশ চালু)' : 'Normal (bKash ON)')}
                     </span>
                   </button>
                 </div>

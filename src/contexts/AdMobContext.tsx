@@ -6,11 +6,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { admobService, ADMOB_CONFIG } from '../services/admobService';
+import { useSystemConfig } from './SystemConfigContext';
 
 interface AdMobContextType {
   config: typeof ADMOB_CONFIG;
   isReady: boolean;
   isRewardedReady: boolean;
+  isAdFree: boolean;
   showRewardedAd: (onReward?: (reward: any) => void) => Promise<boolean>;
   triggerInterstitial: (contextName?: string, isDirectAction?: boolean) => Promise<boolean>;
   showBanner: () => Promise<void>;
@@ -60,9 +62,34 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [isRewardedReady, setIsRewardedReady] = useState(false);
   const location = useLocation();
+  const { userSubscription } = useSystemConfig();
+  const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
 
-  // Initialize AdMob once when the app mounts
+  // Ads are ONLY suppressed for users who have an active paid VIP subscription document.
+  // Neither Admin nor free farmers have ads blocked, ensuring ads always serve and can be verified.
+  const isAdFreeUser = Boolean(
+    !isPlayStoreBuild &&
+    userSubscription && 
+    userSubscription.status === 'active' && 
+    (userSubscription.isLifetime || (userSubscription.expiresAt && new Date(userSubscription.expiresAt).getTime() > Date.now()))
+  );
+
+  // Synchronize ad suppression with the native service
   useEffect(() => {
+    admobService.setAdsDisabled(isAdFreeUser);
+    if (isAdFreeUser) {
+      admobService.removeBanner().catch(() => {});
+    }
+  }, [isAdFreeUser]);
+
+  // Initialize AdMob once when the app mounts (if not an ad-free user)
+  useEffect(() => {
+    if (isAdFreeUser) {
+      setIsReady(false);
+      setIsRewardedReady(false);
+      return;
+    }
+
     let mounted = true;
     admobService.initialize().then((success) => {
       if (mounted) {
@@ -81,10 +108,15 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       clearInterval(checkInterval);
     };
-  }, []);
+  }, [isAdFreeUser]);
 
-  // Handle banner visibility based on route
+  // Handle banner visibility based on route and subscription status
   useEffect(() => {
+    if (isAdFreeUser) {
+      admobService.removeBanner().catch(() => {});
+      return;
+    }
+
     const currentPath = location.pathname.toLowerCase();
 
     // Check if current screen is sensitive for data entry
@@ -107,17 +139,30 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
     if (isNavInterstitialScreen && !isSensitive) {
       admobService.showInterstitialIfEligible(`nav:${currentPath}`);
     }
-  }, [location.pathname]);
+  }, [location.pathname, isAdFreeUser]);
 
   const value = useMemo(() => ({
     config: ADMOB_CONFIG,
-    isReady,
-    isRewardedReady,
-    showRewardedAd: (onReward?: (reward: any) => void) => admobService.showRewarded(onReward),
-    triggerInterstitial: (contextName?: string, isDirectAction?: boolean) => admobService.showInterstitialIfEligible(contextName, isDirectAction),
-    showBanner: () => admobService.showBanner(),
+    isReady: isAdFreeUser ? false : isReady,
+    isRewardedReady: isAdFreeUser ? false : isRewardedReady,
+    isAdFree: isAdFreeUser,
+    showRewardedAd: (onReward?: (reward: any) => void) => {
+      if (isAdFreeUser) {
+        if (onReward) onReward({ type: 'premium_perk', amount: 1 });
+        return Promise.resolve(true);
+      }
+      return admobService.showRewarded(onReward);
+    },
+    triggerInterstitial: (contextName?: string, isDirectAction?: boolean) => {
+      if (isAdFreeUser) return Promise.resolve(false);
+      return admobService.showInterstitialIfEligible(contextName, isDirectAction);
+    },
+    showBanner: () => {
+      if (isAdFreeUser) return Promise.resolve();
+      return admobService.showBanner();
+    },
     hideBanner: () => admobService.hideBanner(),
-  }), [isReady, isRewardedReady]);
+  }), [isReady, isRewardedReady, isAdFreeUser]);
 
   return (
     <AdMobContext.Provider value={value}>
@@ -134,6 +179,7 @@ export function useAdMob() {
       config: ADMOB_CONFIG,
       isReady: false,
       isRewardedReady: false,
+      isAdFree: false,
       showRewardedAd: async () => false,
       triggerInterstitial: async () => false,
       showBanner: async () => {},

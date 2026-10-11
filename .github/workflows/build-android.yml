@@ -23,17 +23,11 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      - name: Build Web Production Assets
-        run: npm run build
-
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-
-      - name: Sync Capacitor Android
-        run: npx --yes @capacitor/cli sync android
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
@@ -72,14 +66,37 @@ jobs:
 
           echo "Release keystore decoded and validated successfully."
 
-      - name: Build Android App Bundle & APK
+      # 1. BUILD PLAY STORE BUNDLE (.AAB) - 100% Policy Compliant (No Direct Third-Party Billing)
+      - name: Build Web for Play Store AAB
+        run: |
+          echo "Building Web assets for Google Play Store (Compliant Mode)..."
+          VITE_DISTRIBUTION_CHANNEL=playstore npm run build
+          npx --yes @capacitor/cli sync android
+
+      - name: Build Play Store Bundle (AAB)
         working-directory: android
         env:
           RELEASE_STORE_FILE: release.keystore
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease assembleRelease --stacktrace
+        run: ./gradlew bundleRelease --stacktrace
+
+      # 2. BUILD DIRECT APK (.APK) - 100% Interactive bKash, Nagad, Rocket & TrxID Submission Enabled
+      - name: Build Web for Direct APK
+        run: |
+          echo "Building Web assets for Direct APK (bKash & Nagad Enabled)..."
+          VITE_DISTRIBUTION_CHANNEL=direct npm run build
+          npx --yes @capacitor/cli sync android
+
+      - name: Build Direct Release APK
+        working-directory: android
+        env:
+          RELEASE_STORE_FILE: release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Verify Signed Release APK
         run: |

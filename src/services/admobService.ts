@@ -19,7 +19,7 @@ export const PRODUCTION_AD_CONFIG = {
   appId: 'ca-app-pub-7705479359559924~9344090205',
   bannerId: 'ca-app-pub-7705479359559924/8197337524',
   interstitialId: 'ca-app-pub-7705479359559924/9030983603',
-  interstitialBackupId: 'ca-app-pub-7705479359559924/8197337524',
+  interstitialBackupId: '',
   rewardedId: 'ca-app-pub-7705479359559924/4122361141',
 };
 
@@ -47,11 +47,33 @@ class AdMobService {
   private isRewardedLoaded = false;
   private isRewardedLoading = false;
 
+  // Premium / VIP / Admin ad suppression
+  private isAdsDisabled = false;
+
   private appStartTime = Date.now();
   private lastInterstitialShownTime = 0;
   private interstitialShownCount = 0;
   private actionCounter = 0;
   private lastContextReason = '';
+
+  /**
+   * Disables all ads completely for VIP/Premium members and Admins.
+   */
+  setAdsDisabled(disabled: boolean): void {
+    this.isAdsDisabled = disabled;
+    if (disabled) {
+      this.isInterstitialLoaded = false;
+      this.isRewardedLoaded = false;
+      this.isBannerVisible = false;
+      if (Capacitor.isNativePlatform()) {
+        AdMob.removeBanner().catch(() => {});
+      }
+    }
+  }
+
+  isAdsSuppressed(): boolean {
+    return this.isAdsDisabled;
+  }
 
   /**
    * Initialize AdMob on Android / Native platforms in Production Mode.
@@ -67,13 +89,8 @@ class AdMobService {
 
     try {
       this.isInitializing = true;
-      try {
-        await AdMob.requestTrackingAuthorization();
-      } catch {
-        // Ignored on Android
-      }
 
-      // Production release configuration: testing disabled
+      // Initialize Google Mobile Ads SDK
       await AdMob.initialize({
         initializeForTesting: false,
       });
@@ -82,11 +99,14 @@ class AdMobService {
       this.isInitialized = true;
       console.log('[AdMob] Initialized successfully in production release mode');
 
-      // Silently pre-load real interstitial in background
+      // Pre-load real interstitial in background
       setTimeout(() => {
         this.prepareInterstitial();
+      }, 2000);
+
+      setTimeout(() => {
         this.prepareRewarded();
-      }, 3000);
+      }, 6000);
 
       return true;
     } catch (error) {
@@ -105,8 +125,8 @@ class AdMobService {
         this.isBannerLoading = false;
       });
 
-      AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (err) => {
-        console.warn('[AdMob] Production Banner failed to load:', err);
+      AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (err: any) => {
+        console.warn('[AdMob] Production Banner failed to load (Logcat Error):', err?.code ?? err, err?.message ?? '');
         this.isBannerVisible = false;
         this.isBannerLoading = false;
       });
@@ -117,12 +137,12 @@ class AdMobService {
         this.isInterstitialLoading = false;
       });
 
-      AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, (err) => {
-        console.warn('[AdMob] Production Interstitial failed to load:', err);
+      AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, (err: any) => {
+        console.warn('[AdMob] Production Interstitial failed to load (Logcat Error):', err?.code ?? err, err?.message ?? '');
         this.isInterstitialLoaded = false;
         this.isInterstitialLoading = false;
-        // Retry preparing real interstitial after 30 seconds
-        setTimeout(() => this.prepareInterstitial(), 30000);
+        // Retry preparing real interstitial after 15 seconds
+        setTimeout(() => this.prepareInterstitial(), 15000);
       });
 
       AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => {
@@ -139,11 +159,11 @@ class AdMobService {
         this.isRewardedLoading = false;
       });
 
-      AdMob.addListener(RewardAdPluginEvents.FailedToLoad, (err) => {
-        console.warn('[AdMob] Production Rewarded ad failed to load:', err);
+      AdMob.addListener(RewardAdPluginEvents.FailedToLoad, (err: any) => {
+        console.warn('[AdMob] Production Rewarded ad failed to load (Logcat Error):', err?.code ?? err, err?.message ?? '');
         this.isRewardedLoaded = false;
         this.isRewardedLoading = false;
-        setTimeout(() => this.prepareRewarded(), 30000);
+        setTimeout(() => this.prepareRewarded(), 15000);
       });
 
       AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
@@ -160,30 +180,21 @@ class AdMobService {
    * ----------------------------------------------------------- */
 
   /**
-   * Shows banner ad. Placed at bottom above bottom navigation (margin: 60)
-   * or top of screen without overlapping navigation.
+   * Shows banner ad anchored at bottom.
    */
   async showBanner(position: BannerAdPosition = BannerAdPosition.BOTTOM_CENTER): Promise<void> {
-    if (!Capacitor.isNativePlatform()) return;
+    if (this.isAdsDisabled || !Capacitor.isNativePlatform()) return;
     if (this.isBannerVisible || this.isBannerLoading) return;
 
     try {
       this.isBannerLoading = true;
       await this.initialize();
 
-      // Cleanly clear existing banner before showing to avoid Capacitor GONE bug
-      try {
-        await AdMob.removeBanner();
-      } catch {
-        // Safe ignore
-      }
-
       console.log('[AdMob] Requesting production banner with ID:', PRODUCTION_AD_CONFIG.bannerId);
       await AdMob.showBanner({
         adId: PRODUCTION_AD_CONFIG.bannerId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
         position,
-        margin: 60, // Above bottom navigation bar (60dp)
         isTesting: false,
       });
 
@@ -234,32 +245,19 @@ class AdMobService {
    * Pre-caches an interstitial ad in background.
    */
   async prepareInterstitial(): Promise<boolean> {
-    if (!Capacitor.isNativePlatform()) return false;
+    if (this.isAdsDisabled || !Capacitor.isNativePlatform()) return false;
     if (this.isInterstitialLoaded || this.isInterstitialLoading) return this.isInterstitialLoaded;
 
     try {
       this.isInterstitialLoading = true;
       await this.initialize();
 
-      try {
-        await AdMob.prepareInterstitial({
-          adId: PRODUCTION_AD_CONFIG.interstitialId,
-          isTesting: false,
-        });
-        this.isInterstitialLoaded = true;
-        return true;
-      } catch (primaryErr) {
-        console.warn('[AdMob] Primary interstitial load note, trying backup unit:', primaryErr);
-        if (PRODUCTION_AD_CONFIG.interstitialBackupId && PRODUCTION_AD_CONFIG.interstitialBackupId !== PRODUCTION_AD_CONFIG.interstitialId) {
-          await AdMob.prepareInterstitial({
-            adId: PRODUCTION_AD_CONFIG.interstitialBackupId,
-            isTesting: false,
-          });
-          this.isInterstitialLoaded = true;
-          return true;
-        }
-        throw primaryErr;
-      }
+      await AdMob.prepareInterstitial({
+        adId: PRODUCTION_AD_CONFIG.interstitialId,
+        isTesting: false,
+      });
+      this.isInterstitialLoaded = true;
+      return true;
     } catch (error) {
       console.warn('[AdMob] prepareInterstitial production ID failed:', error);
       this.isInterstitialLoaded = false;
@@ -319,7 +317,7 @@ class AdMobService {
    * If isDirectAction is true, user just completed saving a task/record, so minimum page count check is skipped.
    */
   async showInterstitialIfEligible(contextReason?: string, isDirectAction: boolean = false): Promise<boolean> {
-    if (!Capacitor.isNativePlatform()) return false;
+    if (this.isAdsDisabled || !Capacitor.isNativePlatform()) return false;
 
     // Increment user action / navigation counter
     this.actionCounter += 1;
@@ -382,7 +380,7 @@ class AdMobService {
    * ----------------------------------------------------------- */
 
   async prepareRewarded(): Promise<boolean> {
-    if (!Capacitor.isNativePlatform()) return false;
+    if (this.isAdsDisabled || !Capacitor.isNativePlatform()) return false;
     if (this.isRewardedLoaded || this.isRewardedLoading) return this.isRewardedLoaded;
 
     try {

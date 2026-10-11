@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const isPlayStore = process.env.VITE_DISTRIBUTION_CHANNEL === 'playstore' || env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
   return {
     plugins: [
       {
@@ -133,9 +134,15 @@ export default defineConfig(({mode}) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: [
+        { find: '@', replacement: path.resolve(__dirname, '.') },
+        ...(isPlayStore ? [
+          {
+            find: './components/SubscriptionModal',
+            replacement: path.resolve(__dirname, 'src/components/SubscriptionModal.playstore.tsx')
+          }
+        ] : [])
+      ],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

@@ -53,6 +53,8 @@ export default function SubscriptionModal() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedData, setSubmittedData] = useState<{ trxId: string; amount: number; method: string } | null>(null);
 
+  const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore' || (config as any)?.playStoreComplianceMode === true;
+
   if (!subscriptionModal.isOpen) return null;
 
   const currentFeature = subscriptionModal.featureTitle || (language === 'bn' ? 'প্রিমিয়াম সেবা' : 'Premium Feature');
@@ -379,8 +381,31 @@ export default function SubscriptionModal() {
                 </div>
               </div>
 
-              {/* Payment Account Details with 1-Click Copy */}
-              <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-2.5">
+              {isPlayStoreBuild ? (
+                /* GOOGLE PLAY STORE COMPLIANT SECTION (Zero Third-Party Billing Violations) */
+                <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950 border-2 border-emerald-500/30 rounded-3xl p-5 text-center text-white space-y-3.5 shadow-xl">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mx-auto">
+                    <Crown size={28} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-[10px] font-black text-emerald-300 uppercase tracking-wider mb-1.5">
+                      <ShieldCheck size={12} />
+                      <span>{language === 'bn' ? 'প্লে স্টোর সংস্করণ' : 'Play Store Edition'}</span>
+                    </div>
+                    <h4 className="text-sm sm:text-base font-black text-white">
+                      {language === 'bn' ? 'অফিসিয়াল ভিআইপি অ্যাক্টিভেশন সহায়তা' : 'Official VIP Activation Help'}
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-2 leading-relaxed max-w-sm mx-auto">
+                      {language === 'bn' 
+                        ? 'আপনার অ্যাকাউন্টে প্রিমিয়াম লাইসেন্স ও ১০০% বিজ্ঞাপন-মুক্ত মোড সক্রিয় করতে আমাদের অফিসিয়াল হেল্পলাইনে যোগাযোগ করুন। অ্যাডমিন আপনার অ্যাকাউন্ট ভেরিফাই করে সরাসরি ভিআইপি সুবিধা সক্রিয় করে দেবেন।' 
+                        : 'To activate VIP features & 100% ad-free experience on your account, please contact our official helpline. Our team will verify and activate your membership.'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Payment Account Details with 1-Click Copy */}
+                  <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-700">
                   <span className="text-xs font-black text-amber-300 flex items-center gap-1">
                     <CreditCard size={14} />
@@ -710,6 +735,8 @@ export default function SubscriptionModal() {
                   </form>
                 )}
               </div>
+            </>
+          )}
 
               {/* Direct 1-Click WhatsApp & Phone Call Action Buttons */}
               <div className="space-y-2">

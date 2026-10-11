@@ -412,34 +412,44 @@ export default function Profile() {
                       ? 'বিজ্ঞাপন পোস্ট, বকেয়া খাতা, এক্সেল রিপোর্ট ও ভিআইপি খামার ব্যবস্থাপনা' 
                       : 'Ad posting, dues khata, excel export & VIP farm management')}
               </p>
+              {isPremium && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                    <span>🚫</span>
+                    <span>{currentLanguage === 'bn' ? '১০০% বিজ্ঞাপন-মুক্ত মোড সক্রিয়' : '100% Ad-Free Experience Active'}</span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="mt-3 pt-3 border-t border-slate-700/40 flex items-center justify-between gap-2">
-          <span className={`text-[11px] font-semibold ${isPremium ? 'text-amber-900' : 'text-slate-400'}`}>
-            {config.monetizationEnabled !== false 
-              ? (currentLanguage === 'bn' ? 'প্যাকেজ ও স্পনসর বিজ্ঞাপন অপশন' : 'Plans & advertisement options')
-              : (currentLanguage === 'bn' ? 'সকল প্রো ফিচার বর্তমানে ফ্রি' : 'All PRO features currently free')}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : 'Farm Manager Premium')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
-              isPremium 
-                ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
-            }`}
-          >
-            <Sparkles size={13} />
-            <span>
-              {isPremium 
-                ? (currentLanguage === 'bn' ? 'প্যাকেজ বিবরণী' : 'Plan Details') 
-                : (currentLanguage === 'bn' ? '💎 প্রিমিয়াম আপগ্রেড' : '💎 Upgrade Pro')}
+        {import.meta.env.VITE_DISTRIBUTION_CHANNEL !== 'playstore' && (
+          <div className="mt-3 pt-3 border-t border-slate-700/40 flex items-center justify-between gap-2">
+            <span className={`text-[11px] font-semibold ${isPremium ? 'text-amber-900' : 'text-slate-400'}`}>
+              {config.monetizationEnabled !== false 
+                ? (currentLanguage === 'bn' ? 'প্যাকেজ ও স্পনসর বিজ্ঞাপন অপশন' : 'Plans & advertisement options')
+                : (currentLanguage === 'bn' ? 'সকল প্রো ফিচার বর্তমানে ফ্রি' : 'All PRO features currently free')}
             </span>
-          </button>
-        </div>
+
+            <button
+              type="button"
+              onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : 'Farm Manager Premium')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
+                isPremium 
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white' 
+                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+              }`}
+            >
+              <Sparkles size={13} />
+              <span>
+                {isPremium 
+                  ? (currentLanguage === 'bn' ? 'প্যাকেজ বিবরণী' : 'Plan Details') 
+                  : (currentLanguage === 'bn' ? '💎 প্রিমিয়াম আপগ্রেড' : '💎 Upgrade Pro')}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Admin Feature Controls & App Lock */}
