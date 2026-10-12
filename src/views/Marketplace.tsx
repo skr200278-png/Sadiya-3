@@ -99,15 +99,6 @@ export default function Marketplace() {
   const [buyerToDelete, setBuyerToDelete] = useState<DemoMarketBuyer | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Hide native AdMob banner when posting modals are open
-  useEffect(() => {
-    if (isPostModalOpen || isBuyerModalOpen) {
-      admobService.removeBanner();
-    } else {
-      admobService.showBanner();
-    }
-  }, [isPostModalOpen, isBuyerModalOpen]);
-
   // Helper for generating clean WhatsApp link
   const formatWhatsAppUrl = (whatsappNum?: string, phoneNum?: string, message: string = '') => {
     const raw = (whatsappNum || phoneNum || '').replace(/[^0-9]/g, '');

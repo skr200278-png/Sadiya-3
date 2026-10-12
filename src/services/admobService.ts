@@ -35,10 +35,10 @@ export const TEST_AD_CONFIG = {
 export const ADMOB_CONFIG = PRODUCTION_AD_CONFIG;
 
 // Frequency Capping & Policies (High Revenue & Compliant with Google AdMob Policies)
-const COOLDOWN_DIRECT_ACTION_MS = 45 * 1000; // 45 seconds cooldown for task completion (saving records)
-const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 60 * 1000; // 60 seconds cooldown for general screen browsing
-const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 20 * 1000; // 20 seconds after app launch (prevents accidental cold-launch popups)
-const MAX_INTERSTITIALS_PER_SESSION = 40; // Balanced session limit complying with AdMob Excessive Ads policy
+const COOLDOWN_DIRECT_ACTION_MS = 20 * 1000; // 20 seconds cooldown between saved records (reliably shows ads on saves while protecting user flow)
+const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 50 * 1000; // 50 seconds cooldown for general screen browsing
+const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 5 * 1000; // 5 seconds initial buffer so first save immediately triggers ad
+const MAX_INTERSTITIALS_PER_SESSION = 50; // Balanced session limit complying with AdMob Excessive Ads policy
 const MIN_ACTIONS_BEFORE_INTERSTITIAL = 2; // At least 2 user actions before showing browsing interstitial
 
 const STORAGE_KEY_LAST_SHOWN = 'farm_admob_last_interstitial_time';
@@ -239,6 +239,7 @@ class AdMobService {
         adId: activeConfig.bannerId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
         position,
+        margin: position === BannerAdPosition.BOTTOM_CENTER ? 64 : 0,
         isTesting: this.isTestMode,
       });
 

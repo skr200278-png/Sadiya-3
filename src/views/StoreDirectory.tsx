@@ -102,15 +102,6 @@ export default function StoreDirectory() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
 
-  // Safely hide native banner ad when store form modal is active to prevent overlapping Save buttons
-  useEffect(() => {
-    if (isFormOpen) {
-      admobService.removeBanner();
-    } else {
-      admobService.showBanner();
-    }
-  }, [isFormOpen]);
-
   // Form Fields
   const [country, setCountry] = useState<string>(() => detectedCountry.code || 'BD');
   const [shopName, setShopName] = useState('');
