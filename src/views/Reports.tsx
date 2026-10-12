@@ -580,14 +580,6 @@ export default function Reports() {
   const generateFullBackupCSV = async () => {
     if (!currentUser) return;
 
-    if (!hasAccess('reportsExportFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'এক্সেল ও ব্যাকআপ রিপোর্ট ডাউনলোড' : 'Excel & Backup Export',
-        language === 'bn' ? 'সম্পূর্ণ খামারের এক্সেল ব্যাকআপ ও বিস্তারিত রিপোর্ট ডাউনলোডের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To export full farm Excel backups and reports, please contact the admin for activation.'
-      );
-      return;
-    }
-
     toast.loading(t('reports.csvStarted') || 'Exporting Excel/CSV...');
 
     try {
@@ -730,14 +722,6 @@ export default function Reports() {
   const generatePDF = () => {
     if (!selectedBatch) return;
 
-    if (!hasAccess('reportsExportFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'পিডিএফ রিপোর্ট এক্সপোর্ট' : 'PDF Report Export',
-        language === 'bn' ? 'ব্যাচ ও খামারের বিস্তারিত পিডিএফ রিপোর্ট ডাউনলোডের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To export PDF reports, please contact the admin for activation.'
-      );
-      return;
-    }
-
     const doc = new jsPDF();
     
     // Header
@@ -819,14 +803,6 @@ export default function Reports() {
 
   const generateCSV = () => {
     if (!selectedBatch) return;
-
-    if (!hasAccess('reportsExportFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'সিএসভি / এক্সেল রিপোর্ট ডাউনলোড' : 'CSV / Excel Export',
-        language === 'bn' ? 'ব্যাচ ও খামারের বিস্তারিত এক্সেল রিপোর্ট ডাউনলোডের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To export batch Excel reports, please contact the admin for activation.'
-      );
-      return;
-    }
     
     const data: any[] = [
       { Section: 'SUMMARY', Category: 'Net Profit / Loss', Amount_BDT: finalNetProfit, Notes: `Margin: ${profitMarginPercent}%, ROI: ${roiPercent}%` },

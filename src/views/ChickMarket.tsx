@@ -82,9 +82,7 @@ export const ChickMarket: React.FC = () => {
   const isMasterAdmin = 
     Boolean(sysAdmin) || 
     currentUser?.email === 'skabusufian452@gmail.com' || 
-    currentUser?.email === 'sr0632890@gmail.com' ||
-    currentUser?.email === 'admin@digitalfarm.pro' || 
-    (currentUser as any)?.role === 'admin';
+    currentUser?.email === 'sr0632890@gmail.com';
   const isAdmin = isMasterAdmin;
 
   // Track IDs of ads created by this user/device for robust ownership recognition

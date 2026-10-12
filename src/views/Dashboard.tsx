@@ -1825,7 +1825,7 @@ export default function Dashboard() {
 
       {/* 9. Dynamic Batch SOP & Standard Feed Planner Modal */}
       {isSopModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fadeIn">
           <div className="max-w-5xl w-full my-auto">
             <BroilerDailySopCard
               batches={categoryBatches}

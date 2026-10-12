@@ -13,13 +13,21 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'skabusufian452@gmail.com' ||
-        request.auth.token.email == 'admin@digitalfarm.pro'
+        request.auth.token.email == 'sr0632890@gmail.com'
       );
     }
 
-    // Users Collection
+    // Users Collection - prevent self-promotion to admin role
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+        (!('role' in request.resource.data) || request.resource.data.role != 'admin') &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false);
+      allow update: if (isOwner(userId) && 
+        (!('role' in request.resource.data) || request.resource.data.role == resource.data.get('role', 'user')) &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == resource.data.get('isAdmin', false)))
+        || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // Batches
@@ -45,6 +53,12 @@ service cloud.firestore {
 
     // Medicine Records
     match /medicine_records/{recordId} {
+      allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
+    }
+
+    match /medicine/{recordId} {
       allow read, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) || isAdmin());
@@ -96,14 +110,16 @@ service cloud.firestore {
     match /marketplace_posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Market Buyers Directory
     match /market_buyers/{buyerId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Doctor Consultations / Prescription Requests
@@ -117,21 +133,24 @@ service cloud.firestore {
     match /doctor_listings/{listingId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Agro & Vet Feed & Medicine Store Directory Listings
     match /store_listings/{listingId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Hatchery Chick, Fingerling & Seedling Market Listings & Ads
     match /chick_listings/{listingId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && ((resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Benchmark Chick & DOC Market Rates (A, B, C Grades)
@@ -149,7 +168,8 @@ service cloud.firestore {
     // Manual Payment Requests Submitted by Users
     match /payment_requests/{requestId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid &&
+        (!('status' in request.resource.data) || request.resource.data.status == 'pending');
       allow update, delete: if isAdmin();
     }
 
@@ -173,6 +193,12 @@ service cloud.firestore {
     // System Settings & Feature Controls
     match /system_settings/{settingId} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // System Config (Market & Feature Settings)
+    match /system_config/{configId} {
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
   }

@@ -9,7 +9,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { SystemConfigProvider } from './contexts/SystemConfigContext';
 import { AdMobProvider } from './contexts/AdMobContext';
-import SubscriptionModal from './components/SubscriptionModal';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Login from './views/Login';
@@ -77,7 +76,6 @@ export default function App() {
       <LanguageProvider>
         <SystemConfigProvider>
           <Toaster position="top-center" />
-          <SubscriptionModal />
           <AppRoutes />
         </SystemConfigProvider>
       </LanguageProvider>

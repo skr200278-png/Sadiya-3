@@ -415,13 +415,13 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
     : activePoultrySchedule.filter(s => s.week === selectedWeekFilter);
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-200/80 shadow-2xl overflow-hidden animate-fadeIn max-h-[96vh] sm:max-h-[92vh] flex flex-col">
+    <div className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-200/80 shadow-2xl overflow-hidden animate-fadeIn max-h-[98vh] sm:max-h-[92vh] flex flex-col w-full">
       {/* 1. Header Banner & Universal Category Switcher */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-3 sm:p-5 shrink-0">
-        <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white p-2.5 sm:p-5 shrink-0">
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0 shadow-inner">
-              <ClipboardList size={20} className="text-emerald-300 sm:w-[22px] sm:h-[22px]" />
+            <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0 shadow-inner">
+              <ClipboardList size={18} className="text-emerald-300 sm:w-[22px] sm:h-[22px]" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -429,12 +429,12 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   {isBn ? 'বাস্তব খামার স্ট্যান্ডার্ড' : 'Commercial Farm SOP'}
                 </span>
                 {selectedBatch && (
-                  <span className="text-[11px] sm:text-xs text-emerald-200 font-bold truncate">
+                  <span className="text-[10px] sm:text-xs text-emerald-200 font-bold truncate">
                     {selectedBatch.name || selectedBatch.batchName} ({isBn ? `বয়স: ${batchAgeDays} দিন` : `Age: ${batchAgeDays}d`})
                   </span>
                 )}
               </div>
-              <h2 className="text-sm sm:text-lg font-black text-white mt-0.5 truncate">
+              <h2 className="text-xs sm:text-lg font-black text-white mt-0.5 truncate">
                 {isBn ? 'খামার এসওপি ও সুষম খাদ্য শিডিউল' : 'Farm SOP & Feed Schedule'}
               </h2>
             </div>
@@ -443,7 +443,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="text-white/70 hover:text-white p-1.5 rounded-xl hover:bg-white/15 transition-colors cursor-pointer shrink-0"
+              className="text-white/70 hover:text-white p-1 rounded-xl hover:bg-white/15 transition-colors cursor-pointer shrink-0 text-base sm:text-lg font-black"
               title={isBn ? 'বন্ধ করুন' : 'Close'}
             >
               ✕
@@ -452,24 +452,24 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
         </div>
 
         {/* Mobile Quick Status & Filter Expand Bar (sm:hidden) */}
-        <div className="sm:hidden mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 flex-wrap min-w-0 text-[11px]">
-            <span className="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black">
+        <div className="sm:hidden mt-2 pt-1.5 border-t border-white/15 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1 flex-wrap min-w-0 text-[10px]">
+            <span className="px-1.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black">
               {activeCategory === 'poultry'
                 ? (poultryBreed === 'broiler' ? '🍗 ব্রয়লার' : poultryBreed === 'sonali' ? '🐥 সোনালী' : '🥚 লেয়ার')
                 : (activeCategory === 'cattle' ? (cattleType === 'dairy' ? '🥛 ডেইরি' : '🐂 মোটাতাজা') : '🐟 মাছ')}
             </span>
-            <span className="px-2 py-0.5 rounded-lg bg-white/15 text-white font-bold">
-              {effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}
+            <span className="px-1.5 py-0.5 rounded-lg bg-white/15 text-white font-bold">
+              {effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'h'}
             </span>
             {activeCategory === 'poultry' && isBatchLive && (
-              <span className="px-2 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-200 font-bold">
-                {isBn ? `${batchAgeDays} দিন` : `Day ${batchAgeDays}`}
+              <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-200 font-bold">
+                {isBn ? `${batchAgeDays} দিন` : `D${batchAgeDays}`}
               </span>
             )}
             {activeCategory === 'poultry' && !isBatchLive && (
-              <span className="px-2 py-0.5 rounded-lg bg-amber-500/25 text-amber-200 font-bold">
-                {isBn ? 'কাস্টম হিসাব' : 'Simulation'}
+              <span className="px-1.5 py-0.5 rounded-lg bg-amber-500/25 text-amber-200 font-bold">
+                {isBn ? 'সিমুলেশন' : 'Sim'}
               </span>
             )}
           </div>
@@ -477,65 +477,65 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
           <button
             type="button"
             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-white/15 hover:bg-white/25 text-amber-300 border border-white/20 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+            className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-white/15 hover:bg-white/25 text-amber-300 border border-white/20 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
           >
-            <Sliders size={12} />
-            <span>{isMobileFiltersOpen ? (isBn ? 'সংক্ষিপ্ত ▲' : 'Hide ▲') : (isBn ? 'ব্যাচ/ফিল্টার ▼' : 'Filters ▼')}</span>
+            <Sliders size={11} />
+            <span>{isMobileFiltersOpen ? (isBn ? 'সংক্ষিপ্ত ▲' : 'Hide ▲') : (isBn ? 'ফিল্টার/ব্যাচ ▼' : 'Filters ▼')}</span>
           </button>
         </div>
 
         {/* Collapsible on Mobile, Always Visible on Desktop (sm:block) */}
-        <div className={`${isMobileFiltersOpen ? 'block' : 'hidden'} sm:block transition-all space-y-3`}>
+        <div className={`${isMobileFiltersOpen ? 'block' : 'hidden'} sm:block transition-all space-y-2 sm:space-y-3 bg-black/20 sm:bg-transparent p-2 sm:p-0 rounded-xl mt-2 sm:mt-0`}>
           {/* Top 3 Main Category Pills: পাখি (Poultry) | পশু (Cattle) | মাছ (Fish) */}
-          <div className="mt-3.5 pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-2xl border border-white/15">
+          <div className="pt-1 sm:pt-3 sm:border-t sm:border-white/15 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1 bg-black/40 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border border-white/15">
               <button
                 type="button"
                 onClick={() => setActiveCategory('poultry')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   activeCategory === 'poultry'
-                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.01]'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <Bird size={14} />
-                <span>{isBn ? '🐔 পাখি (মুরগি/হাঁস)' : '🐔 Poultry'}</span>
+                <Bird size={13} />
+                <span>{isBn ? '🐔 পাখি' : '🐔 Poultry'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveCategory('cattle')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   activeCategory === 'cattle'
-                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.01]'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <Milk size={14} />
-                <span>{isBn ? '🐄 পশু (গরু/মহিষ)' : '🐄 Cattle'}</span>
+                <Milk size={13} />
+                <span>{isBn ? '🐄 পশু' : '🐄 Cattle'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveCategory('fish')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   activeCategory === 'fish'
-                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.02]'
+                    ? 'bg-amber-400 text-slate-950 shadow-md scale-[1.01]'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <Fish size={14} />
-                <span>{isBn ? '🐟 মাছ চাষ' : '🐟 Aquaculture'}</span>
+                <Fish size={13} />
+                <span>{isBn ? '🐟 মাছ' : '🐟 Fish'}</span>
               </button>
             </div>
 
             {/* Sub-breed / Specific Type Selector */}
             {activeCategory === 'poultry' && (
-              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-[11px] sm:text-xs">
                 <button
                   type="button"
                   onClick={() => setPoultryBreed('broiler')}
-                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-black transition-all cursor-pointer ${
                     poultryBreed === 'broiler' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                   }`}
                 >
@@ -544,7 +544,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                 <button
                   type="button"
                   onClick={() => setPoultryBreed('sonali')}
-                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-black transition-all cursor-pointer ${
                     poultryBreed === 'sonali' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                   }`}
                 >
@@ -553,21 +553,21 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                 <button
                   type="button"
                   onClick={() => setPoultryBreed('layer')}
-                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-black transition-all cursor-pointer ${
                     poultryBreed === 'layer' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                   }`}
                 >
-                  🥚 {isBn ? 'লেয়ার (ডিম উৎপাদন)' : 'Layer (Commercial)'}
+                  🥚 {isBn ? 'লেয়ার' : 'Layer'}
                 </button>
               </div>
             )}
 
             {activeCategory === 'cattle' && (
-              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-[11px] sm:text-xs">
                 <button
                   type="button"
                   onClick={() => setCattleType('dairy')}
-                  className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
                     cattleType === 'dairy' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                   }`}
                 >
@@ -576,27 +576,27 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                 <button
                   type="button"
                   onClick={() => setCattleType('beef')}
-                  className={`px-3 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
                     cattleType === 'beef' ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                   }`}
                 >
-                  🐂 {isBn ? 'ষাঁড় মোটাতাজাকরণ' : 'Beef Fattening'}
+                  🐂 {isBn ? 'ষাঁড় মোটাতাজা' : 'Beef Fattening'}
                 </button>
               </div>
             )}
 
             {activeCategory === 'fish' && (
-              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-xs">
+              <div className="flex items-center gap-1 bg-emerald-950/80 p-0.5 rounded-xl border border-white/20 text-[11px] sm:text-xs">
                 {FISH_FEEDING_SCHEDULE.map((phase, idx) => (
                   <button
                     key={phase.stageId}
                     type="button"
                     onClick={() => setSelectedFishPhaseIdx(idx)}
-                    className={`px-2.5 py-1 rounded-lg font-black transition-all cursor-pointer ${
+                    className={`px-2 py-0.5 sm:py-1 rounded-lg font-black transition-all cursor-pointer ${
                       selectedFishPhaseIdx === idx ? 'bg-amber-400 text-slate-950' : 'text-emerald-200 hover:text-white'
                     }`}
                   >
-                    {isBn ? phase.titleBn.split(' ')[0] + ' ' + phase.titleBn.split(' ')[1] : phase.titleEn.split(' ')[0]}
+                    {isBn ? phase.titleBn.split(' ')[0] + ' ' + (phase.titleBn.split(' ')[1] || '') : phase.titleEn.split(' ')[0]}
                   </button>
                 ))}
               </div>
@@ -604,11 +604,11 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
           </div>
 
           {/* Dynamic Batch Selector & Live Bird/Animal Count Controls */}
-          <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="pt-2 sm:pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
             {/* Batch Selector */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-emerald-200 flex items-center gap-1">
-                <Package size={13} />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200 flex items-center gap-1">
+                <Package size={12} />
                 <span>{isBn ? 'ব্যাচ:' : 'Batch:'}</span>
               </span>
               <select
@@ -617,7 +617,7 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   setCurrentBatchId(e.target.value);
                   setIsSimulating(false);
                 }}
-                className="bg-emerald-950 text-white text-xs font-bold px-2.5 py-1 rounded-xl border border-emerald-500/40 focus:outline-none focus:border-amber-400 cursor-pointer"
+                className="bg-emerald-950 text-white text-[11px] sm:text-xs font-bold px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl border border-emerald-500/40 focus:outline-none focus:border-amber-400 cursor-pointer max-w-[170px] truncate"
               >
                 {batches.map((b) => (
                   <option key={b.id} value={b.id} className="bg-slate-900 text-white">
@@ -631,28 +631,28 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             </div>
 
             {/* Counts Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="px-2 py-0.5 bg-white/10 rounded-lg flex items-center gap-1 text-[11px] font-bold">
-                <span className="text-slate-300">{isBatchLive ? (isBn ? 'শুরুর সংখ্যা:' : 'Initial:') : (isBn ? 'নমুনা সংখ্যা:' : 'Sample:')}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="px-1.5 py-0.5 bg-white/10 rounded-lg flex items-center gap-1 text-[10px] sm:text-[11px] font-bold">
+                <span className="text-slate-300">{isBatchLive ? (isBn ? 'শুরু:' : 'Init:') : (isBn ? 'নমুনা:' : 'Sample:')}</span>
                 <span className="font-black text-white">{initialHeadCount.toLocaleString()}</span>
               </div>
 
               {isBatchLive && batchMortality > 0 && (
-                <div className="px-2 py-0.5 bg-rose-500/20 border border-rose-400/30 rounded-lg flex items-center gap-1 text-[11px] font-bold text-rose-200">
-                  <span>{isBn ? 'মৃত্যু বাদ:' : 'Mortality:'}</span>
+                <div className="px-1.5 py-0.5 bg-rose-500/20 border border-rose-400/30 rounded-lg flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-rose-200">
+                  <span>{isBn ? 'মৃত্যু:' : 'Mort:'}</span>
                   <span className="font-black text-white">{batchMortality.toLocaleString()}</span>
                 </div>
               )}
 
               {/* Effective Live Count Highlight */}
-              <div className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-xl flex items-center gap-1.5 font-black shadow-xs">
-                <span>{isBatchLive ? (isBn ? 'বর্তমান জীবিত:' : 'Live Count:') : (isBn ? 'হিসাব সংখ্যা:' : 'Count:')}</span>
-                <span className="text-xs underline">{effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'heads'}</span>
+              <div className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded-lg sm:rounded-xl flex items-center gap-1 font-black shadow-2xs text-[11px] sm:text-xs">
+                <span>{isBatchLive ? (isBn ? 'জীবিত:' : 'Live:') : (isBn ? 'সংখ্যা:' : 'Count:')}</span>
+                <span className="underline">{effectiveLiveCount.toLocaleString()} {isBn ? 'টি' : 'h'}</span>
               </div>
 
               {/* Custom Simulation Input */}
-              <div className="flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-xl">
-                <span className="text-[10px] text-slate-300 font-bold">{isBn ? 'অন্য সংখ্যা:' : 'Custom:'}</span>
+              <div className="flex items-center gap-1 bg-white/10 px-1.5 py-0.5 rounded-lg text-[10px]">
+                <span className="text-slate-300 font-bold">{isBn ? 'অন্য:' : 'Custom:'}</span>
                 <input
                   type="number"
                   min={1}
@@ -663,8 +663,8 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                     setSimulatedCount(val);
                     setIsSimulating(true);
                   }}
-                  className="w-16 bg-slate-900 text-white font-black text-xs px-1 py-0.5 rounded border border-white/20 text-center"
-                  title={isBn ? 'যে কোনো সংখ্যা লিখে খাদ্য হিসাব দেখতে পারেন' : 'Enter custom count to simulate'}
+                  className="w-14 bg-slate-900 text-white font-black text-xs px-1 py-0.2 rounded border border-white/20 text-center"
+                  title={isBn ? 'যে কোনো সংখ্যা লিখে খাদ্য হিসাব দেখতে পারেন' : 'Enter custom count'}
                 />
                 {isSimulating && (
                   <button
@@ -679,39 +679,48 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* Mobile collapse button */}
+              <button
+                type="button"
+                onClick={() => setIsMobileFiltersOpen(false)}
+                className="sm:hidden px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-2xs"
+              >
+                {isBn ? '✓ সম্পন্ন' : '✓ Done'}
+              </button>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation - Single Line with Horizontal Scroll on Mobile */}
-        <div className="flex items-center gap-1.5 mt-2.5 sm:mt-3 bg-emerald-950/60 p-1 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 mt-2 sm:mt-2.5 bg-emerald-950/60 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border border-white/10 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('today')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'today' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Calendar size={13} />
+            <Calendar size={12} />
             <span>
               {activeCategory === 'poultry' 
-                ? (poultryBreed === 'layer' ? (isBn ? `সপ্তাহ ${selectedLayerWeek}: ডিম ও খাদ্য` : `Wk ${selectedLayerWeek}: Feed`) : (isBn ? `দিন ${selectedDay} খাদ্য তালিকা` : `Day ${selectedDay} Plan`))
-                : (isBn ? 'আজকের পুষ্টি ও খাদ্য' : 'Daily Diet')}
+                ? (poultryBreed === 'layer' ? (isBn ? `সপ্তাহ ${selectedLayerWeek}: খাদ্য` : `Wk ${selectedLayerWeek}`) : (isBn ? `দিন ${selectedDay} খাদ্য তালিকা` : `Day ${selectedDay}`))
+                : (isBn ? 'আজকের খাদ্য' : 'Daily Diet')}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('full_chart')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'full_chart' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Layers size={13} />
+            <Layers size={12} />
             <span>
               {activeCategory === 'poultry'
-                ? (poultryBreed === 'layer' ? (isBn ? '১-৭২ সপ্তাহের চার্ট' : '1-72 Wk Layer Chart') : (isBn ? `১-${maxPoultryDays} দিনের পূর্ণাঙ্গ চার্ট (${effectiveLiveCount.toLocaleString()}টি)` : `1-${maxPoultryDays}d Master Chart`))
-                : (activeCategory === 'cattle' ? (isBn ? 'গরুর খাদ্য তালিকা' : 'Cattle Ration Chart') : (isBn ? 'মাছের খাদ্য চার্ট' : 'Fish Schedule'))}
+                ? (poultryBreed === 'layer' ? (isBn ? '১-৭২ সপ্তাহের চার্ট' : '1-72 Wk Chart') : (isBn ? `১-${maxPoultryDays} দিনের পূর্ণাঙ্গ চার্ট` : `1-${maxPoultryDays}d Chart`))
+                : (activeCategory === 'cattle' ? (isBn ? 'খাদ্য চার্ট' : 'Ration Chart') : (isBn ? 'মাছের চার্ট' : 'Schedule'))}
             </span>
           </button>
 
@@ -719,19 +728,19 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('crop_brood')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'crop_brood' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-emerald-100 hover:text-white hover:bg-white/10'
               }`}
             >
-              <Sliders size={13} />
-              <span>{isBn ? 'ব্রুডিং ও ক্রপ ফিল' : 'Brooding SOP'}</span>
+              <Sliders size={12} />
+              <span>{isBn ? 'ব্রুডিং ও এসওপি' : 'Brooding SOP'}</span>
             </button>
           )}
         </div>
       </div>
 
       {/* 2. Main Content Area */}
-      <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+      <div className="p-2.5 sm:p-5 overflow-y-auto flex-1 space-y-3 sm:space-y-4">
         
         {/* ========================================================================= */}
         {/* CATEGORY: 1. POULTRY (BROILER / SONALI / LAYER)                           */}
@@ -1139,23 +1148,23 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                     </div>
 
                     {/* Mobile View Toggle: Cards vs Table */}
-                    <div className="flex items-center gap-1 bg-white border border-slate-200 p-0.5 rounded-xl text-xs sm:hidden shrink-0">
+                    <div className="flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-xl text-xs sm:hidden shrink-0 shadow-2xs">
                       <button
                         type="button"
                         onClick={() => setFullChartMobileMode('cards')}
-                        className={`px-2 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer ${
-                          fullChartMobileMode === 'cards' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600'
+                        className={`px-2.5 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer transition-all ${
+                          fullChartMobileMode === 'cards' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
                         }`}
-                        title={isBn ? 'মোবাইল কার্ড ভিউ' : 'Card View'}
+                        title={isBn ? 'মোবাইল কার্ড ভিউ (স্ক্রিনে ফিট)' : 'Card View'}
                       >
                         <LayoutGrid size={12} />
-                        <span>{isBn ? 'কার্ড' : 'Card'}</span>
+                        <span>{isBn ? 'মোবাইল কার্ড' : 'Cards'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setFullChartMobileMode('table')}
-                        className={`px-2 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer ${
-                          fullChartMobileMode === 'table' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600'
+                        className={`px-2.5 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer transition-all ${
+                          fullChartMobileMode === 'table' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
                         }`}
                         title={isBn ? 'টেবিল ভিউ' : 'Table View'}
                       >
@@ -1165,19 +1174,23 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-[11px] sm:text-xs font-bold text-slate-600 flex items-center gap-1">
+                  <div className="text-[10px] sm:text-xs font-bold text-slate-600 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                     <span>
                       {isBn 
-                        ? `১ থেকে ${maxPoultryDays} দিনের হিসাব (${effectiveLiveCount.toLocaleString()}টি জীবিত মুরগি)` 
-                        : `1 to ${maxPoultryDays} Days for ${effectiveLiveCount.toLocaleString()} Live Birds`}
+                        ? `১-${maxPoultryDays} দিন (${effectiveLiveCount.toLocaleString()}টি জীবিত)` 
+                        : `1-${maxPoultryDays}d (${effectiveLiveCount.toLocaleString()} live)`}
                     </span>
                   </div>
                 </div>
 
-                {/* Mobile Cards View */}
+                {/* Mobile Cards View (100% Mobile Screen Fitted, No Horizontal Overflow) */}
                 {fullChartMobileMode === 'cards' && (
-                  <div className="sm:hidden space-y-2.5">
+                  <div className="sm:hidden space-y-2">
+                    <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center justify-between">
+                      <span>📱 মোবাইল স্ক্রিন ফিট ভিউ</span>
+                      <span className="text-[10px] text-emerald-600">সব তথ্য সহজে দৃশ্যমান</span>
+                    </div>
                     {filteredPoultryDays.map((row) => {
                       const isToday = isBatchLive && Math.round(batchAgeDays) === row.day;
                       const tasks = isBn ? row.tasksBn : row.tasks;
@@ -1188,46 +1201,46 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                       return (
                         <div 
                           key={row.day}
-                          className={`p-3 rounded-2xl border transition-all ${
+                          className={`p-2.5 rounded-2xl border transition-all ${
                             isToday
                               ? 'bg-amber-50/90 border-amber-400 shadow-md ring-2 ring-amber-400/50'
                               : 'bg-white border-slate-200 shadow-2xs hover:border-slate-300'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2 border-b border-slate-150 pb-2 mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-1 rounded-xl text-xs font-black ${
+                          <div className="flex items-center justify-between gap-1.5 border-b border-slate-150 pb-1.5 mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${
                                 isToday ? 'bg-amber-400 text-slate-950' : 'bg-slate-900 text-white'
                               }`}>
                                 {isBn ? `দিন ${row.day}` : `Day ${row.day}`}
                               </span>
-                              <span className="text-[11px] font-bold text-slate-500">
+                              <span className="text-[10px] font-bold text-slate-500">
                                 {isBn ? `সপ্তাহ ${row.week}` : `Wk ${row.week}`}
                               </span>
                               {isToday && (
-                                <span className="px-2 py-0.5 rounded-lg bg-amber-200 text-amber-900 text-[10px] font-black animate-pulse">
-                                  {isBn ? '🌟 আজকের দিন' : 'Today'}
+                                <span className="px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900 text-[9px] font-black animate-pulse">
+                                  {isBn ? '🌟 আজ' : 'Today'}
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
-                              <span className="px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">
+                            <div className="flex items-center gap-1 text-[10px] font-bold">
+                              <span className="px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700">
                                 🌡️ {row.tempFMin}-{row.tempFMax}°F
                               </span>
                               {row.fcrStd > 0 && (
-                                <span className="px-1.5 py-0.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700">
+                                <span className="px-1 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-700">
                                   FCR {row.fcrStd.toFixed(2)}
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="grid grid-cols-2 gap-1.5 text-xs">
                             <div className="bg-amber-100/60 p-2 rounded-xl border border-amber-200 space-y-0.5">
-                              <span className="text-[10px] font-bold text-amber-900 uppercase block">
+                              <span className="text-[9px] font-bold text-amber-900 uppercase block">
                                 {isBn ? '🌾 মোট খাদ্য (আজ)' : '🌾 Total Feed'}
                               </span>
-                              <div className="text-base font-black text-amber-950">
+                              <div className="text-sm font-black text-amber-950">
                                 {rowFlockFeedKg} {isBn ? 'কেজি' : 'kg'}
                               </div>
                               <div className="text-[10px] font-semibold text-amber-800">
@@ -1236,10 +1249,10 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                             </div>
 
                             <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-200 space-y-0.5">
-                              <span className="text-[10px] font-bold text-emerald-900 uppercase block">
+                              <span className="text-[9px] font-bold text-emerald-900 uppercase block">
                                 {isBn ? '⚖️ টার্গেট ওজন' : '⚖️ Target Wt'}
                               </span>
-                              <div className="text-base font-black text-emerald-950">
+                              <div className="text-sm font-black text-emerald-950">
                                 {row.bodyWeightGm} {isBn ? 'গ্রাম' : 'g'}
                               </div>
                               <div className="text-[10px] font-semibold text-emerald-700">
@@ -1249,8 +1262,8 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                           </div>
 
                           {tasks && tasks.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-0.5">
-                              <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[10px] text-slate-600 space-y-0.5">
+                              <span className="text-[9px] font-bold text-slate-400 block uppercase">
                                 {isBn ? '📋 নির্দিষ্ট কাজ:' : 'Key Tasks:'}
                               </span>
                               {tasks.slice(0, 2).map((t, idx) => (
@@ -1267,26 +1280,34 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   </div>
                 )}
 
-                {/* Master Table with Sticky Day Column and Sticky Header */}
-                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto max-h-[68vh] sm:max-h-[74vh] overflow-y-auto rounded-2xl border border-slate-200 relative`}>
+                {/* Master Table with Horizontal Scroll Support on Mobile */}
+                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto rounded-2xl border border-slate-200 relative bg-white shadow-2xs`}>
+                  {/* Mobile Horizontal Swipe Notice */}
+                  <div className="sm:hidden flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 border-b border-emerald-200 text-[10px] font-bold text-emerald-900">
+                    <span className="flex items-center gap-1">
+                      <span>↔️ ডানে-বামে সোয়াইপ করে সব কলাম দেখুন</span>
+                    </span>
+                    <span className="text-emerald-700 bg-emerald-100/80 px-1.5 py-0.2 rounded font-black">(দিন কলাম স্থির)</span>
+                  </div>
+
                   <table className="w-full text-left text-xs border-separate border-spacing-0">
                     <thead className="sticky top-0 z-30 shadow-xs">
-                      <tr className="bg-slate-900 text-white font-black text-[11px]">
-                        <th className="py-3 px-3 whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 text-amber-300 shadow-xs border-b border-slate-700">
+                      <tr className="bg-slate-900 text-white font-black text-[10px] sm:text-[11px]">
+                        <th className="py-2.5 sm:py-3 px-2 sm:px-3 whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 text-amber-300 shadow-xs border-b border-slate-700">
                           {isBn ? 'দিন' : 'Day'}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? '১টির খাদ্য (gm)' : '1 Bird (gm)'}</th>
-                        <th className="py-3 px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-amber-950 text-amber-200 border-b border-amber-800">
-                          {isBn ? `ব্যাচের মোট খাদ্য (${effectiveLiveCount}টি)` : `Batch Feed (Kg)`}
+                        <th className="py-2.5 sm:py-3 px-1.5 sm:px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? '১টির খাদ্য' : '1 Bird (gm)'}</th>
+                        <th className="py-2.5 sm:py-3 px-2 sm:px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-amber-950 text-amber-200 border-b border-amber-800">
+                          {isBn ? `মোট খাদ্য (${effectiveLiveCount}টি)` : `Batch Feed`}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'সর্বমোট খাদ্য' : 'Cum Feed'}</th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'গড় ওজন (gm)' : 'Std Wt (gm)'}</th>
-                        <th className="py-3 px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-emerald-950 text-emerald-200 border-b border-emerald-800">
-                          {isBn ? 'মোট ওজন (কেজি)' : 'Live Biomass (kg)'}
+                        <th className="py-2.5 sm:py-3 px-1.5 sm:px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'সর্বমোট' : 'Cum Feed'}</th>
+                        <th className="py-2.5 sm:py-3 px-1.5 sm:px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'গড় ওজন' : 'Std Wt'}</th>
+                        <th className="py-2.5 sm:py-3 px-2 sm:px-3 text-center whitespace-nowrap sticky top-0 z-30 bg-emerald-950 text-emerald-200 border-b border-emerald-800">
+                          {isBn ? 'মোট ওজন' : 'Biomass'}
                         </th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'STD FCR' : 'STD FCR'}</th>
-                        <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'তাপমাত্রা (°F)' : 'Temp °F'}</th>
-                        <th className="py-3 px-4 min-w-[260px] sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'ফার্ম কাজের শিডিউল (SOP Work)' : 'Daily Work Schedule'}</th>
+                        <th className="py-2.5 sm:py-3 px-1.5 sm:px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">FCR</th>
+                        <th className="py-2.5 sm:py-3 px-1.5 sm:px-2.5 text-center whitespace-nowrap sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'তাপমাত্রা' : 'Temp'}</th>
+                        <th className="py-2.5 sm:py-3 px-3 sm:px-4 min-w-[190px] sm:min-w-[260px] sticky top-0 z-30 bg-slate-900 border-b border-slate-700">{isBn ? 'ফার্ম কাজের শিডিউল' : 'Daily SOP Work'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150">
@@ -1309,47 +1330,51 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                                   : 'hover:bg-slate-50'
                             }`}
                           >
-                            <td className={`py-2.5 px-3 font-black whitespace-nowrap sticky left-0 z-20 ${
+                            <td className={`py-2 sm:py-2.5 px-2 sm:px-3 font-black whitespace-nowrap sticky left-0 z-20 ${
                               isToday ? 'bg-amber-100 text-slate-950 font-black' : 'bg-white text-slate-900 group-hover:bg-slate-50'
                             } border-r border-b border-slate-200 shadow-2xs`}>
-                              <div className="flex items-center gap-1.5">
-                                <span>{isBn ? `দিন ${row.day}` : `D ${row.day}`}</span>
+                              <div className="flex items-center gap-1">
+                                <span>{isBn ? `দিন ${row.day}` : `D${row.day}`}</span>
                                 {isToday && (
-                                  <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 text-[9px] font-black rounded-md">
-                                    {isBn ? 'আজ' : 'Today'}
+                                  <span className="px-1 py-0.2 bg-amber-500 text-slate-950 text-[8px] sm:text-[9px] font-black rounded">
+                                    {isBn ? 'আজ' : 'Now'}
                                   </span>
                                 )}
                               </div>
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-700 border-b border-slate-100">{row.feedDailyGm}</td>
+                            <td className="py-2 sm:py-2.5 px-1.5 sm:px-2.5 text-center font-bold text-slate-700 border-b border-slate-100 text-[11px] sm:text-xs">
+                              {row.feedDailyGm}g
+                            </td>
 
-                            <td className="py-2.5 px-3 text-center font-black text-amber-900 bg-amber-50/80 whitespace-nowrap border-b border-amber-100">
+                            <td className="py-2 sm:py-2.5 px-2 sm:px-3 text-center font-black text-amber-900 bg-amber-50/80 whitespace-nowrap border-b border-amber-100 text-[11px] sm:text-xs">
                               <span>{rowFlockFeedKg} কেজি</span>
-                              <span className="text-[10px] text-slate-500 font-bold block">
-                                ({rowFlockFeedBags} বস্তা)
+                              <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold block">
+                                ({rowFlockFeedBags} ব)
                               </span>
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-slate-600 whitespace-nowrap border-b border-slate-100">
+                            <td className="py-2 sm:py-2.5 px-1.5 sm:px-2.5 text-center font-bold text-slate-600 whitespace-nowrap border-b border-slate-100 text-[11px] sm:text-xs">
                               {rowFlockCumFeedKg} kg
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-black text-slate-800 border-b border-slate-100">{row.bodyWeightGm}</td>
-
-                            <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-emerald-50/60 whitespace-nowrap border-b border-emerald-100">
-                              {rowFlockBiomassKg} কেজি
+                            <td className="py-2 sm:py-2.5 px-1.5 sm:px-2.5 text-center font-black text-slate-800 border-b border-slate-100 text-[11px] sm:text-xs">
+                              {row.bodyWeightGm}g
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-bold text-purple-900 border-b border-slate-100">
+                            <td className="py-2 sm:py-2.5 px-2 sm:px-3 text-center font-black text-emerald-900 bg-emerald-50/80 whitespace-nowrap border-b border-emerald-100 text-[11px] sm:text-xs">
+                              {rowFlockBiomassKg} kg
+                            </td>
+
+                            <td className="py-2 sm:py-2.5 px-1.5 sm:px-2.5 text-center font-bold text-purple-700 border-b border-slate-100 text-[11px] sm:text-xs">
                               {row.fcrStd > 0 ? row.fcrStd.toFixed(2) : '-'}
                             </td>
 
-                            <td className="py-2.5 px-2.5 text-center font-semibold text-rose-700 whitespace-nowrap border-b border-slate-100">
+                            <td className="py-2 sm:py-2.5 px-1.5 sm:px-2.5 text-center font-bold text-rose-700 whitespace-nowrap border-b border-slate-100 text-[10px] sm:text-xs">
                               {row.tempFMin}-{row.tempFMax}°F
                             </td>
 
-                            <td className="py-2.5 px-4 text-slate-700 text-[11px] leading-relaxed border-b border-slate-100">
+                            <td className="py-2 sm:py-2.5 px-2.5 sm:px-4 text-slate-700 text-[10px] sm:text-[11px] leading-relaxed border-b border-slate-100">
                               {tasks.map((t, tidx) => (
                                 <div key={tidx} className="flex items-start gap-1 py-0.5">
                                   <span className="text-emerald-600 font-bold">•</span>

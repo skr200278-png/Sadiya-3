@@ -639,16 +639,7 @@ export default function Sales() {
           </div>
         </div>
         <button 
-          onClick={() => {
-            if (!showForm && !hasAccess('salesRecordsFree')) {
-              openSubscriptionModal(
-                language === 'bn' ? 'বিক্রয় রেকর্ড ও চালান রশিদ' : 'Sales Records & Invoices',
-                language === 'bn' ? 'বিক্রয় খাতা ও ডিজিটাল চালান এন্ট্রি সুবিধাটি আনলক করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To record product sales and invoices, please contact admin for subscription activation.'
-              );
-              return;
-            }
-            setShowForm(!showForm);
-          }}
+          onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all shadow-sm cursor-pointer"
         >
           <Plus size={18} />

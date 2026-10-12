@@ -300,11 +300,11 @@ export const DEFAULT_PLANS: SubscriptionPlan[] = [
 ];
 
 const DEFAULT_CONFIG: FeatureControls = {
-  monetizationEnabled: true,
+  monetizationEnabled: false, // 100% FREE MODE: zero payment methods, zero digital paywalls, monetized purely via Google AdMob
   appLockRequired: false,
-  subscriptionPrice: 150,
-  storeListingPrice: 300,
-  doctorListingPrice: 300,
+  subscriptionPrice: 0,
+  storeListingPrice: 0,
+  doctorListingPrice: 0,
   marketplacePostFree: true,
   marketplaceBuyerFree: true,
   doctorListingFree: true,
@@ -317,31 +317,31 @@ const DEFAULT_CONFIG: FeatureControls = {
   farmAnalyticsFree: true,
   whitelistedUsers: [],
   paymentNumbers: {
-    bkash: '01410991934',
+    bkash: '',
     bkashType: 'personal',
-    nagad: '01410991934',
+    nagad: '',
     nagadType: 'personal',
-    rocket: '01410991934',
+    rocket: '',
     rocketType: 'personal',
-    bankInfo: 'Dutch-Bangla Bank / Sonali Bank / Islami Bank',
-    bankName: 'Dutch-Bangla Bank PLC / Sonali Bank PLC',
-    bankAccountName: 'Md. Abu Sufian',
-    bankAccountNumber: '123.101.456789',
-    bankBranch: 'Main Branch, Dhaka',
-    bankRoutingNumber: '090260123',
-    bankSwiftCode: 'DBBLBDDH',
-    instructionsBn: 'বিকাশ/নগদ/রকেট বা ব্যাংকে সরাসরি ট্রান্সফার/রেমিট্যান্স পাঠিয়ে ট্রানজেকশন আইডি (TrxID) ও ডিপোজিট স্লিপ সাবমিট করুন অথবা হোয়াটসঅ্যাপে জানান।',
-    instructionsEn: 'Send payment via bKash/Nagad/Rocket or Bank Transfer/Remittance and submit your TrxID or receipt on WhatsApp.'
+    bankInfo: '',
+    bankName: '',
+    bankAccountName: '',
+    bankAccountNumber: '',
+    bankBranch: '',
+    bankRoutingNumber: '',
+    bankSwiftCode: '',
+    instructionsBn: '',
+    instructionsEn: ''
   },
   adminWhatsApp: '8801410991934',
   adminPhone: '01410991934',
   adminEmail: 'skabusufian452@gmail.com',
   adminName: 'আবু সুফিয়ান',
-  disclaimerTextBn: 'সতর্কতা: পণ্য বা ডেলিভারি বুঝে নেওয়ার আগে কোনো অবস্থাতেই কাউকে বিকাশ, নগদ বা ব্যাংকে অগ্রিম টাকা পাঠাবেন না। কেউ আগে টাকা পাঠিয়ে প্রতারিত হলে অথবা বাকিতে বিক্রয় করে ক্ষতিগ্রস্থ হলে অ্যাপ মালিক বা অ্যাপ কর্তৃপক্ষ কোনোভাবেই দায়ী থাকবে না। লেনদেনের পূর্বে নিজ দায়িত্বে যাচাই-বাছাই করুন।',
-  disclaimerTextEn: 'Warning: Never send advance payment (bKash/Nagad/Bank) before physically receiving the goods. The app owner or authority is strictly NOT responsible for any advance money fraud, non-delivery, or unpaid credit. Please verify all parties independently before transacting.',
-  subscriptionNoticeBn: 'এই প্রিমিয়াম সেবাটি আপনার অ্যাকাউন্টে সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।',
-  subscriptionNoticeEn: 'To activate this premium feature on your account, please contact the app admin.',
-  playStoreComplianceMode: false
+  disclaimerTextBn: 'সতর্কতা: পণ্য বা ডেলিভারি বুঝে নেওয়ার আগে কোনো অবস্থাতেই কাউকে কোনো অগ্রিম টাকা পাঠাবেন না। কেউ আগে টাকা পাঠিয়ে প্রতারিত হলে অথবা বাকিতে বিক্রয় করে ক্ষতিগ্রস্থ হলে অ্যাপ মালিক বা অ্যাপ কর্তৃপক্ষ কোনোভাবেই দায়ী থাকবে না। লেনদেনের পূর্বে নিজ দায়িত্বে যাচাই-বাছাই করুন।',
+  disclaimerTextEn: 'Warning: Never send advance money before physically receiving the goods. The app owner or authority is strictly NOT responsible for any advance money fraud, non-delivery, or unpaid credit. Please verify all parties independently before transacting.',
+  subscriptionNoticeBn: '',
+  subscriptionNoticeEn: '',
+  playStoreComplianceMode: true
 };
 
 interface SystemConfigContextType {
@@ -448,15 +448,12 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     featureDesc: ''
   });
 
-  const isAdmin = 
-    currentUser?.email === MASTER_ADMIN_EMAIL || 
-    currentUser?.email === 'sr0632890@gmail.com' ||
-    currentUser?.email === 'admin@digitalfarm.pro' ||
-    (currentUser as any)?.role === 'admin' ||
-    userProfileData?.role === 'admin' ||
-    userProfileData?.isAdmin === true ||
-    extractPhoneDigits(currentUser?.email) === '01410991934' ||
-    extractPhoneDigits(userProfileData?.phone) === '01410991934';
+  const isAdmin = Boolean(
+    currentUser?.email && (
+      currentUser.email === MASTER_ADMIN_EMAIL ||
+      currentUser.email === 'sr0632890@gmail.com'
+    )
+  );
 
   // 1. Listen to user profile document
   useEffect(() => {
@@ -664,44 +661,12 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
 
   const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
 
-  // Compute if current user is active VIP / Premium
-  const hasActiveSub = Boolean(
-    !isPlayStoreBuild &&
-    userSubscription && 
-    userSubscription.status === 'active' && 
-    (userSubscription.isLifetime || (userSubscription.expiresAt && new Date(userSubscription.expiresAt).getTime() > Date.now()))
-  );
+  // 100% Free Farm Manager: All features and tools are free for all farmers
+  const isPremium = true;
 
-  const isPremium = Boolean(isAdmin || (!isPlayStoreBuild && (isWhitelisted || hasActiveSub)));
-
-  const hasAccess = (feature: keyof Omit<FeatureControls, 'whitelistedUsers' | 'paymentNumbers' | 'adminWhatsApp' | 'adminPhone' | 'adminEmail' | 'adminName' | 'disclaimerTextBn' | 'disclaimerTextEn' | 'subscriptionNoticeBn' | 'subscriptionNoticeEn'>): boolean => {
-    // In Google Play Store build, all features are 100% free and open for all farmers (zero digital paywalls)
-    if (isPlayStoreBuild) {
-      return true;
-    }
-
-    // 0. If Global Monetization is disabled by Admin, everything is 100% FREE for all users
-    if (config.monetizationEnabled === false) {
-      return true;
-    }
-
-    // 1. Admin always has full access
-    if (isAdmin) return true;
-
-    // 2. If user is VIP / Premium / Whitelisted, full access
-    if (isPremium) return true;
-
-    // 3. If Master Global App Lock is ON, non-VIP users are blocked
-    if (config.appLockRequired) {
-      return false;
-    }
-
-    // 4. If individual feature is marked as free, all users have access
-    const isFeatureFree = config[feature];
-    if (isFeatureFree !== false) return true;
-
-    // 5. Otherwise locked
-    return false;
+  const hasAccess = (): boolean => {
+    // In Clean 100% Free Farm Manager Edition, all features are 100% free and open for all farmers (zero digital paywalls)
+    return true;
   };
 
   const updateConfig = async (newConfig: Partial<FeatureControls>): Promise<boolean> => {
@@ -1141,13 +1106,8 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const openSubscriptionModal = (featureTitle: string, featureDesc?: string) => {
-    if (isPlayStoreBuild) return;
-    setSubscriptionModal({
-      isOpen: true,
-      featureTitle,
-      featureDesc
-    });
+  const openSubscriptionModal = () => {
+    // 100% Free Edition: all features are free and unlocked
   };
 
   const closeSubscriptionModal = () => {

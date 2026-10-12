@@ -69,10 +69,9 @@ export default function StoreDirectory() {
   const { hasAccess, openSubscriptionModal, isAdmin } = useSystemConfig();
 
   const isMasterAdmin = 
-    isAdmin || 
+    Boolean(isAdmin) || 
     currentUser?.email === 'skabusufian452@gmail.com' || 
-    currentUser?.email === 'admin@digitalfarm.pro' ||
-    (currentUser as any)?.role === 'admin';
+    currentUser?.email === 'sr0632890@gmail.com';
 
   // Track IDs of stores created by this user/device for robust ownership recognition
   const [myCreatedStoreIds, setMyCreatedStoreIds] = useState<string[]>(() => {
@@ -167,16 +166,8 @@ export default function StoreDirectory() {
     }
   }, [isDemoUser]);
 
-  // Open Form with VIP check
+  // Open Form
   const handleOpenForm = (storeToEdit?: DemoStoreListing) => {
-    if (!storeToEdit && !canPostStore) {
-      openSubscriptionModal(
-        language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Agri-Vet Store Directory',
-        language === 'bn' ? 'আপনার দোকান, ডিলারশিপ বা ফিড-ঔষধ বিক্রির বিজ্ঞাপন পোস্ট করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To post your shop or veterinary medicine dealership, please contact the admin for subscription.'
-      );
-      return;
-    }
-
     if (storeToEdit) {
       setEditingStoreId(storeToEdit.id);
       setCountry(storeToEdit.country || 'BD');
@@ -247,14 +238,6 @@ export default function StoreDirectory() {
     e.preventDefault();
     if (!currentUser) return;
     if (isSubmitting || submitLock.current) return;
-
-    if (!canPostStore && !editingStoreId) {
-      openSubscriptionModal(
-        language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Agri-Vet Store Directory',
-        language === 'bn' ? 'আপনার দোকান বা ডিলারশিপ লিস্টিং সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact admin to activate your store listing.'
-      );
-      return;
-    }
 
     if (!shopName.trim()) {
       return toast.error(language === 'bn' ? 'দোকানের নাম লিখুন' : 'Please enter shop name');
@@ -532,36 +515,6 @@ export default function StoreDirectory() {
           </div>
         </div>
       </div>
-
-      {/* 2. Premium/Subscription Notice Banner if locked */}
-      {!canPostStore && (
-        <div className="bg-linear-to-r from-amber-500 via-rose-500 to-slate-900 text-white p-3 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-              <Lock size={16} className="text-yellow-200" />
-            </div>
-            <div>
-              <p className="text-xs font-black leading-tight">
-                {language === 'bn' ? 'দোকানদার ভাইদের জন্য বিশেষ বিজ্ঞাপন সুবিধা' : 'Special Store Listing for Dealers'}
-              </p>
-              <p className="text-[10px] text-amber-100 font-medium mt-0.5">
-                {language === 'bn' ? 'আপনার দোকানটি ৬৪ জেলার হাজারো খামারির কাছে পৌঁছাতে অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Contact admin to list your shop for thousands of farmers.'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => openSubscriptionModal(
-              language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Store Directory',
-              language === 'bn' ? 'আপনার দোকান বা ফিড-ঔষধ ডিলারশিপের বিজ্ঞাপন পোস্ট করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact admin to activate your store listing.'
-            )}
-            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-slate-950 rounded-xl text-[11px] font-black shrink-0 shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
-          >
-            <Sparkles size={13} />
-            <span>{language === 'bn' ? 'সক্রিয় করুন' : 'Activate'}</span>
-          </button>
-        </div>
-      )}
 
       {/* Prominent Fraud & Advance Money Disclaimer Notice */}
       <MarketplaceDisclaimerBanner />

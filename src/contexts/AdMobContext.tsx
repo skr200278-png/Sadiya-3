@@ -62,17 +62,18 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [isRewardedReady, setIsRewardedReady] = useState(false);
   const location = useLocation();
-  const { userSubscription } = useSystemConfig();
+  const { userSubscription, isAdmin } = useSystemConfig();
   const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
 
-  // Ads are ONLY suppressed for users who have an active paid VIP subscription document.
-  // Neither Admin nor free farmers have ads blocked, ensuring ads always serve and can be verified.
-  const isAdFreeUser = Boolean(
-    !isPlayStoreBuild &&
-    userSubscription && 
-    userSubscription.status === 'active' && 
-    (userSubscription.isLifetime || (userSubscription.expiresAt && new Date(userSubscription.expiresAt).getTime() > Date.now()))
-  );
+  // For Admin: Auto-enable official Google Test Ads mode to ensure zero invalid click penalties or strikes
+  useEffect(() => {
+    if (isAdmin) {
+      admobService.setTestMode(true);
+    }
+  }, [isAdmin]);
+
+  // In 100% Free Farm Manager, all features are free and monetized cleanly via Google AdMob
+  const isAdFreeUser = false;
 
   // Synchronize ad suppression with the native service
   useEffect(() => {

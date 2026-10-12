@@ -13,7 +13,7 @@ import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 export default function Layout() {
   const { currentUser, isDemoUser, logout } = useAuth();
   const { t, language } = useLanguage();
-  const { config, isPremium, isAdmin, openSubscriptionModal } = useSystemConfig();
+  const { config, isPremium, isAdmin } = useSystemConfig();
   const location = useLocation();
   const [profileData, setProfileData] = useState<any>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);

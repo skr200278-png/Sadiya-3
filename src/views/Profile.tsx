@@ -5,7 +5,7 @@ import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fas
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language, SUPPORTED_COUNTRIES } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { User, LogOut, CheckCircle, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff, Coins } from 'lucide-react';
+import { User, LogOut, CheckCircle, CheckCircle2, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff, Coins } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -375,81 +375,28 @@ export default function Profile() {
         </p>
       </div>
 
-      {/* VIP Membership / Plan Status Card for All Users */}
-      <div className={`p-4 rounded-2xl shadow-sm border transition-all ${
-        isPremium
-          ? 'bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-slate-900/5 border-amber-300'
-          : 'bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white border-slate-700'
-      }`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
-              isPremium ? 'bg-amber-400 text-slate-950 shadow-xs' : 'bg-white/10 text-amber-300'
-            }`}>
-              <Crown size={20} />
+      {/* 100% Free Farm Manager Edition Status Card */}
+      <div className="p-4 rounded-2xl shadow-xs border border-emerald-200 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+            <CheckCircle2 size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black text-emerald-950">
+                {currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার — সম্পূর্ণ ফ্রি সংস্করণ' : 'Farm Manager — 100% Free Edition'}
+              </h4>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
+                {currentLanguage === 'bn' ? '১০০% উন্মুক্ত' : 'ALL FREE'}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className={`text-sm font-black ${isPremium ? 'text-amber-900' : 'text-amber-300'}`}>
-                  {isPremium 
-                    ? (currentLanguage === 'bn' ? '💎 ভিআইপি প্রো মেম্বারশিপ সক্রিয়' : '💎 VIP PRO Membership Active')
-                    : (currentLanguage === 'bn' ? '🚀 ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : '🚀 Farm Manager Premium Packages')}
-                </h4>
-                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                  isPremium ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-400 text-slate-950'
-                }`}>
-                  {isPremium ? (currentLanguage === 'bn' ? 'আনলকড' : 'UNLOCKED') : (currentLanguage === 'bn' ? 'প্রো সুবিধা' : 'PRO')}
-                </span>
-              </div>
-              <p className={`text-xs mt-0.5 ${isPremium ? 'text-gray-600' : 'text-slate-300'}`}>
-                {isPremium 
-                  ? (userSubscription?.isLifetime || userSubscription?.expiresAt === 'lifetime'
-                      ? (currentLanguage === 'bn' ? 'আজীবন আনলিমিটেড লাইসেন্স সক্রিয়' : 'Lifetime unlimited license active')
-                      : (currentLanguage === 'bn' 
-                          ? `মেয়াদ: ${userSubscription?.expiresAt ? new Date(userSubscription.expiresAt).toLocaleDateString('bn-BD') : 'সক্রিয়'}`
-                          : `Expires: ${userSubscription?.expiresAt ? new Date(userSubscription.expiresAt).toLocaleDateString() : 'Active'}`))
-                  : (currentLanguage === 'bn' 
-                      ? 'বিজ্ঞাপন পোস্ট, বকেয়া খাতা, এক্সেল রিপোর্ট ও ভিআইপি খামার ব্যবস্থাপনা' 
-                      : 'Ad posting, dues khata, excel export & VIP farm management')}
-              </p>
-              {isPremium && (
-                <div className="mt-1">
-                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                    <span>🚫</span>
-                    <span>{currentLanguage === 'bn' ? '১০০% বিজ্ঞাপন-মুক্ত মোড সক্রিয়' : '100% Ad-Free Experience Active'}</span>
-                  </span>
-                </div>
-              )}
-            </div>
+            <p className="text-xs text-emerald-800/80 mt-0.5 leading-relaxed font-medium">
+              {currentLanguage === 'bn'
+                ? 'সকল খামারিদের জন্য অ্যাপের সব টুলস, ব্যাচ হিসাব, এফসিআর ক্যালকুলেটর, এসওপি এবং রিপোর্ট আজীবন সম্পূর্ণ ফ্রি।'
+                : 'All farm tools, batch calculators, FCR charts, SOPs, and reports are 100% free forever for all farmers.'}
+            </p>
           </div>
         </div>
-
-        {import.meta.env.VITE_DISTRIBUTION_CHANNEL !== 'playstore' && (
-          <div className="mt-3 pt-3 border-t border-slate-700/40 flex items-center justify-between gap-2">
-            <span className={`text-[11px] font-semibold ${isPremium ? 'text-amber-900' : 'text-slate-400'}`}>
-              {config.monetizationEnabled !== false 
-                ? (currentLanguage === 'bn' ? 'প্যাকেজ ও স্পনসর বিজ্ঞাপন অপশন' : 'Plans & advertisement options')
-                : (currentLanguage === 'bn' ? 'সকল প্রো ফিচার বর্তমানে ফ্রি' : 'All PRO features currently free')}
-            </span>
-
-            <button
-              type="button"
-              onClick={() => openSubscriptionModal(currentLanguage === 'bn' ? 'ফার্ম ম্যানেজার প্রিমিয়াম প্যাকেজ' : 'Farm Manager Premium')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer ${
-                isPremium 
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
-              }`}
-            >
-              <Sparkles size={13} />
-              <span>
-                {isPremium 
-                  ? (currentLanguage === 'bn' ? 'প্যাকেজ বিবরণী' : 'Plan Details') 
-                  : (currentLanguage === 'bn' ? '💎 প্রিমিয়াম আপগ্রেড' : '💎 Upgrade Pro')}
-              </span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Admin Feature Controls & App Lock */}

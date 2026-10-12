@@ -72,8 +72,7 @@ export default function Marketplace() {
   const isAdmin = 
     Boolean(sysAdmin) || 
     currentUser?.email === 'skabusufian452@gmail.com' || 
-    currentUser?.email === 'admin@digitalfarm.pro' || 
-    (currentUser as any)?.role === 'admin';
+    currentUser?.email === 'sr0632890@gmail.com';
 
   const [activeTab, setActiveTab] = useState<'posts' | 'buyers'>('posts');
 
@@ -525,24 +524,10 @@ export default function Marketplace() {
   };
 
   const handleOpenPostModal = () => {
-    if (!hasAccess('marketplacePostFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'মার্কেটপ্লেসে ক্রয়-বিক্রয় বিজ্ঞাপন' : 'Marketplace Post Alert',
-        language === 'bn' ? 'বিজ্ঞাপন পোস্ট করার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাপস অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To post marketplace listings, please contact the admin for account activation.'
-      );
-      return;
-    }
     setIsPostModalOpen(true);
   };
 
   const handleOpenBuyerModal = () => {
-    if (!hasAccess('marketplaceBuyerFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'পাইকারি ক্রেতা ডিরেক্টরি রেজিস্ট্রেশন' : 'Wholesale Buyer Registration',
-        language === 'bn' ? 'পাইকারি ক্রেতা তালিকায় নাম যুক্ত করার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To register in wholesale buyers directory, please contact the admin.'
-      );
-      return;
-    }
     setIsBuyerModalOpen(true);
   };
 
@@ -591,9 +576,6 @@ export default function Marketplace() {
 
       {/* Prominent Disclaimer & Terms Banner regarding Credit / Arrears / Fraud non-liability */}
       <MarketplaceDisclaimerBanner />
-
-      {/* Master Admin Controls Card if logged in as skabusufian452@gmail.com */}
-      {isAdmin && <AdminFeatureControlCard />}
 
       {/* Hatchery & Chick Market (A, B, C Grade Rates & Company Ads) Quick Card */}
       <Link

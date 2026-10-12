@@ -23,14 +23,23 @@ export const PRODUCTION_AD_CONFIG = {
   rewardedId: 'ca-app-pub-7705479359559924/4122361141',
 };
 
+// Google AdMob Official Sample / Test Ad Unit IDs (Safe testing on admin phone without invalid traffic strikes)
+export const TEST_AD_CONFIG = {
+  appId: 'ca-app-pub-3940256099942544~3347511713',
+  bannerId: 'ca-app-pub-3940256099942544/6300978111',
+  interstitialId: 'ca-app-pub-3940256099942544/1033173712',
+  interstitialBackupId: '',
+  rewardedId: 'ca-app-pub-3940256099942544/5224354917',
+};
+
 export const ADMOB_CONFIG = PRODUCTION_AD_CONFIG;
 
-// Frequency Capping & Policies (High Revenue & Non-Intrusive)
-const COOLDOWN_DIRECT_ACTION_MS = 15 * 1000; // 15 seconds cooldown for task completion (saving records)
-const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 35 * 1000; // 35 seconds cooldown for general screen browsing
-const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 4 * 1000; // 4 seconds after app launch
-const MAX_INTERSTITIALS_PER_SESSION = 100; // Generous session limit for active daily farm management
-const MIN_ACTIONS_BEFORE_INTERSTITIAL = 1; // 1 action is sufficient
+// Frequency Capping & Policies (High Revenue & Compliant with Google AdMob Policies)
+const COOLDOWN_DIRECT_ACTION_MS = 45 * 1000; // 45 seconds cooldown for task completion (saving records)
+const COOLDOWN_BETWEEN_INTERSTITIALS_MS = 60 * 1000; // 60 seconds cooldown for general screen browsing
+const MIN_APP_UPTIME_BEFORE_FIRST_INTERSTITIAL_MS = 20 * 1000; // 20 seconds after app launch (prevents accidental cold-launch popups)
+const MAX_INTERSTITIALS_PER_SESSION = 40; // Balanced session limit complying with AdMob Excessive Ads policy
+const MIN_ACTIONS_BEFORE_INTERSTITIAL = 2; // At least 2 user actions before showing browsing interstitial
 
 const STORAGE_KEY_LAST_SHOWN = 'farm_admob_last_interstitial_time';
 const STORAGE_KEY_SESSION_COUNT = 'farm_admob_session_ad_count';
@@ -50,6 +59,15 @@ class AdMobService {
   // Premium / VIP / Admin ad suppression
   private isAdsDisabled = false;
 
+  // Admin Test Mode: Uses Google's official Test Ad IDs with zero risk of invalid traffic penalty
+  private isTestMode = (() => {
+    try {
+      return localStorage.getItem('farm_admob_test_mode_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+
   private appStartTime = Date.now();
   private lastInterstitialShownTime = 0;
   private interstitialShownCount = 0;
@@ -57,7 +75,32 @@ class AdMobService {
   private lastContextReason = '';
 
   /**
-   * Disables all ads completely for VIP/Premium members and Admins.
+   * Toggle between Real Production Ads and Google Official Test Ads.
+   * Admin can safely enable this to test ads without risking invalid traffic strikes.
+   */
+  setTestMode(enabled: boolean): void {
+    this.isTestMode = enabled;
+    try {
+      localStorage.setItem('farm_admob_test_mode_enabled', enabled ? 'true' : 'false');
+    } catch {}
+    this.isInterstitialLoaded = false;
+    this.isRewardedLoaded = false;
+    console.log(`[AdMob] Test mode switched to: ${enabled ? 'ENABLED (Official Test Ads)' : 'DISABLED (Real Production Ads)'}`);
+    if (this.isBannerVisible) {
+      this.removeBanner().then(() => this.showBanner());
+    }
+  }
+
+  isTestModeEnabled(): boolean {
+    return this.isTestMode;
+  }
+
+  getActiveConfig() {
+    return this.isTestMode ? TEST_AD_CONFIG : PRODUCTION_AD_CONFIG;
+  }
+
+  /**
+   * Disables all ads completely for VIP/Premium members.
    */
   setAdsDisabled(disabled: boolean): void {
     this.isAdsDisabled = disabled;
@@ -90,16 +133,16 @@ class AdMobService {
     try {
       this.isInitializing = true;
 
-      // Initialize Google Mobile Ads SDK
+      // Initialize Google Mobile Ads SDK (using test device mode if enabled)
       await AdMob.initialize({
-        initializeForTesting: false,
+        initializeForTesting: this.isTestMode,
       });
 
       this.setupEventListeners();
       this.isInitialized = true;
-      console.log('[AdMob] Initialized successfully in production release mode');
+      console.log(`[AdMob] Initialized successfully in ${this.isTestMode ? 'TEST' : 'PRODUCTION'} mode`);
 
-      // Pre-load real interstitial in background
+      // Pre-load interstitial in background
       setTimeout(() => {
         this.prepareInterstitial();
       }, 2000);
@@ -190,17 +233,18 @@ class AdMobService {
       this.isBannerLoading = true;
       await this.initialize();
 
-      console.log('[AdMob] Requesting production banner with ID:', PRODUCTION_AD_CONFIG.bannerId);
+      const activeConfig = this.getActiveConfig();
+      console.log(`[AdMob] Requesting banner (${this.isTestMode ? 'TEST' : 'PRODUCTION'}) with ID:`, activeConfig.bannerId);
       await AdMob.showBanner({
-        adId: PRODUCTION_AD_CONFIG.bannerId,
+        adId: activeConfig.bannerId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
         position,
-        isTesting: false,
+        isTesting: this.isTestMode,
       });
 
       this.isBannerVisible = true;
     } catch (error) {
-      console.warn('[AdMob] showBanner error with production ID:', error);
+      console.warn('[AdMob] showBanner error:', error);
       this.isBannerVisible = false;
     } finally {
       this.isBannerLoading = false;
@@ -252,14 +296,15 @@ class AdMobService {
       this.isInterstitialLoading = true;
       await this.initialize();
 
+      const activeConfig = this.getActiveConfig();
       await AdMob.prepareInterstitial({
-        adId: PRODUCTION_AD_CONFIG.interstitialId,
-        isTesting: false,
+        adId: activeConfig.interstitialId,
+        isTesting: this.isTestMode,
       });
       this.isInterstitialLoaded = true;
       return true;
     } catch (error) {
-      console.warn('[AdMob] prepareInterstitial production ID failed:', error);
+      console.warn('[AdMob] prepareInterstitial failed:', error);
       this.isInterstitialLoaded = false;
       return false;
     } finally {
@@ -387,15 +432,16 @@ class AdMobService {
       this.isRewardedLoading = true;
       await this.initialize();
 
+      const activeConfig = this.getActiveConfig();
       await AdMob.prepareRewardVideoAd({
-        adId: PRODUCTION_AD_CONFIG.rewardedId,
-        isTesting: false,
+        adId: activeConfig.rewardedId,
+        isTesting: this.isTestMode,
       });
 
       this.isRewardedLoaded = true;
       return true;
     } catch (error) {
-      console.warn('[AdMob] prepareRewarded production ID failed:', error);
+      console.warn('[AdMob] prepareRewarded failed:', error);
       this.isRewardedLoaded = false;
       return false;
     } finally {
@@ -427,6 +473,50 @@ class AdMobService {
       return true;
     } catch (error) {
       console.warn('[AdMob] showRewarded failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Admin-Only: Force trigger test interstitial immediately bypassing cooldowns.
+   */
+  async forceTestInterstitial(): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) {
+      console.log('[AdMob Test] Browser preview: Interstitial triggered');
+      return true;
+    }
+
+    try {
+      await this.prepareInterstitial();
+      await AdMob.showInterstitial();
+      console.log('[AdMob Test] Test Interstitial displayed successfully');
+      setTimeout(() => this.prepareInterstitial(), 2000);
+      return true;
+    } catch (e) {
+      console.warn('[AdMob Test] Test Interstitial failed:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Admin-Only: Force trigger test rewarded ad immediately bypassing cooldowns.
+   */
+  async forceTestRewarded(onReward?: (reward: AdMobRewardItem) => void): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) {
+      console.log('[AdMob Test] Browser preview: Rewarded ad triggered');
+      if (onReward) onReward({ type: 'coins', amount: 1 });
+      return true;
+    }
+
+    try {
+      await this.prepareRewarded();
+      const reward = await AdMob.showRewardVideoAd();
+      if (onReward && reward) onReward(reward);
+      console.log('[AdMob Test] Test Rewarded video displayed successfully');
+      setTimeout(() => this.prepareRewarded(), 2000);
+      return true;
+    } catch (e) {
+      console.warn('[AdMob Test] Test Rewarded video failed:', e);
       return false;
     }
   }

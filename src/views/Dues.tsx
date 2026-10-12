@@ -221,14 +221,6 @@ export default function Dues() {
     e.preventDefault();
     if (!currentUser) return;
     if (isSubmitting || submitLock.current) return;
-    
-    if (!canAccessDues) {
-      openSubscriptionModal(
-        language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger & Accounts',
-        language === 'bn' ? 'বকেয়া খাতা ও দেনা-পাওনা খতিয়ান ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To use Dues ledger and accounts, please contact the admin for activation.'
-      );
-      return;
-    }
 
     if (Number(amount) <= 0) {
       return toast.error(language === 'bn' ? 'সঠিক টাকার পরিমাণ দিন' : 'Please enter valid amount');
@@ -487,56 +479,10 @@ export default function Dues() {
   };
 
   const handleToggleForm = () => {
-    if (!canAccessDues && !showForm) {
-      openSubscriptionModal(
-        language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার' : 'Dues Ledger & Accounts',
-        language === 'bn' ? 'বকেয়া খাতা ও দেনা-পাওনা খতিয়ান ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করে সক্রিয় করুন।' : 'To use Dues ledger and accounts, please contact the admin for activation.'
-      );
-      return;
-    }
     setShowForm(!showForm);
   };
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">{t('common.loading')}</div>;
-
-  if (!canAccessDues) {
-    return (
-      <div className="space-y-4 pb-12 animate-in fade-in">
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-amber-200 text-center space-y-4 my-2">
-          <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-            <Lock size={32} />
-          </div>
-          <div>
-            <span className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase mb-2 inline-block shadow-2xs">
-              {language === 'bn' ? '👑 ভিআইপি প্রিমিয়াম ফিচার' : '👑 VIP Feature'}
-            </span>
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
-              {language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার লক' : 'Dues Ledger is Locked'}
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1.5 leading-relaxed max-w-md mx-auto">
-              {language === 'bn' 
-                ? 'খরিদ্দার অনুযায়ী বাকি-বকেয়া হিসাব, পেমেন্ট আদায় খতিয়ান ও হোয়াটসঅ্যাপ তাগাদা মেসেজ পাঠানোর সুবিধাটি বর্তমানে লক করা রয়েছে। এটি সক্রিয় করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' 
-                : 'Customer dues ledger, payment records, and automated WhatsApp reminders are locked. Please contact the admin to activate this feature.'}
-            </p>
-          </div>
-
-          <div className="max-w-xs mx-auto space-y-2.5 pt-2">
-            <button
-              type="button"
-              onClick={() => openSubscriptionModal(
-                language === 'bn' ? 'বকেয়া খাতা (দেনা-পাওনা লেজার)' : 'Dues Ledger',
-                language === 'bn' ? 'বকেয়া খাতা ও কাস্টমার লেজার সম্পূর্ণ ব্যবহারের জন্য সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'Please contact the admin to activate the Dues ledger.'
-              )}
-              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-98"
-            >
-              <Sparkles size={16} className="text-amber-300" />
-              <span>{language === 'bn' ? 'সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন' : 'Contact Admin to Unlock'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4 pb-12">

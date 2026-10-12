@@ -207,7 +207,7 @@ interface SponsorBannerProps {
 export default function SponsorCard({ type, onSelectProduct, compact = false }: SponsorBannerProps) {
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
-  const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
+  const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || currentUser?.email === 'sr0632890@gmail.com';
 
   const [dbSponsors, setDbSponsors] = useState<SponsorPartner[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);

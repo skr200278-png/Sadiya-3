@@ -275,10 +275,10 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
 export default function DoctorConsultation() {
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
-  const { hasAccess, openSubscriptionModal } = useSystemConfig();
+  const { hasAccess, openSubscriptionModal, isAdmin: sysAdmin } = useSystemConfig();
   
   // Master Admin check
-  const isAdmin = currentUser?.email === 'skabusufian452@gmail.com' || (currentUser as any)?.role === 'admin';
+  const isAdmin = Boolean(sysAdmin) || currentUser?.email === 'skabusufian452@gmail.com' || currentUser?.email === 'sr0632890@gmail.com';
 
   // Auto-detect user country
   const detectedUserCountry = detectUserCountry();
@@ -774,13 +774,6 @@ export default function DoctorConsultation() {
   });
 
   const handleOpenDoctorPostModal = () => {
-    if (!hasAccess('doctorListingFree')) {
-      openSubscriptionModal(
-        language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল ও বিজ্ঞাপন' : 'Doctor Profile Listing',
-        language === 'bn' ? 'ডাক্তার তালিকায় আপনার প্রোফাইল ও বিজ্ঞাপন দেওয়ার সুবিধাটি সক্রিয় করতে সরাসরি অ্যাপস অ্যাডমিনের সাথে যোগাযোগ করুন।' : 'To post doctor listings, please contact the admin for account activation.'
-      );
-      return;
-    }
     setIsDoctorPostModalOpen(true);
   };
 
@@ -845,10 +838,6 @@ export default function DoctorConsultation() {
           </a>
         </div>
       </div>
-
-      {/* Master Admin Controls Card if logged in as skabusufian452@gmail.com */}
-      {isAdmin && <AdminFeatureControlCard />}
-
 
       {/* 2. Filters & Search Box */}
       <div className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-150 space-y-2.5">
