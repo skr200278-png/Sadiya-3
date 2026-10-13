@@ -333,8 +333,8 @@ const DEFAULT_CONFIG: FeatureControls = {
     instructionsBn: '',
     instructionsEn: ''
   },
-  adminWhatsApp: '8801410991934',
-  adminPhone: '01410991934',
+  adminWhatsApp: '8801622384379',
+  adminPhone: '01622384379',
   adminEmail: 'skabusufian452@gmail.com',
   adminName: 'আবু সুফিয়ান',
   disclaimerTextBn: 'সতর্কতা: পণ্য বা ডেলিভারি বুঝে নেওয়ার আগে কোনো অবস্থাতেই কাউকে কোনো অগ্রিম টাকা পাঠাবেন না। কেউ আগে টাকা পাঠিয়ে প্রতারিত হলে অথবা বাকিতে বিক্রয় করে ক্ষতিগ্রস্থ হলে অ্যাপ মালিক বা অ্যাপ কর্তৃপক্ষ কোনোভাবেই দায়ী থাকবে না। লেনদেনের পূর্বে নিজ দায়িত্বে যাচাই-বাছাই করুন।',

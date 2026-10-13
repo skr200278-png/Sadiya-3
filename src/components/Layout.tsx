@@ -57,7 +57,7 @@ export default function Layout() {
   const isPlayStore = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
   const isAppLocked = !isPlayStore && config.monetizationEnabled !== false && config.appLockRequired === true && !isPremium && !isAdmin && location.pathname !== '/profile';
 
-  const cleanAdminWa = (config.adminWhatsApp || '01410991934').replace(/[^0-9]/g, '');
+  const cleanAdminWa = (config.adminWhatsApp || '01622384379').replace(/[^0-9]/g, '');
   const finalWaNumber = cleanAdminWa.startsWith('88') ? cleanAdminWa : `88${cleanAdminWa}`;
   const appLockWaUrl = `https://wa.me/${finalWaNumber}?text=${encodeURIComponent(
     language === 'bn'

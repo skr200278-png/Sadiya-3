@@ -33,8 +33,8 @@ export default function AdminFeatureControlCard() {
   const [activeTab, setActiveTab] = useState<'support' | 'broadcast'>('support');
 
   // Form states
-  const [adminPhoneInput, setAdminPhoneInput] = useState(config.adminPhone || '01410991934');
-  const [adminWaInput, setAdminWaInput] = useState(config.adminWhatsApp || '8801410991934');
+  const [adminPhoneInput, setAdminPhoneInput] = useState(config.adminPhone || '01622384379');
+  const [adminWaInput, setAdminWaInput] = useState(config.adminWhatsApp || '8801622384379');
   const [adminEmailInput, setAdminEmailInput] = useState(config.adminEmail || 'skabusufian452@gmail.com');
   const [adminNameInput, setAdminNameInput] = useState(config.adminName || 'আবু সুফিয়ান');
   const [disclaimerBn, setDisclaimerBn] = useState(config.disclaimerTextBn || '');
@@ -130,7 +130,7 @@ export default function AdminFeatureControlCard() {
                     value={adminWaInput}
                     onChange={(e) => setAdminWaInput(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-hidden focus:border-amber-400"
-                    placeholder="8801410991934"
+                    placeholder="8801622384379"
                   />
                 </div>
 
@@ -144,7 +144,7 @@ export default function AdminFeatureControlCard() {
                     value={adminPhoneInput}
                     onChange={(e) => setAdminPhoneInput(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-hidden focus:border-amber-400"
-                    placeholder="01410991934"
+                    placeholder="01622384379"
                   />
                 </div>
 

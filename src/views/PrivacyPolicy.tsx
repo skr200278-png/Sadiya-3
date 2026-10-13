@@ -78,7 +78,7 @@ export default function PrivacyPolicy() {
             <span>📅 <strong>Effective:</strong> March 2025</span>
             <span>🔄 <strong>Updated:</strong> October 2026</span>
             <span>🏢 <strong>Developer:</strong> Farm Manager Tech (Sk Abu Sufian)</span>
-            <span>🌐 <strong>Website:</strong> <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></span>
+            <span>🌐 <strong>Website:</strong> <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">Farm Manager Web</a></span>
           </div>
         </div>
 
@@ -147,7 +147,7 @@ export default function PrivacyPolicy() {
                 ডাটা মুছে ফেলার অধিকার (Account Deletion)
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                আপনি যেকোনো সময় অ্যাপের ভেতর থেকে যেকোনো ব্যাচ বা রেকর্ড সরাসরি মুছে ফেলতে পারেন। সম্পূর্ণ অ্যাকাউন্ট ও ক্লাউড ডাটাবেস মুছে ফেলতে চাইলে আমাদের ইমেইল করুন <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> অথবা ফোন করুন <strong>+8801410991934</strong> এ। ৭ দিনের মধ্যে স্থায়ীভাবে সমস্ত ডাটা মুছে দেওয়া হবে।
+                আপনি যেকোনো সময় অ্যাপের ভেতর থেকে যেকোনো ব্যাচ বা রেকর্ড সরাসরি মুছে ফেলতে পারেন। সম্পূর্ণ অ্যাকাউন্ট ও ক্লাউড ডাটাবেস মুছে ফেলতে চাইলে আমাদের ইমেইল করুন <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> অথবা ফোন করুন <strong>+8801622384379</strong> এ। ৭ দিনের মধ্যে স্থায়ীভাবে সমস্ত ডাটা মুছে দেওয়া হবে।
               </p>
             </div>
 
@@ -157,9 +157,9 @@ export default function PrivacyPolicy() {
                 ডেভেলপার: <strong>Farm Manager Tech (Sk Abu Sufian)</strong>
               </p>
               <p className="text-xs text-emerald-800">
-                ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | মোবাইল: <strong>+8801410991934 (01410991934)</strong>
+                ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | মোবাইল: <strong>+8801622384379 (01622384379)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
+              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">ওয়েবসাইট পেজ দেখুন (/website.html)</a></p>
             </div>
           </div>
         ) : (
@@ -222,7 +222,7 @@ export default function PrivacyPolicy() {
                 Data Retention & Account Deletion Policy
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                You retain full ownership of your data. You may delete individual records in-app, or request a complete purge of your account and all associated cloud database entries by emailing <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> or calling <strong>01410991934</strong>. All data will be permanently wiped within 7 business days.
+                You retain full ownership of your data. You may delete individual records in-app, or request a complete purge of your account and all associated cloud database entries by emailing <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> or calling <strong>01622384379</strong>. All data will be permanently wiped within 7 business days.
               </p>
             </div>
 
@@ -232,9 +232,9 @@ export default function PrivacyPolicy() {
                 Developer: <strong>Farm Manager Tech (Sk Abu Sufian)</strong>
               </p>
               <p className="text-xs text-emerald-800">
-                Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | Phone: <strong>+8801410991934 (01410991934)</strong>
+                Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | Phone: <strong>+8801622384379 (01622384379)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">Website: <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
+              <p className="text-[11px] text-emerald-700">Website: <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">View Website (/website.html)</a></p>
             </div>
           </div>
         )}

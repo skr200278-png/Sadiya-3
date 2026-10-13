@@ -692,7 +692,7 @@ export default function Profile() {
                 আপনার খামার পরিচালনায় যেকোনো প্রযুক্তিগত সাহায্যের জন্য অথবা নতুন ফিচার যুক্ত করতে চাইলে আমার সাথে সরাসরি যোগাযোগ করুন।
               </p>
               
-              <a href="https://wa.me/8801410991934" target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-green-50 p-4 rounded-2xl border border-green-100 hover:bg-green-100 hover:border-green-200 transition-all active:scale-95 shadow-sm">
+              <a href="https://wa.me/8801622384379" target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-green-50 p-4 rounded-2xl border border-green-100 hover:bg-green-100 hover:border-green-200 transition-all active:scale-95 shadow-sm">
                 <div className="bg-gradient-to-br from-green-400 to-green-600 text-white p-3 rounded-xl shadow-md">
                   <MessageCircle size={24} />
                 </div>
@@ -703,13 +703,13 @@ export default function Profile() {
                 <ExternalLink size={20} className="text-green-500/50" />
               </a>
 
-              <a href="tel:+8801410991934" className="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all active:scale-95 shadow-sm">
+              <a href="tel:+8801622384379" className="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all active:scale-95 shadow-sm">
                 <div className="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-3 rounded-xl shadow-md">
                   <Phone size={24} />
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-blue-900">কল করুন</p>
-                  <p className="text-sm text-blue-700">0141 0991 934</p>
+                  <p className="text-sm text-blue-700">01622 384 379</p>
                 </div>
                 <ExternalLink size={20} className="text-blue-500/50" />
               </a>

@@ -288,7 +288,7 @@ export function generateRenewalWhatsAppMessage(params: {
   bkashNumber?: string;
   nagadNumber?: string;
 }): string {
-  const { userName = 'গ্রাহক', planTitle = 'প্রো প্যাকেজ', remainingText, isExpired, bkashNumber = '01410991934', nagadNumber = '01410991934' } = params;
+  const { userName = 'গ্রাহক', planTitle = 'প্রো প্যাকেজ', remainingText, isExpired, bkashNumber = '01622384379', nagadNumber = '01622384379' } = params;
   
   if (isExpired) {
     return encodeURIComponent(
