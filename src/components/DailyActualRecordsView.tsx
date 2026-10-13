@@ -72,10 +72,11 @@ export const DailyActualRecordsView: React.FC<DailyActualRecordsViewProps> = ({
         id: found.id,
         userId: found.userId || (currentUser ? currentUser.uid : 'demo_khamari_user_1'),
         batchName: found.batchName,
-        category: found.farmType || 'poultry',
+        farmType: (found.farmType || 'poultry') as any,
+        subBreed: found.subBreed || (found as any).breed || 'broiler',
         startDate: found.startDate,
         totalChicks: Number(found.totalChicks || 0),
-        status: found.status || 'active',
+        status: (found.status || 'active') as any,
         bagWeightKg: found.bagWeightKg
       };
     }

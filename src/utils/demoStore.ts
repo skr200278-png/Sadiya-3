@@ -375,152 +375,7 @@ export const initialChickRates: DemoChickRate[] = [
   }
 ];
 
-export const initialChickListings: DemoChickListing[] = [
-  {
-    id: 'chick_ad_1',
-    userId: 'company_kazi_farms',
-    companyName: 'কাজী ফার্মস গ্রুপ (Kazi Farms Ltd.)',
-    contactPerson: 'মোঃ কামরুল হাসান (হেড অফ সেলস)',
-    phone: '01713000111',
-    whatsapp: '01713000111',
-    category: 'poultry',
-    subCategory: 'ব্রয়লার (Broiler DOC)',
-    grade: 'A',
-    pricePerUnit: 64,
-    unitLabel: 'পিস (১০০+২ ফ্রি প্রতি বক্স)',
-    minimumOrder: 200,
-    availableStock: 50000,
-    deliveryDate: 'প্রতি রবি ও বুধবার দেশব্যাপী',
-    district: 'গাজীপুর',
-    deliveryArea: 'সারা দেশে এসি ভ্যান ও নিজস্ব বাহনে ডেলিভারি',
-    vaccineDetails: 'হ্যাচারিতেই মারেক্স ও রোটেশনাল গামবোরো স্প্রে ভ্যাকসিনেটেড',
-    description: 'সর্বোচ্চ এফসিআর (FCR) ও আন্তর্জাতিক মানের সুস্থ ও চকচকে ব্রয়লার বাচ্চা। সরাসরি হ্যাচারি পয়েন্ট বা ডিলারের মাধ্যমে সংগ্রহ করুন।',
-    isVerified: true,
-    isFeatured: true,
-    status: 'available',
-    createdAt: new Date(Date.now() - 1 * 86400000).toISOString()
-  },
-  {
-    id: 'chick_ad_2',
-    userId: 'company_paragon',
-    companyName: 'প্যারাগন পোল্ট্রি ও হ্যাচারি (Paragon Group)',
-    contactPerson: 'ইঞ্জি. তারেক মাহমুদ',
-    phone: '01711889922',
-    whatsapp: '01711889922',
-    category: 'poultry',
-    subCategory: 'সোনালী হাইব্রিড বাচ্চা (Sonali Hybrid)',
-    grade: 'A',
-    pricePerUnit: 38,
-    unitLabel: 'পিস',
-    minimumOrder: 500,
-    availableStock: 35000,
-    deliveryDate: 'সপ্তাহের প্রতিদিন সকালের শিফটে',
-    district: 'ময়মনসিংহ',
-    deliveryArea: 'ময়মনসিংহ, ঢাকা, টাঙ্গাইল ও সিলেট অঞ্চল',
-    vaccineDetails: 'এনডি ও গামবোরো মাতৃক অ্যান্টিবডি সমৃদ্ধ',
-    description: '১০০% অরিজিনাল প্যারেন্টস থেকে সংগৃহীত। দ্রুত বর্ধনশীল এবং ৬০ দিনে ৮৫০-৯০০ গ্রাম গড় ওজন নিশ্চিত।',
-    isVerified: true,
-    isFeatured: true,
-    status: 'available',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'chick_ad_3',
-    userId: 'company_cp_bangladesh',
-    companyName: 'সিপি বাংলাদেশ কোং লিঃ (C.P. Bangladesh)',
-    contactPerson: 'জনাব মোস্তাফিজুর রহমান',
-    phone: '01844556677',
-    whatsapp: '01844556677',
-    category: 'poultry',
-    subCategory: 'লেয়ার বাদামী ডিমের বাচ্চা (CP Layer)',
-    grade: 'A',
-    pricePerUnit: 72,
-    unitLabel: 'পিস',
-    minimumOrder: 1000,
-    availableStock: 20000,
-    deliveryDate: 'অগ্রিম বুকিং সাপেক্ষে ৫ দিনের মধ্যে ডেলিভারি',
-    district: 'ঢাকা',
-    deliveryArea: 'সমগ্র বাংলাদেশ ডিলার পয়েন্টে ডেলিভারি',
-    vaccineDetails: 'কমপ্লিট হ্যাচারি বায়োসিকিউরিটি ও প্রি-ভ্যাকসিনেশন সম্পন্ন',
-    description: 'টানা ৮০-৮৫ সপ্তাহ পর্যন্ত পিক ডিম উৎপাদন ধরে রাখতে সক্ষম। বিশ্বখ্যাত সিপি লেয়ার ব্রিড।',
-    isVerified: true,
-    isFeatured: true,
-    status: 'available',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString()
-  },
-  {
-    id: 'chick_ad_4',
-    userId: 'company_bogura_sonali',
-    companyName: 'বগুড়া গ্রিন হ্যাচারি অ্যান্ড ব্রিডার্স',
-    contactPerson: 'আলহাজ্ব নজরুল ইসলাম',
-    phone: '01912334455',
-    whatsapp: '01912334455',
-    category: 'poultry',
-    subCategory: 'সোনালী ক্লাসিক বাচ্চা',
-    grade: 'B',
-    pricePerUnit: 32,
-    unitLabel: 'পিস',
-    minimumOrder: 200,
-    availableStock: 15000,
-    deliveryDate: 'প্রতি সোম ও শুক্রবার',
-    district: 'বগুড়া',
-    deliveryArea: 'উত্তরবঙ্গের ১৬ জেলায় সরাসরি বাসে ডেলিভারি',
-    vaccineDetails: 'রানীক্ষেত ড্রপ ভ্যাকসিন দেওয়া আছে',
-    description: 'বগুড়ার অরিজিনাল সোনালী বাচ্চা। গ্রেড-বি এর মধ্যে সবচেয়ে তাজা ও সাশ্রয়ী মূল্যে সংগ্রহ করতে পারবেন।',
-    isVerified: true,
-    isFeatured: false,
-    status: 'available',
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString()
-  },
-  {
-    id: 'chick_ad_5',
-    userId: 'company_muktagacha_fish',
-    companyName: 'মুক্তাগাছা সরকারি অনুমোদিত মৎস্য হ্যাচারি',
-    contactPerson: 'মৎস্যবিদ মো. আবুল হোসেন',
-    phone: '01712998877',
-    whatsapp: '01712998877',
-    category: 'fish',
-    subCategory: 'মনোসেক্স তেলাপিয়া ও গুলশা পোনা',
-    grade: 'A',
-    pricePerUnit: 1800,
-    unitLabel: 'প্রতি হাজার',
-    minimumOrder: 2000,
-    availableStock: 80000,
-    deliveryDate: 'অক্সিজেন ব্যাগে করে ২৪ ঘণ্টার মধ্যে ডেলিভারি',
-    district: 'ময়মনসিংহ',
-    deliveryArea: 'ঢাকা, ময়মনসিংহ, রংপুর ও রাজশাহী',
-    vaccineDetails: 'রোগমুক্ত ব্রুড ও কন্ডিশনিং সম্পন্ন পোনা',
-    description: '১০০% মনোসেক্স গ্যারান্টি। কোনো মাদী বাচ্চা মিশে থাকবে না। পুকুরে দ্রুত বৃদ্ধি পাবে এবং ৪ মাসে ৫০০+ গ্রাম হবে।',
-    isVerified: true,
-    isFeatured: true,
-    status: 'available',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'chick_ad_6',
-    userId: 'company_quail_bird',
-    companyName: 'রংপুর কোয়েল ও টার্কি ব্রিডিং ফার্ম',
-    contactPerson: 'ডা. আসাদুজ্জামান',
-    phone: '01725667788',
-    whatsapp: '01725667788',
-    category: 'birds',
-    subCategory: 'জাপানি কোয়েল ও হাঁসের বাচ্চা',
-    grade: 'A',
-    pricePerUnit: 12,
-    unitLabel: 'পিস (কোয়েল বাচ্চা)',
-    minimumOrder: 500,
-    availableStock: 10000,
-    deliveryDate: 'সপ্তাহের যে কোনো দিন',
-    district: 'রংপুর',
-    deliveryArea: 'কুরিয়ার ও ট্রেন সার্ভিসের মাধ্যমে ডেলিভারি',
-    vaccineDetails: 'স্যালাইন ও গ্লুকোজ কেয়ার প্যাকেজ সহ',
-    description: '১ দিনের তাজা কোয়েল বাচ্চা ও বেইজিং হাঁসের সুস্থ বাচ্চা পাইকারি ও খুচরা বিক্রয় করা হয়।',
-    isVerified: true,
-    isFeatured: false,
-    status: 'available',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString()
-  }
-];
+export const initialChickListings: DemoChickListing[] = [];
 
 const initialMarketBuyers: DemoMarketBuyer[] = [
   {
@@ -1343,7 +1198,18 @@ export const demoStore = {
       }
     })();
     const all = getItem<DemoChickListing[]>('chick_listings', initialChickListings);
-    return all.filter(item => !deletedDemoIds.includes(item.id));
+    // Purge legacy hardcoded demo ads
+    const filtered = (all || []).filter(item => 
+      item && 
+      !deletedDemoIds.includes(item.id) &&
+      !['chick_ad_1', 'chick_ad_2', 'chick_ad_3', 'chick_ad_4', 'chick_ad_5', 'chick_ad_6'].includes(item.id) &&
+      !item.userId?.startsWith('company_') &&
+      item.userId !== 'demo_hatchery_admin'
+    );
+    if (filtered.length !== (all || []).length) {
+      setItem('chick_listings', filtered);
+    }
+    return filtered;
   },
   saveChickListing(listing: Omit<DemoChickListing, 'id' | 'createdAt'> & { id?: string }): DemoChickListing {
     const records = this.getChickListings();

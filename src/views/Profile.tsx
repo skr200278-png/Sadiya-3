@@ -742,7 +742,7 @@ export default function Profile() {
               <img 
                 src={appLogo} 
                 onError={(e) => { e.currentTarget.src = '/farm_app_icon_1779214389225.png'; }} 
-                alt="Khamar Pro Logo" 
+                alt="Farm Manager Logo" 
                 className="w-full h-full object-contain rounded-xl" 
               />
             </div>

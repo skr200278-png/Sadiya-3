@@ -60,6 +60,8 @@ import {
   UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
+import { admobService } from '../services/admobService';
 
 // Helper to reliably identify default built-in demo listings vs user-posted listings
 export const isDefaultDemoChickAd = (ad?: DemoChickListing | { id?: string; userId?: string } | null): boolean => {
@@ -115,6 +117,12 @@ export const ChickMarket: React.FC = () => {
   const [editingRate, setEditingRate] = useState<DemoChickRate | null>(null);
   const [listingToDelete, setListingToDelete] = useState<DemoChickListing | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (isPostModalOpen || isRateEditModalOpen) {
+      admobService.removeBanner().catch(() => {});
+    }
+  }, [isPostModalOpen, isRateEditModalOpen]);
 
   // Tab & Filters
   const [activeCategory, setActiveCategory] = useState<'all' | 'poultry' | 'birds' | 'fish' | 'cattle'>('all');
@@ -172,15 +180,8 @@ export const ChickMarket: React.FC = () => {
 
       if (isDemoUser) {
         setRates(demoStore.getChickRates());
-        const currentDeleted = (() => {
-          try {
-            return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
-          } catch {
-            return [];
-          }
-        })();
         const raw = demoStore.getChickListings();
-        setListings(raw.filter(l => !currentDeleted.includes(l.id)));
+        setListings(raw.filter(l => !isDefaultDemoChickAd(l)));
         setLoading(false);
         return;
       }
@@ -207,48 +208,20 @@ export const ChickMarket: React.FC = () => {
       try {
         const listingsQuery = query(collection(db, 'chick_listings'), orderBy('createdAt', 'desc'));
         unsubListings = onSnapshot(listingsQuery, (snapshot) => {
-          const currentDeleted = (() => {
-            try {
-              return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
-            } catch {
-              return [];
-            }
-          })();
-
-          const firestoreAds = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DemoChickListing));
-          const availableDemoAds = initialChickListings.filter(d => !currentDeleted.includes(d.id));
-          const firestoreIds = new Set(firestoreAds.map(a => a.id));
-
-          const combined = [
-            ...firestoreAds,
-            ...availableDemoAds.filter(d => !firestoreIds.has(d.id))
-          ];
-
-          setListings(combined);
+          const firestoreAds = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as DemoChickListing))
+            .filter(ad => !isDefaultDemoChickAd(ad));
+          setListings(firestoreAds);
           setLoading(false);
         }, (err) => {
           console.warn('Listings listener fallback to demo:', err);
-          const currentDeleted = (() => {
-            try {
-              return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
-            } catch {
-              return [];
-            }
-          })();
           const raw = demoStore.getChickListings();
-          setListings(raw.filter(l => !currentDeleted.includes(l.id)));
+          setListings(raw.filter(l => !isDefaultDemoChickAd(l)));
           setLoading(false);
         });
       } catch (err) {
-        const currentDeleted = (() => {
-          try {
-            return JSON.parse(localStorage.getItem('deleted_demo_chick_ads') || '[]');
-          } catch {
-            return [];
-          }
-        })();
         const raw = demoStore.getChickListings();
-        setListings(raw.filter(l => !currentDeleted.includes(l.id)));
+        setListings(raw.filter(l => !isDefaultDemoChickAd(l)));
         setLoading(false);
       }
     };
@@ -609,50 +582,8 @@ export const ChickMarket: React.FC = () => {
         </a>
       </div>
 
-      {/* 2.1 Master Admin Moderation & Demo Ads Control Strip */}
-      {isMasterAdmin && (
-        <div className="bg-slate-900 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-500/30">
-              <Crown size={16} />
-            </div>
-            <div>
-              <span className="text-xs font-black text-white flex items-center gap-1.5">
-                {language === 'bn' ? 'মাস্টার অ্যাডমিন কন্ট্রোল: বাচ্চার বিজ্ঞাপন ও ডেমো মডারেশন' : 'Master Admin: Chick Listings & Demo Moderation'}
-              </span>
-              <p className="text-[10.5px] text-slate-300 font-medium mt-0.5">
-                {language === 'bn' 
-                  ? 'বর্তমান ডেমো বিজ্ঞাপন এবং ব্যবহারকারীদের যে কোনো বিজ্ঞাপন অ্যাডমিন হিসেবে মুছে ফেলতে পারেন।' 
-                  : 'You have full admin permission to delete default demo ads or moderate any user listings.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
-            {listings.some(ad => isDefaultDemoChickAd(ad)) && (
-              <button
-                type="button"
-                onClick={handleDeleteAllDemoAds}
-                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-600 border border-rose-500/40 hover:border-rose-600 text-rose-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <Trash2 size={13} />
-                <span>{language === 'bn' ? 'সকল ডেমো বিজ্ঞাপন মুছুন' : 'Delete All Demo Ads'}</span>
-              </button>
-            )}
-
-            {deletedDemoChickAdIds.length > 0 && (
-              <button
-                type="button"
-                onClick={handleRestoreDemoAds}
-                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-600 border border-emerald-400/40 hover:border-emerald-500 text-emerald-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <Sparkles size={13} />
-                <span>{language === 'bn' ? `ডেমো রিস্টোর (${deletedDemoChickAdIds.length})` : `Restore Demo Ads (${deletedDemoChickAdIds.length})`}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 2.1 Important Notice & Caution Banner (Do not send advance money) */}
+      <MarketplaceDisclaimerBanner />
 
       {/* 3. Category Selector for Stores */}
       <div className="bg-white p-1.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center gap-1 overflow-x-auto scrollbar-thin">
@@ -991,7 +922,7 @@ export const ChickMarket: React.FC = () => {
               <X size={18} />
             </button>
 
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-3">
               <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-black">
                 🐣
               </div>
@@ -1003,6 +934,16 @@ export const ChickMarket: React.FC = () => {
                   {language === 'bn' ? 'হ্যাচারি, কোম্পানি ও ডিলারদের জন্য' : 'For hatcheries, companies & breeders'}
                 </p>
               </div>
+            </div>
+
+            {/* Caution Banner inside post modal */}
+            <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[10.5px] text-amber-900 font-bold flex items-center gap-2">
+              <span className="text-base shrink-0">⚠️</span>
+              <span>
+                {language === 'bn' 
+                  ? 'সতর্কতা: ক্রেতার কাছ থেকে কোনো অবস্থাতেই অগ্রিম টাকা দাবি করবেন না। সুস্থ বাচ্চা বুঝে পাওয়ার পরই লেনদেন হবে।' 
+                  : 'Notice: Do not demand advance payments. Final settlement upon chick delivery.'}
+              </span>
             </div>
 
             <form onSubmit={handleCreatePost} className="space-y-3">

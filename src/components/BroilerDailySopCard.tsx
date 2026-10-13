@@ -73,6 +73,7 @@ export interface BatchOption {
   breed?: string;
   subBreed?: string;
   mortality?: number | string;
+  status?: string;
 }
 
 interface BroilerDailySopCardProps {

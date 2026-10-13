@@ -161,6 +161,56 @@ export default function Guidelines() {
         </div>
       )}
       
+      {/* 🛡️ Official Community Rules & Guidelines Card */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-5 shadow-xs space-y-3 mt-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">⚠️</span>
+          <div>
+            <h4 className="font-black text-amber-950 text-sm">
+              {language === 'bn' ? 'খামার হাট ও বাচ্চার বাজার রুলস (Community Rules)' : 'Marketplace & Booking Safety Rules'}
+            </h4>
+            <p className="text-[11px] text-amber-800">
+              {language === 'bn' ? 'সকল খামারি ও ডিলারদের নিরাপত্তার জন্য প্রযোজ্য' : 'Mandatory safety guidelines for all farmers & dealers'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 text-xs">
+          <div className="bg-white/80 p-3 rounded-xl border border-amber-200">
+            <p className="font-bold text-red-700 flex items-center gap-1.5">
+              <span>🚨 {language === 'bn' ? '১. কোনো অগ্রিম টাকা পাঠাবেন না' : '1. NEVER Send Advance Payments'}</span>
+            </p>
+            <p className="text-slate-700 mt-1 leading-relaxed">
+              {language === 'bn'
+                ? 'বাচ্চা বা মালামাল নিজে দেখে বুঝে পাওয়ার পূর্বে কোনো অপরিচিত ব্যক্তিকে বিকাশ, নগদ বা ব্যাংকে অগ্রিম টাকা পাঠানো কঠোরভাবে নিষিদ্ধ। যাচাই ছাড়া লেনদেন করে প্রতারিত হলে কর্তৃপক্ষ দায়ী থাকবে না।'
+                : 'Never send advance booking money via bKash, Nagad or bank before physically inspecting the birds or goods in person.'}
+            </p>
+          </div>
+
+          <div className="bg-white/80 p-3 rounded-xl border border-amber-200">
+            <p className="font-bold text-slate-900">
+              {language === 'bn' ? '⚖️ ২. সঠিক দর ও বাস্তব তথ্য প্রকাশ' : '2. Authentic Pricing & Accurate Ads'}
+            </p>
+            <p className="text-slate-700 mt-1 leading-relaxed">
+              {language === 'bn'
+                ? 'বাচ্চার দর বা পশুর বিজ্ঞাপনে সম্পূর্ণ সত্য ও সঠিক মূল্য লিখতে হবে। ফেক বিজ্ঞাপন বা ভুল তথ্য দিলে অ্যাকাউন্ট বাতিল করা হবে।'
+                : 'All posted chick rates and livestock advertisements must be genuine. Misleading or spam ads will be permanently banned.'}
+            </p>
+          </div>
+
+          <div className="bg-white/80 p-3 rounded-xl border border-amber-200">
+            <p className="font-bold text-slate-900">
+              {language === 'bn' ? '🐓 ৩. বায়োসিকিউরিটি ও প্রত্যাহারকাল' : '3. Biosecurity & Drug Withdrawal Period'}
+            </p>
+            <p className="text-slate-700 mt-1 leading-relaxed">
+              {language === 'bn'
+                ? 'খামারে বায়োসিকিউরিটি বজায় রাখুন এবং অ্যান্টিবায়োটিক প্রয়োগের পর নির্দিষ্ট প্রত্যাহারকাল (Withdrawal Period) না মেনে মাংস বা ডিম বিক্রি করবেন না।'
+                : 'Strictly observe veterinary withdrawal periods after administering antibiotics before selling birds or eggs for human consumption.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <FeedQualityGuideModal 
         isOpen={isQualityGuideOpen}
         onClose={() => setIsQualityGuideOpen(false)}

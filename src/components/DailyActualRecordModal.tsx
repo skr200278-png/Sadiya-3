@@ -30,6 +30,7 @@ import {
   calculateCumulativeActualFeedUsed
 } from '../utils/dailyRecordEngine';
 import { saveDailyActualRecord, fetchBatchDailyRecords } from '../services/dailyRecordService';
+import { admobService } from '../services/admobService';
 
 interface DailyActualRecordModalProps {
   isOpen: boolean;
@@ -55,6 +56,12 @@ export const DailyActualRecordModal: React.FC<DailyActualRecordModalProps> = ({
   const { language } = useLanguage();
   const { currentUser, isDemoUser } = useAuth();
   const isBn = language === 'bn';
+
+  useEffect(() => {
+    if (isOpen) {
+      admobService.removeBanner().catch(() => {});
+    }
+  }, [isOpen]);
 
   const [date, setDate] = useState<string>(() => initialRecord?.date || new Date().toISOString().split('T')[0]);
   const [todayMortality, setTodayMortality] = useState<string>(() =>
@@ -262,6 +269,9 @@ export const DailyActualRecordModal: React.FC<DailyActualRecordModalProps> = ({
 
     try {
       await saveDailyActualRecord(validationResult.calculatedRecord, isDemoUser);
+
+      // Trigger full-screen ad after successful save
+      admobService.showInterstitialIfEligible('action:saved_daily_record', true);
 
       toast.success(
         validationResult.isExistingUpdate

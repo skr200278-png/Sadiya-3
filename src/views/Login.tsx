@@ -42,7 +42,7 @@ import {
 import toast from 'react-hot-toast';
 
 export default function Login() {
-  const { currentUser } = useAuth();
+  const { currentUser, loginAsDemo } = useAuth();
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -828,10 +828,27 @@ export default function Login() {
                 : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : 'Continue with Google (1-Click)')}
             </span>
           </button>
+          
+          {/* 🚀 INSTANT DEMO EXPLORE BUTTON */}
+          <button
+            type="button"
+            onClick={async () => {
+              await loginAsDemo();
+              toast.success(language === 'bn' ? 'ডেমো খামারে স্বাগতম!' : 'Welcome to Demo Farm!');
+              navigate('/', { replace: true });
+            }}
+            className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-900 font-bold py-2.5 px-4 rounded-xl border border-emerald-300 shadow-2xs text-xs sm:text-sm transition-all cursor-pointer"
+          >
+            <Sparkles size={15} className="text-emerald-700 shrink-0" />
+            <span>
+              {language === 'bn' ? 'ডেমো খামারি হিসেবে ১-ক্লিকে অ্যাপ দেখুন' : 'Explore App with 1-Click Demo Farm'}
+            </span>
+          </button>
+
           <p className="text-[10px] text-center text-slate-500 mt-1 mb-3">
             {language === 'bn'
-              ? '💡 ফোনের জিমেইল দিয়ে কোনো পাসওয়ার্ড ছাড়াই সরাসরি ১-ক্লিকে লগইন'
-              : '💡 1-Click instant sign in with phone Gmail, no password needed'}
+              ? '💡 সরাসরি প্রিভিউ দেখতে ওপরের যেকোনো একটি বাটনে চাপ দিন'
+              : '💡 Instant preview: click Google sign-in or Explore with Demo Farm'}
           </p>
 
           <div className="relative flex items-center py-1 mb-3">

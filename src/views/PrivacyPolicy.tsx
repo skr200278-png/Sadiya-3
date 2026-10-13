@@ -76,9 +76,9 @@ export default function PrivacyPolicy() {
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-emerald-200 mt-3 pt-3 border-t border-white/15">
             <span>📅 <strong>Effective:</strong> March 2025</span>
-            <span>🔄 <strong>Updated:</strong> August 2026</span>
-            <span>🏢 <strong>Developer:</strong> H-Novas</span>
-            <span>🌐 <strong>URL:</strong> https://polty-e357c.web.app/privacy-policy.html</span>
+            <span>🔄 <strong>Updated:</strong> October 2026</span>
+            <span>🏢 <strong>Developer:</strong> Farm Manager Tech (Sk Abu Sufian)</span>
+            <span>🌐 <strong>Website:</strong> <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></span>
           </div>
         </div>
 
@@ -91,7 +91,7 @@ export default function PrivacyPolicy() {
                 পরিচিতি ও সাধারণ নীতি
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                <strong>Farm Manager (ফার্ম ম্যানেজার)</strong> বাংলাদেশের পোল্ট্রি, ডেইরি, গরুর মোটাতাজাকরণ ও মৎস্য খামারিদের জন্য নির্মিত পূর্ণাঙ্গ খামার ব্যবস্থাপনা অ্যাপ্লিকেশন। এই অ্যাপ খামারের ব্যাচ রেকর্ড, খাদ্য গ্রহণ, মর্টালিটি, চিকিৎসা, খরচ, বিক্রয় ও গ্রাহকের বকেয়া হিসাব নির্ভুলভাবে রাখতে সাহায্য করে।
+                <strong>Farm Manager (ফার্ম ম্যানেজার)</strong> বাংলাদেশের পোল্ট্রি (ব্রয়লার, সোনালী, লেয়ার), ডেইরি, গরুর মোটাতাজাকরণ ও মৎস্য খামারিদের জন্য নির্মিত পূর্ণাঙ্গ খামার ব্যবস্থাপনা ও বাচ্চার বাজার প্ল্যাটফর্ম। এই অ্যাপ খামারের ব্যাচ রেকর্ড, খাদ্য গ্রহণ, মর্টালিটি, চিকিৎসা, FCR, আয়-ব্যয়, ডিজিটাল ক্যাশ মেমো, গ্রাহকের বকেয়া খাতা ও বাচ্চার লাইভ রেট নির্ভুলভাবে রাখতে সাহায্য করে।
               </p>
             </div>
 
@@ -104,7 +104,7 @@ export default function PrivacyPolicy() {
                 <li><strong>ব্যক্তিগত তথ্য:</strong> নাম, ইমেইল অ্যাড্রেস, ফোন নম্বর (ঐচ্ছিক/প্রোফাইল), প্রোফাইল ছবি।</li>
                 <li><strong>খামারের তথ্য:</strong> ব্যাচ, বাচ্চার সংখ্যা, দৈনিক খাদ্য, ওষুধ, ওজন ও মৃত্যুর হিসাব।</li>
                 <li><strong>আর্থিক হিসাব:</strong> খামারের খরচ, নগদ বিক্রয় রশিদ, ক্যাশমেমো ও বকেয়া খাতার কাস্টমার তথ্য।</li>
-                <li><strong>মার্কেটপ্লেস ও ডাক্তার:</strong> ক্রয়-বিক্রয়ের পণ্যের ছবি, বিবরণ, দাম ও চিকিৎসকের যোগাযোগের নম্বর।</li>
+                <li><strong>মার্কেটপ্লেস ও বাচ্চার বাজার:</strong> ক্রয়-বিক্রয়ের পণ্যের ছবি, বিবরণ, দাম ও চিকিৎসকের যোগাযোগের নম্বর।</li>
                 <li><strong>ডিভাইস ও টেকনিক্যাল ডাটা:</strong> নেটওয়ার্ক স্ট্যাটাস ও আইপি অ্যাড্রেস (ফায়ারবেস ক্লাউড কানেকশনের জন্য)।</li>
               </ul>
             </div>
@@ -112,23 +112,28 @@ export default function PrivacyPolicy() {
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">৩</span>
-                ডিভাইস পারমিশন
+                গুগল এডমব (Google AdMob) ও নিরাপদ বিজ্ঞাপন ব্যবস্থা
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="font-bold text-slate-900">🎙️ মাইক্রোফোন (Microphone)</p>
-                  <p className="text-slate-600 mt-0.5">ভয়েস দিয়ে কথা বলে খামারের হিসাব লেখার জন্য সাময়িক অডিও রিকগনিশন।</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="font-bold text-slate-900">🌐 ইন্টারনেট (Internet)</p>
-                  <p className="text-slate-600 mt-0.5">ক্লাউড ডাটাবেস ব্যাকআপ ও লাইভ মার্কেট রেট আপডেটের জন্য।</p>
-                </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                অ্যাপটি খামারিদের জন্য আজীবন ফ্রি রাখতে গুগল এডমব-এর বিজ্ঞাপন প্রদর্শন করা হয়। কোনো বিজ্ঞাপন সেভ বাটন বা নিচের নেভিগেশন বারের ওপর চাপ ফেলে না। গুগল পরিবারের নীতিমালা ও নিরাপদ এডস প্লেসমেন্ট শতভাগ অনুসরণ করা হয়।
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl space-y-2.5">
+              <h3 className="text-base font-bold text-amber-950 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-xs flex items-center justify-center font-bold">৪</span>
+                মার্কেটপ্লেস ও বাচ্চার বাজার রুলস (Community Rules)
+              </h3>
+              <div className="space-y-2 text-xs text-amber-950">
+                <p className="font-bold text-red-700">🚨 ১. অগ্রিম টাকা পাঠানো নিষেধ: বাচ্চা বা মাল বুঝে পাওয়ার আগে কোনো ব্যক্তিকে বিকাশ/নগদে অগ্রিম টাকা পাঠানো নিষেধ। যাচাই ছাড়া লেনদেন করে ক্ষতিগ্রস্ত হলে কর্তৃপক্ষ দায়ী থাকবে না।</p>
+                <p><strong>২. সঠিক মূল্য প্রকাশ:</strong> বাচ্চার দর বা বিজ্ঞাপনে সত্য তথ্য দিন। ফেক বিজ্ঞাপন বা ভুল রেট দেওয়া নিষিদ্ধ।</p>
+                <p><strong>৩. বায়োসিকিউরিটি:</strong> খামারের নিরাপত্তা নিশ্চিত করুন এবং উইথড্রয়াল পিরিয়ড মেনে চলুন।</p>
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">৪</span>
+                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">৫</span>
                 থার্ড-পার্টি সার্ভিস ও নিরাপত্তা
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
@@ -138,23 +143,23 @@ export default function PrivacyPolicy() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">৫</span>
+                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">৬</span>
                 ডাটা মুছে ফেলার অধিকার (Account Deletion)
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                আপনি যেকোনো সময় অ্যাপের ভেতর থেকে যেকোনো ব্যাচ বা রেকর্ড সরাসরি মুছে ফেলতে পারেন। সম্পূর্ণ অ্যাকাউন্ট ও ক্লাউড ডাটাবেস মুছে ফেলতে চাইলে আমাদের ইমেইল করুন <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> অথবা ফোন করুন <strong>01410991934</strong> এ। ৭ দিনের মধ্যে স্থায়ীভাবে সমস্ত ডাটা মুছে দেওয়া হবে।
+                আপনি যেকোনো সময় অ্যাপের ভেতর থেকে যেকোনো ব্যাচ বা রেকর্ড সরাসরি মুছে ফেলতে পারেন। সম্পূর্ণ অ্যাকাউন্ট ও ক্লাউড ডাটাবেস মুছে ফেলতে চাইলে আমাদের ইমেইল করুন <a href="mailto:sr0632890@gmail.com" className="text-emerald-700 font-bold underline">sr0632890@gmail.com</a> অথবা ফোন করুন <strong>+8801410991934</strong> এ। ৭ দিনের মধ্যে স্থায়ীভাবে সমস্ত ডাটা মুছে দেওয়া হবে।
               </p>
             </div>
 
             <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl space-y-2">
               <h3 className="text-sm font-bold text-emerald-950">যোগাযোগ ও ডেভেলপার তথ্য</h3>
               <p className="text-xs text-emerald-800">
-                ডেভেলপার: <strong>H-Novas</strong>
+                ডেভেলপার: <strong>Farm Manager Tech (Sk Abu Sufian)</strong>
               </p>
               <p className="text-xs text-emerald-800">
-                ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | মোবাইল: <strong>01410991934</strong>
+                ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | মোবাইল: <strong>+8801410991934 (01410991934)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="https://polty-e357c.web.app/privacy-policy.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
+              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
             </div>
           </div>
         ) : (
@@ -224,12 +229,12 @@ export default function PrivacyPolicy() {
             <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl space-y-2">
               <h3 className="text-sm font-bold text-emerald-950">Official Contact & Developer</h3>
               <p className="text-xs text-emerald-800">
-                Developer: <strong>H-Novas</strong>
+                Developer: <strong>Farm Manager Tech (Sk Abu Sufian)</strong>
               </p>
               <p className="text-xs text-emerald-800">
-                Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | Phone: <strong>01410991934 (+8801410991934)</strong>
+                Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | Phone: <strong>+8801410991934 (01410991934)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">Website: <a href="https://polty-e357c.web.app/privacy-policy.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
+              <p className="text-[11px] text-emerald-700">Website: <a href="/website.html" target="_blank" rel="noreferrer" className="underline">https://polty-e357c.web.app</a></p>
             </div>
           </div>
         )}

@@ -293,11 +293,15 @@ export interface ExpectedStandardForAge {
 
 export function getExpectedStandardForAge(
   category: FarmCategory,
-  subBreed: string,
-  ageDays: number
+  subBreedOrAge?: string | number,
+  ageDaysParam?: number
 ): ExpectedStandardForAge {
-  const breed = (subBreed || '').toLowerCase().trim();
-  const d = Math.max(1, Math.floor(ageDays));
+  const subBreed = typeof subBreedOrAge === 'string' ? subBreedOrAge : '';
+  const ageDays = typeof ageDaysParam === 'number'
+    ? ageDaysParam
+    : (typeof subBreedOrAge === 'number' ? subBreedOrAge : 1);
+  const breed = String(subBreed || '').toLowerCase().trim();
+  const d = Math.max(1, Math.floor(Number(ageDays) || 1));
 
   if (category === 'poultry') {
     if (

@@ -21,19 +21,12 @@ interface AdMobContextType {
 
 const AdMobContext = createContext<AdMobContextType | null>(null);
 
-// General viewing screens where banner ads run consistently without disturbing work
+// Non-interactive viewing screens where banner ads run safely without disturbing buttons
 const BANNER_VIEWING_SCREENS = [
-  '/',
-  '/dashboard',
   '/reports',
   '/guidelines',
   '/profile',
   '/privacy-policy',
-  '/chicks',
-  '/store',
-  '/shop',
-  '/hatchery',
-  '/marketplace',
 ];
 
 // Content exploration screens where interstitial transition is pleasant
@@ -45,8 +38,10 @@ const NAV_INTERSTITIAL_SCREENS = [
   '/store',
 ];
 
-// Critical data-entry or calculation screens where ads must NEVER disturb the user
+// Critical data-entry, dashboard, or calculation screens where ads must NEVER disturb the user
 const SENSITIVE_DATA_ENTRY_SCREENS = [
+  '/',
+  '/dashboard',
   '/fcr',
   '/feed',
   '/batches',

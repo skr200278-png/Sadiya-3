@@ -59,6 +59,7 @@ export default function QuickDailyLogModal({
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab || 'all');
+      admobService.removeBanner().catch(() => {});
     }
   }, [isOpen, initialTab]);
 

@@ -56,8 +56,7 @@ export default defineConfig(({mode}) => {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         },
         devOptions: {
-          enabled: process.env.DISABLE_HMR !== 'true',
-          type: 'module',
+          enabled: false,
         },
         includeAssets: ['farm_app_icon_1779214389225.png', 'screenshot-desktop.png', 'screenshot-mobile.png'],
         manifestFilename: 'manifest.json',
@@ -145,6 +144,10 @@ export default defineConfig(({mode}) => {
       ],
     },
     server: {
+      host: '0.0.0.0',
+      port: 3000,
+      allowedHosts: true,
+      cors: true,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

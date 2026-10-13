@@ -30,6 +30,8 @@ import DoctorConsultation from './views/DoctorConsultation';
 import StoreDirectory from './views/StoreDirectory';
 import ChickMarket from './views/ChickMarket';
 import FCR from './views/FCR';
+import AppLifecycleHandler from './components/AppLifecycleHandler';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAuth();
@@ -39,6 +41,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 function AppRoutes() {
   return (
     <Router>
+      <AppLifecycleHandler />
       <AdMobProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -72,14 +75,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <SystemConfigProvider>
-          <Toaster position="top-center" />
-          <AppRoutes />
-        </SystemConfigProvider>
-      </LanguageProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <LanguageProvider>
+          <SystemConfigProvider>
+            <Toaster position="top-center" />
+            <AppRoutes />
+          </SystemConfigProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
