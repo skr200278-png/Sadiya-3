@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
 import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
+import { openWhatsAppSafe } from '../utils/whatsappHelper';
 
 export default function Profile() {
   const { currentUser, logout, isDemoUser } = useAuth();
@@ -588,7 +589,27 @@ export default function Profile() {
           <ChevronRight size={20} className="text-gray-400" />
         </button>
 
-        <button onClick={() => navigate('/privacy-policy')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+        <a 
+          href="https://farm-manager-bd.netlify.app/website.html" 
+          target="_blank" 
+          rel="noreferrer" 
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <Globe size={18} />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-gray-800 text-sm">
+                {currentLanguage === 'bn' ? 'অফিসিয়াল ওয়েবসাইট (Website)' : 'Official Website'}
+              </p>
+              <p className="text-[11px] text-gray-500">farm-manager-bd.netlify.app</p>
+            </div>
+          </div>
+          <ExternalLink size={18} className="text-gray-400" />
+        </a>
+
+        <button onClick={() => navigate('/privacy-policy')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-t border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
               <FileText size={18} />
@@ -692,7 +713,18 @@ export default function Profile() {
                 আপনার খামার পরিচালনায় যেকোনো প্রযুক্তিগত সাহায্যের জন্য অথবা নতুন ফিচার যুক্ত করতে চাইলে আমার সাথে সরাসরি যোগাযোগ করুন।
               </p>
               
-              <a href="https://wa.me/8801622384379" target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-green-50 p-4 rounded-2xl border border-green-100 hover:bg-green-100 hover:border-green-200 transition-all active:scale-95 shadow-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  openWhatsAppSafe({
+                    phone: '8801622384379',
+                    message: 'আসসালামু আলাইকুম আবু সুফিয়ান ভাই, ফার্ম ম্যানেজার (Farm Manager) অ্যাপ সম্পর্কে কথা বলতে চাচ্ছি।',
+                    lang: currentLanguage === 'bn' ? 'bn' : 'en',
+                    fallbackPhone: '01622384379'
+                  });
+                }}
+                className="w-full flex items-center gap-4 bg-green-50 p-4 rounded-2xl border border-green-100 hover:bg-green-100 hover:border-green-200 transition-all active:scale-95 shadow-sm text-left cursor-pointer"
+              >
                 <div className="bg-gradient-to-br from-green-400 to-green-600 text-white p-3 rounded-xl shadow-md">
                   <MessageCircle size={24} />
                 </div>
@@ -701,7 +733,7 @@ export default function Profile() {
                   <p className="text-sm text-green-700">সরাসরি মেসেজ দিন</p>
                 </div>
                 <ExternalLink size={20} className="text-green-500/50" />
-              </a>
+              </button>
 
               <a href="tel:+8801622384379" className="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all active:scale-95 shadow-sm">
                 <div className="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-3 rounded-xl shadow-md">

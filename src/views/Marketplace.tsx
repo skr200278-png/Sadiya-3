@@ -63,6 +63,7 @@ import { useSystemConfig } from '../contexts/SystemConfigContext';
 import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 import { admobService } from '../services/admobService';
+import { openWhatsAppSafe } from '../utils/whatsappHelper';
 
 export default function Marketplace() {
   const { currentUser, isDemoUser } = useAuth();
@@ -958,19 +959,22 @@ export default function Marketplace() {
                         <span>{language === 'bn' ? 'কল করুন' : 'Call'}</span>
                       </a>
 
-                      <a
-                        href={formatWhatsAppUrl(
-                          post.whatsapp,
-                          post.phone,
-                          `আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${getPoultryTypeName(post.poultryType)}, ${post.birdCount} পিস, ${post.district}${post.country && post.country !== 'বাংলাদেশ' ? `, ${post.country}` : ''})। বিস্তারিত কথা বলতে চাই।`
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const msg = `আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${getPoultryTypeName(post.poultryType)}, ${post.birdCount} পিস, ${post.district}${post.country && post.country !== 'বাংলাদেশ' ? `, ${post.country}` : ''})। বিস্তারিত কথা বলতে চাই।`;
+                          openWhatsAppSafe({
+                            phone: post.whatsapp || post.phone,
+                            message: msg,
+                            lang: language === 'bn' ? 'bn' : 'en',
+                            fallbackPhone: post.phone
+                          });
+                        }}
+                        className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs cursor-pointer"
                       >
                         <MessageCircle size={13} />
                         <span>WhatsApp</span>
-                      </a>
+                      </button>
 
                       {/* Owner / Master Admin Controls Top Quick Icons */}
                       {canManage && (
@@ -1185,19 +1189,22 @@ export default function Marketplace() {
                       </a>
 
                       {buyer.whatsapp && (
-                        <a
-                          href={formatWhatsAppUrl(
-                            buyer.whatsapp,
-                            buyer.phone,
-                            `আসসালামু আলাইকুম, আমি খামারি। আপনার আড়তে মুরগি বিক্রির বিষয়ে কথা বলতে চাচ্ছি (${buyer.district}${buyer.country && buyer.country !== 'বাংলাদেশ' ? `, ${buyer.country}` : ''})।`
-                          )}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const msg = `আসসালামু আলাইকুম, আমি খামারি। আপনার আড়তে মুরগি বিক্রির বিষয়ে কথা বলতে চাচ্ছি (${buyer.district}${buyer.country && buyer.country !== 'বাংলাদেশ' ? `, ${buyer.country}` : ''})।`;
+                            openWhatsAppSafe({
+                              phone: buyer.whatsapp,
+                              message: msg,
+                              lang: language === 'bn' ? 'bn' : 'en',
+                              fallbackPhone: buyer.phone
+                            });
+                          }}
+                          className="py-1.5 px-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs flex items-center gap-1 transition-transform active:scale-95 shadow-xs cursor-pointer"
                         >
                           <MessageCircle size={13} />
                           <span>WhatsApp</span>
-                        </a>
+                        </button>
                       )}
 
                       {/* Owner / Master Admin Delete Option */}

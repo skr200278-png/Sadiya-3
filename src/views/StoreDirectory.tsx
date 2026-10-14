@@ -38,6 +38,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { db, offlineSafeDocWrite } from '../firebase';
+import { openWhatsAppSafe, formatWhatsAppPhone } from '../utils/whatsappHelper';
 import { demoStore, DemoStoreListing } from '../utils/demoStore';
 import { 
   COUNTRY_LIST, 
@@ -960,22 +961,31 @@ export default function StoreDirectory() {
                 {/* Action Buttons: Direct Call & WhatsApp & Share */}
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
                   <a
-                    href={`tel:${store.phone}`}
+                    href={`tel:${store.phone.replace(/[^0-9+]/g, '')}`}
                     className="col-span-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center cursor-pointer"
                   >
                     <Phone size={14} />
                     <span>{language === 'bn' ? 'কল করুন' : 'Call'}</span>
                   </a>
 
-                  <a
-                    href={`https://wa.me/${(store.whatsapp || store.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(language === 'bn' ? `আসসালামু আলাইকুম, আমি ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।` : `Hello, I am contacting you regarding your store "${store.shopName}" listed on Farm Manager.`)}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const waPhone = store.whatsapp || store.phone;
+                      openWhatsAppSafe({
+                        phone: waPhone,
+                        message: language === 'bn' 
+                          ? `আসসালামু আলাইকুম, আমি ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার "${store.shopName}" দোকানের বিজ্ঞাপন দেখে যোগাযোগ করছি।` 
+                          : `Hello, I am contacting you regarding your store "${store.shopName}" listed on Farm Manager.`,
+                        lang: language === 'bn' ? 'bn' : 'en',
+                        fallbackPhone: store.phone
+                      });
+                    }}
                     className="col-span-1 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center cursor-pointer"
                   >
                     <MessageSquare size={14} />
                     <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ' : 'WhatsApp'}</span>
-                  </a>
+                  </button>
 
                   <button
                     type="button"

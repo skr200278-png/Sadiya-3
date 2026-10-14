@@ -12,6 +12,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.content.Intent;
+import android.net.Uri;
 import com.getcapacitor.BridgeActivity;
 import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
 import com.getcapacitor.community.admob.AdMob;
@@ -97,6 +99,21 @@ public class MainActivity extends BridgeActivity {
                             popupWebView.setWebViewClient(new WebViewClient() {
                                 @Override
                                 public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
+                                    if (req == null || req.getUrl() == null) return false;
+                                    String url = req.getUrl().toString();
+                                    if (url.startsWith("whatsapp:") || url.startsWith("intent:") || url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("sms:") || url.contains("wa.me") || url.contains("api.whatsapp.com")) {
+                                        try {
+                                            Intent intent = new Intent(Intent.ACTION_VIEW, req.getUrl());
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                            startActivity(intent);
+                                        } catch (Exception ignored) {}
+                                        try {
+                                            if (popupDialog.isShowing()) {
+                                                popupDialog.dismiss();
+                                            }
+                                        } catch (Exception ignored) {}
+                                        return true;
+                                    }
                                     return false;
                                 }
                             });

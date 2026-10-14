@@ -50,6 +50,7 @@ import {
 import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
+import { openWhatsAppSafe, formatWhatsAppPhone } from '../utils/whatsappHelper';
 
 
 export interface DoctorProfile {
@@ -101,11 +102,11 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ময়মনসিংহ',
     experienceYears: 11,
-    phone: '+8801711000000',
-    whatsapp: '8801711000000',
+    phone: '+8801622384379',
+    whatsapp: '8801622384379',
     visitingHoursBn: 'সকাল ৯:০০ - রাত ৯:০০ (প্রতিদিন)',
     rating: 4.9,
-    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ / ৳১০০',
+    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
     isOnline: true,
     avatarIcon: '👨‍⚕️'
   },
@@ -124,11 +125,11 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'চট্টগ্রাম',
     experienceYears: 9,
-    phone: '+8801812000000',
-    whatsapp: '8801812000000',
+    phone: '+8801622384379',
+    whatsapp: '8801622384379',
     visitingHoursBn: 'সকাল ১০:০০ - রাত ৮:০০',
     rating: 4.9,
-    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ / ৳১৫০',
+    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
     isOnline: true,
     avatarIcon: '👩‍⚕️'
   },
@@ -147,11 +148,11 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 13,
-    phone: '+8801913000000',
-    whatsapp: '8801913000000',
+    phone: '+8801622384379',
+    whatsapp: '8801622384379',
     visitingHoursBn: 'সকাল ৯:০০ - সন্ধ্যা ৭:০০',
     rating: 4.8,
-    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ / ৳১০০',
+    consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
     isOnline: true,
     avatarIcon: '👨‍🔬'
   },
@@ -170,8 +171,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'গাজীপুর',
     experienceYears: 8,
-    phone: '+8801714000000',
-    whatsapp: '8801714000000',
+    phone: '+8801622384379',
+    whatsapp: '8801622384379',
     visitingHoursBn: 'বিকাল ৩:০০ - রাত ১০:০০',
     rating: 4.8,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -193,8 +194,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 14,
-    phone: '+8801615000000',
-    whatsapp: '8801615000000',
+    phone: '+8801622384379',
+    whatsapp: '8801622384379',
     visitingHoursBn: 'সকাল ১০:০০ - রাত ৯:০০',
     rating: 5.0,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -353,12 +354,8 @@ export default function DoctorConsultation() {
   // Doctor Profile to Delete
   const [docToDelete, setDocToDelete] = useState<DoctorProfile | null>(null);
 
-  // My consultation tickets
-  const [tickets, setTickets] = useState<any[]>([]);
-
   useEffect(() => {
     loadCommunityDoctors();
-    loadMyTickets();
   }, [currentUser, isDemoUser]);
 
   // Load Community Doctor Ads
@@ -380,46 +377,6 @@ export default function DoctorConsultation() {
       setCommunityDoctors(list);
     } catch (err) {
       console.warn('Error loading community doctors:', err);
-    }
-  };
-
-  const loadMyTickets = async () => {
-    if (!currentUser && !isDemoUser) return;
-    
-    if (isDemoUser) {
-      const saved = localStorage.getItem('demo_consultation_tickets');
-      if (saved) {
-        setTickets(JSON.parse(saved));
-      } else {
-        const dummy = [
-          {
-            id: 'ticket_demo_1',
-            farmType: 'poultry',
-            symptoms: 'চুনা পায়খানা ও খাবার কম খাওয়া',
-            details: 'ব্রয়লার মুরগির বয়স ২১ দিন। আজ সকাল থেকে ৫টি মুরগি ঝিমাচ্ছে।',
-            doctorName: 'ডাঃ মো: তরিকুল ইসলাম',
-            status: 'reviewed',
-            advice: 'মুরগিগুলোকে দ্রুত আলাদা করুন। সিপ্রোফ্লক্সাসিন ১ মিলি প্রতি লিটার পানিতে ৩ দিন চালান ও স্যালাইন দিন।',
-            date: new Date().toISOString().split('T')[0]
-          }
-        ];
-        setTickets(dummy);
-        localStorage.setItem('demo_consultation_tickets', JSON.stringify(dummy));
-      }
-      return;
-    }
-
-    try {
-      const q = query(
-        collection(db, 'consultations'),
-        where('userId', '==', currentUser!.uid)
-      );
-      const snapshot = await fastGetDocs(q);
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      list.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      setTickets(list);
-    } catch (err) {
-      console.warn('Error fetching tickets:', err);
     }
   };
 
@@ -651,7 +608,7 @@ export default function DoctorConsultation() {
     }
   };
 
-  // Submit Patient Case
+  // Submit Patient Case via WhatsApp
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!symptoms.trim()) {
@@ -660,46 +617,48 @@ export default function DoctorConsultation() {
     }
 
     setSubmitting(true);
-    const newTicketData = {
-      userId: currentUser?.uid || 'demo_user',
-      userEmail: currentUser?.email || '',
-      farmType,
-      animalCount: animalCount ? Number(animalCount) : null,
-      animalAge: animalAge.trim(),
-      symptoms: symptoms.trim(),
-      details: details.trim(),
-      urgency,
-      phone: phone.trim(),
-      doctorName: selectedDoctorForModal ? selectedDoctorForModal.nameBn : 'অনলাইন ভেটেরিনারি বোর্ড',
-      doctorId: selectedDoctorForModal?.id || 'general',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      date: new Date().toISOString().split('T')[0],
-      advice: ''
-    };
-
     try {
-      if (isDemoUser) {
-        const updated = [{ id: 'ticket_' + Date.now(), ...newTicketData }, ...tickets];
-        setTickets(updated);
-        localStorage.setItem('demo_consultation_tickets', JSON.stringify(updated));
-      } else {
-        await offlineSafeDocWrite(addDoc(collection(db, 'consultations'), {
-          ...newTicketData,
-          serverTimestamp: serverTimestamp()
-        }));
-        setTickets(prev => [{ id: 'temp_' + Date.now(), ...newTicketData }, ...prev]);
-      }
+      const farmTypeLabel = 
+        farmType === 'poultry' ? (language === 'bn' ? 'পোল্ট্রি / মুরগি-পাখি' : 'Poultry / Birds') :
+        farmType === 'cattle' ? (language === 'bn' ? 'ডেইরি / গরু-বাছুর-ছাগল' : 'Dairy / Cattle') :
+        farmType === 'fish' ? (language === 'bn' ? 'মৎস্য খামার' : 'Fisheries') :
+        (language === 'bn' ? 'খামার' : 'Farm');
 
-      toast.success(language === 'bn' ? 'ডাক্তারের কাছে আপনার কেস পাঠানো হয়েছে! দ্রুত উত্তর পাবেন।' : 'Case submitted! Doctor will review shortly.');
+      const urgencyLabel = 
+        urgency === 'emergency' 
+          ? (language === 'bn' ? '🚨 অতি জরুরি (Emergency)' : '🚨 Emergency')
+          : (language === 'bn' ? 'স্বাভাবিক / রুটিন' : 'Routine');
+
+      const targetDoctorName = selectedDoctorForModal ? selectedDoctorForModal.nameBn : (language === 'bn' ? 'ভেটেরিনারি ডাক্তার সাহেব' : 'Doctor');
+      const targetPhone = selectedDoctorForModal?.whatsapp || selectedDoctorForModal?.phone || '8801622384379';
+
+      const waMessage = 
+        `আসসালামু আলাইকুম ${targetDoctorName},\n` +
+        `ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে প্রাণীর চিকিৎসার জন্য জরুরি পরামর্শ চাচ্ছি:\n\n` +
+        `🐾 খামার / প্রাণী: ${farmTypeLabel}\n` +
+        (animalAge.trim() ? `⏳ বয়স: ${animalAge.trim()}\n` : '') +
+        (animalCount ? `🔢 সংখ্যা: ${animalCount} টি\n` : '') +
+        `🚨 প্রধান লক্ষণ/সমস্যা: ${symptoms.trim()}\n` +
+        (details.trim() ? `📝 বিস্তারিত বিবরণ: ${details.trim()}\n` : '') +
+        `⚠️ জরুরি মাত্রা: ${urgencyLabel}\n` +
+        (phone.trim() ? `📞 খামারির যোগাযোগ নম্বর: ${phone.trim()}\n\n` : '\n') +
+        `অনুগ্রহ করে সঠিক ঔষধ ও প্রেসক্রিপশন দিয়ে সাহায্য করবেন। ধন্যবাদ।`;
+
+      openWhatsAppSafe({
+        phone: targetPhone,
+        message: waMessage,
+        lang: language === 'bn' ? 'bn' : 'en',
+        fallbackPhone: selectedDoctorForModal?.phone || '01622384379'
+      });
+
+      toast.success(language === 'bn' ? 'হোয়াটসঅ্যাপে ডাক্তারের চ্যাটে পাঠানো হচ্ছে...' : 'Redirecting to Doctor on WhatsApp...');
       setIsModalOpen(false);
       setSymptoms('');
       setDetails('');
       setAnimalCount('');
       setAnimalAge('');
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, 'consultations');
-      toast.error(language === 'bn' ? 'তথ্য পাঠাতে সমস্যা হয়েছে।' : 'Error submitting case');
+      toast.error(language === 'bn' ? 'হোয়াটসঅ্যাপে পাঠাতে সমস্যা হয়েছে।' : 'Error connecting to WhatsApp');
     } finally {
       setSubmitting(false);
     }
@@ -971,55 +930,6 @@ export default function DoctorConsultation() {
         </div>
       </div>
 
-      {/* 3. My Active Consultation Tickets (if any) */}
-      {tickets.length > 0 && (
-        <div className="bg-white rounded-2xl p-3.5 shadow-2xs border border-indigo-100">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-              <FileText size={15} className="text-indigo-600" />
-              {language === 'bn' ? 'আপনার পরামর্শ ও প্রেসক্রিপশন হিস্ট্রি' : 'My Consultations'}
-            </h3>
-            <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
-              {tickets.length} {language === 'bn' ? 'টি কেস' : 'tickets'}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            {tickets.slice(0, 3).map((t, idx) => (
-              <div key={t.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-extrabold text-slate-800 flex items-center gap-1">
-                    <span>{t.farmType === 'cattle' ? '🐄' : t.farmType === 'fish' ? '🐟' : '🐦'}</span>
-                    <span>{t.symptoms}</span>
-                  </span>
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                    t.status === 'reviewed' 
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                      : 'bg-amber-100 text-amber-800 border border-amber-300'
-                  }`}>
-                    {t.status === 'reviewed' 
-                      ? (language === 'bn' ? '✓ পরামর্শ দেওয়া হয়েছে' : 'Reviewed') 
-                      : (language === 'bn' ? '⏳ ডাক্তার পর্যালোচনা করছেন' : 'Pending Review')}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 mb-1">{t.details}</p>
-                {t.advice && (
-                  <div className="mt-1.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-emerald-900">
-                    <p className="text-[10px] font-black text-emerald-800 mb-0.5">
-                      🩺 {language === 'bn' ? 'ডাক্তারের পরামর্শ ও প্রেসক্রিপশন:' : 'Doctor Advice:'}
-                    </p>
-                    <p className="text-[11px] font-medium leading-relaxed">{t.advice}</p>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-[9px] text-slate-400 mt-1">
-                  <span>{t.doctorName}</span>
-                  <span>{t.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 4. Doctors Directory Section */}
       <div className="space-y-2.5">
@@ -1162,34 +1072,39 @@ export default function DoctorConsultation() {
                 {/* Main Public Action Bar */}
                 <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2">
                   <a
-                    href={`tel:${doctor.phone}`}
-                    className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                    href={`tel:${doctor.phone.replace(/[^0-9+]/g, '')}`}
+                    className="flex-1 py-2 px-2 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                   >
-                    <Phone size={13} />
+                    <Phone size={14} />
                     <span>{language === 'bn' ? 'সরাসরি কল' : 'Call'}</span>
                   </a>
 
-                  <a
-                    href={`https://wa.me/${doctor.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                      language === 'bn' 
-                        ? `আসসালামু আলাইকুম ${doctor.nameBn}, ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার পরামর্শ নিতে চাচ্ছি।` 
-                        : `Hello Doctor, I need veterinary consultation for my farm through Farm Manager app.`
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-1.5 px-2 bg-green-600 hover:bg-green-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => handleOpenConsultModal(doctor)}
+                    className="flex-1 py-2 px-2 bg-green-600 hover:bg-green-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                   >
-                    <MessageCircle size={13} />
-                    <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ' : 'WhatsApp'}</span>
-                  </a>
+                    <MessageCircle size={14} />
+                    <span>{language === 'bn' ? 'হোয়াটসঅ্যাপে জানান' : 'WhatsApp'}</span>
+                  </button>
 
                   <button
-                    onClick={() => handleOpenConsultModal(doctor)}
-                    className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
-                    title={language === 'bn' ? 'অনলাইন প্রেসক্রিপশন অনুরোধ' : 'Online Case'}
+                    type="button"
+                    onClick={() => {
+                      openWhatsAppSafe({
+                        phone: doctor.whatsapp || doctor.phone,
+                        message: language === 'bn'
+                          ? `আসসালামু আলাইকুম ${doctor.nameBn}, ফার্ম ম্যানেজার (Farm Manager) অ্যাপ থেকে আপনার পরামর্শ নিতে চাচ্ছি।`
+                          : `Hello Doctor, I need veterinary consultation through Farm Manager app.`,
+                        lang: language === 'bn' ? 'bn' : 'en',
+                        fallbackPhone: doctor.phone
+                      });
+                    }}
+                    className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-750 hover:text-green-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-slate-200"
+                    title={language === 'bn' ? 'সরাসরি চ্যাট' : 'Direct Chat'}
                   >
-                    <FileText size={13} />
-                    <span className="hidden sm:inline">{language === 'bn' ? 'প্রেসক্রিপশন' : 'Request'}</span>
+                    <Send size={13} className="text-green-600" />
+                    <span className="hidden sm:inline">{language === 'bn' ? 'চ্যাট' : 'Chat'}</span>
                   </button>
                 </div>
 
@@ -1639,10 +1554,10 @@ export default function DoctorConsultation() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Send size={14} />
-                  <span>{submitting ? (language === 'bn' ? 'পাঠানো হচ্ছে...' : 'Submitting...') : (language === 'bn' ? 'কেস সাবমিট করুন' : 'Submit Case')}</span>
+                  <MessageCircle size={15} />
+                  <span>{submitting ? (language === 'bn' ? 'পাঠানো হচ্ছে...' : 'Opening...') : (language === 'bn' ? 'হোয়াটসঅ্যাপে ডাক্তারকে পাঠান' : 'Send to Doctor on WhatsApp')}</span>
                 </button>
               </div>
             </form>

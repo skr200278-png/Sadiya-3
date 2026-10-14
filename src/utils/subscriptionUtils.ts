@@ -278,25 +278,24 @@ export function formatPlanDurationBn(durationDays?: number): string {
 }
 
 /**
- * Generate friendly WhatsApp renewal notification text
+ * Generate friendly WhatsApp notification text (Play Store compliant - zero third-party billing/payment collection)
  */
 export function generateRenewalWhatsAppMessage(params: {
   userName?: string;
   planTitle?: string;
   remainingText?: string;
   isExpired?: boolean;
-  bkashNumber?: string;
-  nagadNumber?: string;
+  adminPhone?: string;
 }): string {
-  const { userName = 'গ্রাহক', planTitle = 'প্রো প্যাকেজ', remainingText, isExpired, bkashNumber = '01622384379', nagadNumber = '01622384379' } = params;
+  const { userName = 'গ্রাহক', planTitle = 'ডিজিটাল খামার', remainingText, isExpired, adminPhone = '01622384379' } = params;
   
   if (isExpired) {
     return encodeURIComponent(
-      `আসসালামু আলাইকুম ${userName},\n\nডিজিটাল খামার অ্যাপে আপনার "${planTitle}" সাবস্ক্রিপশনের মেয়াদ শেষ হয়ে গেছে। খামারের সকল প্রিমিয়াম ফিচার, হিসাব ও রিকমেন্ডেশন নিরবচ্ছিন্নভাবে চালু রাখতে অনুগ্রহ করে রিনিউ করুন।\n\nবিকাশ/নগদ (পার্সোনাল): ${bkashNumber}\nটাকা পাঠিয়ে ট্রানজেকশন আইডি (TrxID) দিলে তাৎক্ষণিক চালু করে দেওয়া হবে। ধন্যবাদ!`
+      `আসসালামু আলাইকুম ${userName},\n\nডিজিটাল খামার অ্যাপে আপনার "${planTitle}" সেবার মেয়াদ সমাপ্ত হয়েছে। অ্যাপের সেবা ও একাউন্ট সচল রাখতে অনুগ্রহ করে আমাদের হেল্পলাইনে যোগাযোগ করুন।\n\nহেল্পলাইন: ${adminPhone}\nধন্যবাদ!`
     );
   }
 
   return encodeURIComponent(
-    `আসসালামু আলাইকুম ${userName},\n\nডিজিটাল খামার অ্যাপে আপনার "${planTitle}" ভিআইপি সাবস্ক্রিপশনের মেয়াদ আর মাত্র ${remainingText || 'কিছুদিন'} বাকি আছে। নিরবচ্ছিন্ন সেবা অব্যাহত রাখতে আগেই রিনিউ করে রাখতে পারেন।\n\nবিকাশ/নগদ (পার্সোনাল): ${bkashNumber}\nযেকোনো প্রয়োজনে আমাদের সাথে যোগাযোগ করুন। ধন্যবাদ!`
+    `আসসালামু আলাইকুম ${userName},\n\nডিজিটাল খামার অ্যাপে আপনার "${planTitle}" সেবার মেয়াদ আর মাত্র ${remainingText || 'কিছুদিন'} বাকি রয়েছে। যেকোনো সহযোগিতা ও তথ্যের জন্য আমাদের হেল্পলাইনে যোগাযোগ করতে পারেন।\n\nহেল্পলাইন: ${adminPhone}\nধন্যবাদ!`
   );
 }

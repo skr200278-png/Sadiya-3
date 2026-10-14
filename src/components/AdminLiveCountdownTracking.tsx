@@ -375,8 +375,7 @@ export default function AdminLiveCountdownTracking({
       planTitle: sub.planTitle,
       remainingText: sub.expiryInfo.statusLabelBn,
       isExpired: sub.expiryInfo.isExpired,
-      bkashNumber: config.paymentNumbers?.bkash,
-      nagadNumber: config.paymentNumbers?.nagad
+      adminPhone: config.adminPhone || '01622384379'
     });
     const url = targetPhone 
       ? `https://wa.me/${targetPhone}?text=${message}`

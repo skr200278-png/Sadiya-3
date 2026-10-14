@@ -78,7 +78,7 @@ export default function PrivacyPolicy() {
             <span>📅 <strong>Effective:</strong> March 2025</span>
             <span>🔄 <strong>Updated:</strong> October 2026</span>
             <span>🏢 <strong>Developer:</strong> Farm Manager Tech (Sk Abu Sufian)</span>
-            <span>🌐 <strong>Website:</strong> <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">Farm Manager Web</a></span>
+            <span>🌐 <strong>Website:</strong> <a href="https://farm-manager-bd.netlify.app/website.html" target="_blank" rel="noreferrer" className="underline font-bold">farm-manager-bd.netlify.app</a></span>
           </div>
         </div>
 
@@ -159,7 +159,7 @@ export default function PrivacyPolicy() {
               <p className="text-xs text-emerald-800">
                 ইমেইল: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | মোবাইল: <strong>+8801622384379 (01622384379)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">ওয়েবসাইট পেজ দেখুন (/website.html)</a></p>
+              <p className="text-[11px] text-emerald-700">ওয়েবসাইট: <a href="https://farm-manager-bd.netlify.app/website.html" target="_blank" rel="noreferrer" className="underline font-bold">https://farm-manager-bd.netlify.app/website.html</a></p>
             </div>
           </div>
         ) : (
@@ -234,7 +234,7 @@ export default function PrivacyPolicy() {
               <p className="text-xs text-emerald-800">
                 Email: <a href="mailto:sr0632890@gmail.com" className="font-bold underline">sr0632890@gmail.com</a> | <a href="mailto:skabusufian452@gmail.com" className="font-bold underline">skabusufian452@gmail.com</a> | Phone: <strong>+8801622384379 (01622384379)</strong>
               </p>
-              <p className="text-[11px] text-emerald-700">Website: <a href="/website.html" target="_blank" rel="noreferrer" className="underline font-bold">View Website (/website.html)</a></p>
+              <p className="text-[11px] text-emerald-700">Website: <a href="https://farm-manager-bd.netlify.app/website.html" target="_blank" rel="noreferrer" className="underline font-bold">https://farm-manager-bd.netlify.app/website.html</a></p>
             </div>
           </div>
         )}

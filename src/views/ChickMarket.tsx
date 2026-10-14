@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   collection, 
   query, 
@@ -62,6 +62,7 @@ import {
 import toast from 'react-hot-toast';
 import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBanner';
 import { admobService } from '../services/admobService';
+import { openWhatsAppSafe, formatWhatsAppPhone } from '../utils/whatsappHelper';
 
 // Helper to reliably identify default built-in demo listings vs user-posted listings
 export const isDefaultDemoChickAd = (ad?: DemoChickListing | { id?: string; userId?: string } | null): boolean => {
@@ -113,6 +114,8 @@ export const ChickMarket: React.FC = () => {
 
   // Modals & Confirmation
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+  const submitLock = useRef(false);
   const [isRateEditModalOpen, setIsRateEditModalOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<DemoChickRate | null>(null);
   const [listingToDelete, setListingToDelete] = useState<DemoChickListing | null>(null);
@@ -208,20 +211,36 @@ export const ChickMarket: React.FC = () => {
       try {
         const listingsQuery = query(collection(db, 'chick_listings'), orderBy('createdAt', 'desc'));
         unsubListings = onSnapshot(listingsQuery, (snapshot) => {
-          const firestoreAds = snapshot.docs
-            .map(d => ({ id: d.id, ...d.data() } as DemoChickListing))
-            .filter(ad => !isDefaultDemoChickAd(ad));
-          setListings(firestoreAds);
+          const map = new Map<string, DemoChickListing>();
+          snapshot.docs.forEach(d => {
+            const item = { id: d.id, ...d.data() } as DemoChickListing;
+            if (!isDefaultDemoChickAd(item) && !map.has(item.id)) {
+              map.set(item.id, item);
+            }
+          });
+          setListings(Array.from(map.values()));
           setLoading(false);
         }, (err) => {
           console.warn('Listings listener fallback to demo:', err);
           const raw = demoStore.getChickListings();
-          setListings(raw.filter(l => !isDefaultDemoChickAd(l)));
+          const map = new Map<string, DemoChickListing>();
+          raw.forEach(l => {
+            if (!isDefaultDemoChickAd(l) && !map.has(l.id)) {
+              map.set(l.id, l);
+            }
+          });
+          setListings(Array.from(map.values()));
           setLoading(false);
         });
       } catch (err) {
         const raw = demoStore.getChickListings();
-        setListings(raw.filter(l => !isDefaultDemoChickAd(l)));
+        const map = new Map<string, DemoChickListing>();
+        raw.forEach(l => {
+          if (!isDefaultDemoChickAd(l) && !map.has(l.id)) {
+            map.set(l.id, l);
+          }
+        });
+        setListings(Array.from(map.values()));
         setLoading(false);
       }
     };
@@ -234,13 +253,18 @@ export const ChickMarket: React.FC = () => {
     };
   }, [isDemoUser]);
 
-  // Handle Post Submit
+  // Handle Post Submit with Double-Click and Duplication Lock
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingPost || submitLock.current) return;
+
     if (!postForm.companyName.trim() || !postForm.phone.trim() || !postForm.pricePerUnit) {
       toast.error(language === 'bn' ? 'অনুগ্রহ করে কোম্পানি, মোবাইল ও বাচ্চার মূল্য পূরণ করুন' : 'Please fill Company Name, Phone, and Price');
       return;
     }
+
+    setIsSubmittingPost(true);
+    submitLock.current = true;
 
     const finalWhatsApp = postForm.whatsappSameAsPhone ? postForm.phone.trim() : (postForm.whatsapp.trim() || postForm.phone.trim());
 
@@ -275,17 +299,37 @@ export const ChickMarket: React.FC = () => {
       if (isDemoUser) {
         const saved = demoStore.saveChickListing(newAdData);
         createdAdId = saved.id;
-        setListings(demoStore.getChickListings());
+        const allLocal = demoStore.getChickListings();
+        const map = new Map<string, DemoChickListing>();
+        allLocal.forEach(l => {
+          if (!isDefaultDemoChickAd(l)) map.set(l.id, l);
+        });
+        setListings(Array.from(map.values()));
       } else {
         try {
           const docRef = await addDoc(collection(db, 'chick_listings'), newAdData);
           createdAdId = docRef.id;
           demoStore.saveChickListing({ ...newAdData, id: createdAdId });
-          setListings(prev => [{ id: createdAdId, ...newAdData } as DemoChickListing, ...prev]);
+          // Deduplicate state strictly by id so it NEVER creates a duplicate
+          setListings(prev => {
+            const map = new Map<string, DemoChickListing>();
+            map.set(createdAdId, { id: createdAdId, ...newAdData } as DemoChickListing);
+            prev.forEach(p => {
+              if (p.id !== createdAdId) map.set(p.id, p);
+            });
+            return Array.from(map.values());
+          });
         } catch (err) {
           const saved = demoStore.saveChickListing(newAdData);
           createdAdId = saved.id;
-          setListings(demoStore.getChickListings());
+          setListings(prev => {
+            const map = new Map<string, DemoChickListing>();
+            map.set(createdAdId, saved);
+            prev.forEach(p => {
+              if (p.id !== createdAdId) map.set(p.id, p);
+            });
+            return Array.from(map.values());
+          });
         }
       }
 
@@ -322,6 +366,9 @@ export const ChickMarket: React.FC = () => {
       });
     } catch (err: any) {
       toast.error(err.message || 'Error creating ad');
+    } finally {
+      setIsSubmittingPost(false);
+      submitLock.current = false;
     }
   };
 
@@ -477,21 +524,28 @@ export const ChickMarket: React.FC = () => {
 
   // WhatsApp Order helper
   const openWhatsAppOrder = (listing: DemoChickListing) => {
-    const cleanPhone = (listing.whatsapp || listing.phone).replace(/[^0-9]/g, '');
-    const phoneWithCode = cleanPhone.startsWith('88') ? cleanPhone : `88${cleanPhone}`;
-    const text = encodeURIComponent(
+    const text = 
       `আসসালামু আলাইকুম ${listing.companyName}। আমি ফার্ম ম্যানেজার (Farm Manager) অ্যাপে আপনার বাচ্চার বিজ্ঞাপন দেখলাম।\n\n` +
       `বাচ্চার জাত: ${listing.subCategory}\n` +
       `গ্রেড: Grade ${listing.grade}\n` +
       `মূল্য: ৳${listing.pricePerUnit} (${listing.unitLabel})\n` +
       `ন্যূনতম অর্ডার: ${listing.minimumOrder} পিস\n\n` +
-      `আমি অর্ডার ও ডেলিভারি সম্পর্কে বিস্তারিত কথা বলতে চাই।`
-    );
-    window.open(`https://wa.me/${phoneWithCode}?text=${text}`, '_blank');
+      `আমি অর্ডার ও ডেলিভারি সম্পর্কে বিস্তারিত কথা বলতে চাই।`;
+
+    openWhatsAppSafe({
+      phone: listing.whatsapp || listing.phone,
+      message: text,
+      lang: language === 'bn' ? 'bn' : 'en',
+      fallbackPhone: listing.phone
+    });
   };
 
-  // Filter listings
-  const filteredListings = listings.filter(l => {
+  // Filter listings with strict deduplication by ID to prevent duplicate items
+  const uniqueListings = Array.from(
+    new Map(listings.map(item => [item.id, item])).values()
+  );
+
+  const filteredListings = uniqueListings.filter(l => {
     if (activeCategory !== 'all' && l.category !== activeCategory) return false;
     if (selectedGrade !== 'all' && l.grade !== selectedGrade) return false;
     if (selectedDistrict !== 'all' && l.district !== selectedDistrict) return false;
@@ -1183,9 +1237,19 @@ export const ChickMarket: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer"
+                  disabled={isSubmittingPost}
+                  className={`flex-1 py-2.5 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    isSubmittingPost ? 'bg-emerald-400 opacity-70 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
                 >
-                  {language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করুন' : 'Publish Ad'}
+                  {isSubmittingPost ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>{language === 'bn' ? 'পোস্ট হচ্ছে...' : 'Posting...'}</span>
+                    </>
+                  ) : (
+                    <span>{language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করুন' : 'Publish Ad'}</span>
+                  )}
                 </button>
               </div>
             </form>
