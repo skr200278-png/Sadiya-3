@@ -70,6 +70,33 @@ import { demoStore } from '../utils/demoStore';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db, fastGetDocs } from '../firebase';
 
+function normalizeCategorySubBreed(farmType: FarmCategory, rawBreed?: string): string {
+  const b = String(rawBreed || '').toLowerCase().trim();
+  if (farmType === 'cattle') {
+    if (b.includes('goat') || b.includes('ছাগল') || b.includes('খাসি')) return 'goat';
+    if (b.includes('sheep') || b.includes('ভেড়া') || b.includes('ভেড়া') || b.includes('গাড়ল')) return 'sheep';
+    if (b.includes('buffalo') || b.includes('মহিষ')) return 'buffalo';
+    if (b.includes('dairy') || b.includes('গাভী') || b.includes('দুধ') || b.includes('cow')) return 'dairy';
+    return 'fattening';
+  }
+  if (farmType === 'fish') {
+    if (b.includes('carp') || b.includes('রুই') || b.includes('কাতলা')) return 'carp';
+    if (b.includes('pangash') || b.includes('পাঙ্গাস')) return 'pangash';
+    if (b.includes('shing') || b.includes('pabda') || b.includes('শিং') || b.includes('পাবদা')) return 'shing_pabda';
+    if (b.includes('mixed') || b.includes('মিশ্র')) return 'mixed';
+    return 'telapia';
+  }
+  // Poultry
+  if (b.includes('layer') || b.includes('লেয়ার') || b.includes('লেয়ার')) return 'layer';
+  if (b.includes('sonali') || b.includes('সোনালী') || b.includes('সোনালি')) return 'sonali';
+  if (b.includes('deshi') || b.includes('দেশি') || b.includes('দেশী')) return 'deshi';
+  if (b.includes('duck') || b.includes('হাঁস') || b.includes('হাস')) return 'duck';
+  if (b.includes('quail') || b.includes('কোয়েল') || b.includes('কোয়েল')) return 'quail';
+  if (b.includes('turkey') || b.includes('টার্কি')) return 'turkey';
+  if (b.includes('pigeon') || b.includes('কবুতর')) return 'pigeon';
+  return 'broiler';
+}
+
 export default function FCR() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,8 +108,16 @@ export default function FCR() {
   // 1. HIERARCHICAL SCOPE SELECTION
   // Category -> Breed -> Batch
   // ------------------------------------------------------------
-  const [selectedCategory, setSelectedCategory] = useState<FarmCategory>('poultry');
-  const [selectedBreed, setSelectedBreed] = useState<string>('broiler');
+  const [selectedCategory, setSelectedCategory] = useState<FarmCategory>(() => {
+    const saved = localStorage.getItem('selected_farm_type') as FarmCategory | null;
+    return (saved === 'poultry' || saved === 'cattle' || saved === 'fish') ? saved : 'poultry';
+  });
+  const [selectedBreed, setSelectedBreed] = useState<string>(() => {
+    const savedType = localStorage.getItem('selected_farm_type') as FarmCategory | null;
+    if (savedType === 'cattle') return 'fattening';
+    if (savedType === 'fish') return 'telapia';
+    return 'broiler';
+  });
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
 
   const [batches, setBatches] = useState<BatchIdentifier[]>([]);
@@ -102,18 +137,21 @@ export default function FCR() {
     try {
       if (isDemoUser) {
         const demoBatches = demoStore.getBatches();
-        const mappedBatches: BatchIdentifier[] = (demoBatches || []).map((b: any) => ({
-          id: b.id,
-          userId: b.userId || 'demo',
-          batchName: b.batchName || b.name || 'Batch',
-          farmType: (b.farmType || 'poultry') as FarmCategory,
-          subBreed: b.subBreed || b.breed || 'broiler',
-          startDate: b.startDate || new Date().toISOString().split('T')[0],
-          totalChicks: Number(b.totalChicks || b.initialCount || b.birdCount || 1000),
-          costPerChick: Number(b.costPerChick || 55),
-          status: b.status === 'completed' ? 'completed' : 'active',
-          bagWeightKg: Number(b.bagWeightKg || 50)
-        }));
+        const mappedBatches: BatchIdentifier[] = (demoBatches || []).map((b: any) => {
+          const fType = (b.farmType || 'poultry') as FarmCategory;
+          return {
+            id: b.id,
+            userId: b.userId || 'demo',
+            batchName: b.batchName || b.name || 'Batch',
+            farmType: fType,
+            subBreed: normalizeCategorySubBreed(fType, b.subBreed || b.breed),
+            startDate: b.startDate || new Date().toISOString().split('T')[0],
+            totalChicks: Number(b.totalChicks || b.initialCount || b.birdCount || 1000),
+            costPerChick: Number(b.costPerChick || 55),
+            status: b.status === 'completed' ? 'completed' : 'active',
+            bagWeightKg: Number(b.bagWeightKg || 50)
+          };
+        });
         setBatches(mappedBatches);
 
         const demoFeed = demoStore.getFeedRecords();
@@ -127,12 +165,13 @@ export default function FCR() {
         const bsnap = await fastGetDocs(bq);
         const mappedBatches: BatchIdentifier[] = bsnap.docs.map(d => {
           const data = d.data();
+          const fType = (data.farmType || 'poultry') as FarmCategory;
           return {
             id: d.id,
             userId: data.userId || currentUser.uid,
             batchName: data.batchName || data.name || 'Batch',
-            farmType: (data.farmType || 'poultry') as FarmCategory,
-            subBreed: data.subBreed || data.breed || 'broiler',
+            farmType: fType,
+            subBreed: normalizeCategorySubBreed(fType, data.subBreed || data.breed),
             startDate: data.startDate || new Date().toISOString().split('T')[0],
             totalChicks: Number(data.totalChicks || data.initialCount || data.birdCount || 1000),
             costPerChick: Number(data.costPerChick || 55),
@@ -227,12 +266,188 @@ export default function FCR() {
   }, [currentBatch, mortalityRecords]);
 
   // ------------------------------------------------------------
+  // ------------------------------------------------------------
   // 3. FCR CALCULATION RESULT
   // ------------------------------------------------------------
   const fcrResult = useMemo(() => {
     if (!currentBatch) return null;
     return calculateStrictBatchFcr(currentBatch, dailyRecords, currentBatchMortality);
   }, [currentBatch, dailyRecords, currentBatchMortality]);
+
+  // ------------------------------------------------------------
+  // DYNAMIC ANIMAL TERMINOLOGY (POULTRY vs CATTLE vs FISH)
+  // ------------------------------------------------------------
+  const animalTerms = useMemo(() => {
+    const cat = currentBatch?.farmType || selectedCategory;
+    const breed = (currentBatch?.subBreed || selectedBreed || '').toLowerCase();
+
+    if (cat === 'cattle') {
+      if (breed === 'goat') {
+        return {
+          category: 'cattle',
+          breed,
+          animalName: isBn ? 'ছাগল' : 'Goat',
+          countUnit: isBn ? 'টি ছাগল' : 'goats',
+          youngName: isBn ? 'ছাগলছানা' : 'Kid',
+          ageLabel: isBn ? 'ছাগলের বয়স (দিন)' : 'Goat Age (Days)',
+          sampleLabel: isBn ? 'স্যাম্পল ছাগলের ওজন পরিমাপ' : 'Sample Goat Weighing',
+          sampleCountPrompt: isBn ? 'কতটি ছাগল মেপেছেন?' : 'Number of Goats Weighed',
+          sampleWeightPlaceholder: isBn ? 'যেমন: ২০' : 'e.g. 20',
+          liveLabel: isBn ? 'বর্তমানে জীবিত ছাগল' : 'Current Alive Goats',
+          initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Stock',
+          defaultUnit: 'kg' as const,
+          weightUnitName: isBn ? 'কেজি' : 'kg',
+          benchmarkName: isBn ? 'ছাগল/খাসির' : 'Goat',
+          weighingNote: isBn ? 'টি ছাগল' : 'goats',
+          defaultSampleCount: '1',
+          avgWeightDisplay: (gram: number, kg: number) => `${kg} কেজি`,
+        };
+      }
+      if (breed === 'sheep') {
+        return {
+          category: 'cattle',
+          breed,
+          animalName: isBn ? 'ভেড়া' : 'Sheep',
+          countUnit: isBn ? 'টি ভেড়া' : 'sheep',
+          youngName: isBn ? 'ভেড়ার বাচ্চা' : 'Lamb',
+          ageLabel: isBn ? 'ভেড়ার বয়স (দিন)' : 'Sheep Age (Days)',
+          sampleLabel: isBn ? 'স্যাম্পল ভেড়ার ওজন পরিমাপ' : 'Sample Sheep Weighing',
+          sampleCountPrompt: isBn ? 'কতটি ভেড়া মেপেছেন?' : 'Number of Sheep Weighed',
+          sampleWeightPlaceholder: isBn ? 'যেমন: ২৫' : 'e.g. 25',
+          liveLabel: isBn ? 'বর্তমানে জীবিত ভেড়া' : 'Current Alive Sheep',
+          initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Stock',
+          defaultUnit: 'kg' as const,
+          weightUnitName: isBn ? 'কেজি' : 'kg',
+          benchmarkName: isBn ? 'ভেড়ার' : 'Sheep',
+          weighingNote: isBn ? 'টি ভেড়া' : 'sheep',
+          defaultSampleCount: '1',
+          avgWeightDisplay: (gram: number, kg: number) => `${kg} কেজি`,
+        };
+      }
+      if (breed === 'buffalo') {
+        return {
+          category: 'cattle',
+          breed,
+          animalName: isBn ? 'মহিষ' : 'Buffalo',
+          countUnit: isBn ? 'টি মহিষ' : 'buffaloes',
+          youngName: isBn ? 'মহিষের বাছুর' : 'Calf',
+          ageLabel: isBn ? 'মহিষের বয়স (দিন)' : 'Buffalo Age (Days)',
+          sampleLabel: isBn ? 'স্যাম্পল মহিষের ওজন পরিমাপ' : 'Sample Buffalo Weighing',
+          sampleCountPrompt: isBn ? 'কতটি মহিষ মেপেছেন?' : 'Number of Buffaloes Weighed',
+          sampleWeightPlaceholder: isBn ? 'যেমন: ২৫০' : 'e.g. 250',
+          liveLabel: isBn ? 'বর্তমানে জীবিত মহিষ' : 'Current Alive Buffaloes',
+          initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Stock',
+          defaultUnit: 'kg' as const,
+          weightUnitName: isBn ? 'কেজি' : 'kg',
+          benchmarkName: isBn ? 'মহিষের' : 'Buffalo',
+          weighingNote: isBn ? 'টি মহিষ' : 'buffaloes',
+          defaultSampleCount: '1',
+          avgWeightDisplay: (gram: number, kg: number) => `${kg} কেজি`,
+        };
+      }
+      if (breed === 'dairy') {
+        return {
+          category: 'cattle',
+          breed,
+          animalName: isBn ? 'গাভী' : 'Dairy Cow',
+          countUnit: isBn ? 'টি গাভী' : 'cows',
+          youngName: isBn ? 'বাছুর' : 'Calf',
+          ageLabel: isBn ? 'গাভীর বয়স (দিন)' : 'Cow Age (Days)',
+          sampleLabel: isBn ? 'স্যাম্পল গাভীর ওজন পরিমাপ' : 'Sample Cow Weighing',
+          sampleCountPrompt: isBn ? 'কতটি গাভী মেপেছেন?' : 'Number of Cows Weighed',
+          sampleWeightPlaceholder: isBn ? 'যেমন: ৩০০' : 'e.g. 300',
+          liveLabel: isBn ? 'বর্তমানে জীবিত গাভী' : 'Current Alive Cows',
+          initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Stock',
+          defaultUnit: 'kg' as const,
+          weightUnitName: isBn ? 'কেজি' : 'kg',
+          benchmarkName: isBn ? 'ডেইরি গাভীর' : 'Dairy Cow',
+          weighingNote: isBn ? 'টি গাভী' : 'cows',
+          defaultSampleCount: '1',
+          avgWeightDisplay: (gram: number, kg: number) => `${kg} কেজি`,
+        };
+      }
+      // Beef fattening (ষাঁড় / গরু মোটাতাজাকরণ)
+      return {
+        category: 'cattle',
+        breed,
+        animalName: isBn ? 'গরু' : 'Cattle',
+        countUnit: isBn ? 'টি গরু' : 'cattle',
+        youngName: isBn ? 'বাছুর' : 'Calf',
+        ageLabel: isBn ? 'গরুর বয়স (দিন)' : 'Cattle Age (Days)',
+        sampleLabel: isBn ? 'স্যাম্পল গরুর ওজন পরিমাপ' : 'Sample Cattle Weighing',
+        sampleCountPrompt: isBn ? 'কতটি গরু মেপেছেন?' : 'Number of Cattle Weighed',
+        sampleWeightPlaceholder: isBn ? 'যেমন: ১৮০' : 'e.g. 180',
+        liveLabel: isBn ? 'বর্তমানে জীবিত গরু' : 'Current Alive Cattle',
+        initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Stock',
+        defaultUnit: 'kg' as const,
+        weightUnitName: isBn ? 'কেজি' : 'kg',
+        benchmarkName: isBn ? 'গরু মোটাতাজাকরণের' : 'Cattle Fattening',
+        weighingNote: isBn ? 'টি গরু' : 'cattle',
+        defaultSampleCount: '1',
+        avgWeightDisplay: (gram: number, kg: number) => `${kg} কেজি`,
+      };
+    }
+
+    if (cat === 'fish') {
+      let fishType = isBn ? 'মাছ' : 'Fish';
+      if (breed === 'telapia') fishType = isBn ? 'তেলাপিয়া মাছ' : 'Tilapia';
+      else if (breed === 'carp') fishType = isBn ? 'রুই/কার্প মাছ' : 'Carp';
+      else if (breed === 'pangash') fishType = isBn ? 'পাঙ্গাস মাছ' : 'Pangash';
+      else if (breed === 'shing_pabda') fishType = isBn ? 'শিং/পাবদা মাছ' : 'Catfish';
+      else if (breed === 'mixed') fishType = isBn ? 'মিশ্র মাছ' : 'Mixed Fish';
+
+      return {
+        category: 'fish',
+        breed,
+        animalName: fishType,
+        countUnit: isBn ? 'টি মাছ' : 'fish',
+        youngName: isBn ? 'পোনা মাছ' : 'Fingerling',
+        ageLabel: isBn ? 'চাষের বয়স (দিন)' : 'Culture Age (Days)',
+        sampleLabel: isBn ? 'স্যাম্পল মাছের ওজন পরিমাপ' : 'Sample Fish Weighing',
+        sampleCountPrompt: isBn ? 'কতটি মাছ মেপেছেন?' : 'Number of Fish Sampled',
+        sampleWeightPlaceholder: isBn ? 'যেমন: ২.৫' : 'e.g. 2.5',
+        liveLabel: isBn ? 'বর্তমানে জীবিত মাছ' : 'Current Live Fish',
+        initialCountLabel: isBn ? 'পোনা ছাড়ার সংখ্যা' : 'Fingerlings Stocked',
+        defaultUnit: 'g' as const,
+        weightUnitName: isBn ? 'গ্রাম' : 'g',
+        benchmarkName: fishType,
+        weighingNote: isBn ? 'টি মাছ' : 'fish',
+        defaultSampleCount: '10',
+        avgWeightDisplay: (gram: number, kg: number) => gram >= 1000 ? `${kg} কেজি` : `${gram} গ্রাম`,
+      };
+    }
+
+    // Default Poultry (মুরগি / হাঁস / পাখি)
+    let birdType = isBn ? 'মুরগি' : 'Chicken';
+    if (breed === 'duck') birdType = isBn ? 'হাঁস' : 'Duck';
+    else if (breed === 'quail') birdType = isBn ? 'কোয়েল' : 'Quail';
+    else if (breed === 'turkey') birdType = isBn ? 'টার্কি' : 'Turkey';
+    else if (breed === 'pigeon') birdType = isBn ? 'কবুতর' : 'Pigeon';
+    else if (breed === 'sonali') birdType = isBn ? 'সোনালী মুরগি' : 'Sonali';
+    else if (breed === 'layer') birdType = isBn ? 'লেয়ার মুরগি' : 'Layer';
+    else if (breed === 'deshi') birdType = isBn ? 'দেশি মুরগি' : 'Local Chicken';
+    else if (breed === 'broiler') birdType = isBn ? 'ব্রয়লার মুরগি' : 'Broiler';
+
+    return {
+      category: 'poultry',
+      breed,
+      animalName: birdType,
+      countUnit: isBn ? 'টি পাখি' : 'birds',
+      youngName: isBn ? 'বাচ্চা' : 'Chick',
+      ageLabel: isBn ? `${birdType}-র বয়স (দিন)` : `${birdType} Age (Days)`,
+      sampleLabel: isBn ? `স্যাম্পল ${birdType}-র ওজন পরিমাপ` : `Sample ${birdType} Weighing`,
+      sampleCountPrompt: isBn ? `কতটি ${birdType} মেপেছেন?` : `Number of ${birdType} Weighed`,
+      sampleWeightPlaceholder: isBn ? 'যেমন: ৯.৫' : 'e.g. 9.5',
+      liveLabel: isBn ? 'বর্তমানে জীবিত পাখি' : 'Current Alive Flock',
+      initialCountLabel: isBn ? 'শুরুর সংখ্যা' : 'Initial Count',
+      defaultUnit: 'kg' as const,
+      weightUnitName: isBn ? 'গ্রাম' : 'g',
+      benchmarkName: birdType,
+      weighingNote: isBn ? 'টি পাখি' : 'birds',
+      defaultSampleCount: '10',
+      avgWeightDisplay: (gram: number, kg: number) => `${gram} গ্রাম (${kg} কেজি)`,
+    };
+  }, [currentBatch, selectedCategory, selectedBreed, isBn]);
 
   // ------------------------------------------------------------
   // 4. REAL FEED STOCK & PROGRESSIVE RUNWAY
@@ -263,7 +478,7 @@ export default function FCR() {
     const remainingKg = Math.max(0, totalPurchasedKg - totalUsedKg);
     const remainingBags = bagWeight > 0 ? Number((remainingKg / bagWeight).toFixed(1)) : 0;
 
-    // Progressive Runway calculation considering progressive feed requirement as birds grow older
+    // Progressive Runway calculation considering progressive feed requirement as animals grow older
     const forecast = calculateProgressiveFeedForecast({
       aliveCount: fcrResult.currentLiveCount,
       currentAgeDays: fcrResult.batchAgeDays,
@@ -317,13 +532,18 @@ export default function FCR() {
     const calculatedAge = calculateBatchAgeFromStartDate(currentBatch.startDate);
     setFormAgeDays(calculatedAge);
     setFormDate(new Date().toISOString().split('T')[0]);
+    setFormSampleUnit(animalTerms.defaultUnit);
+    setFormSampleCount(animalTerms.defaultSampleCount);
 
     // If there is an existing measurement for this age, prefill it for editing
     const existingRec = dailyRecords.find(r => r.batchAgeDays === calculatedAge);
     if (existingRec) {
       setFormFeedAmount(existingRec.actualFeedUsedKg ? String(existingRec.actualFeedUsedKg) : '');
-      setFormSampleCount(existingRec.weightSampleCount ? String(existingRec.weightSampleCount) : '10');
+      setFormSampleCount(existingRec.weightSampleCount ? String(existingRec.weightSampleCount) : animalTerms.defaultSampleCount);
       setFormSampleTotalWeight(existingRec.totalSampleWeightKg ? String(existingRec.totalSampleWeightKg) : '');
+      if (existingRec.weightInputUnit) {
+        setFormSampleUnit(existingRec.weightInputUnit);
+      }
     } else {
       // Suggest previous cumulative feed if any
       const prevRecords = dailyRecords.filter(r => r.actualFeedUsedKg && Number(r.actualFeedUsedKg) > 0);
@@ -332,7 +552,6 @@ export default function FCR() {
       } else {
         setFormFeedAmount('');
       }
-      setFormSampleCount('10');
       setFormSampleTotalWeight('');
     }
     setIsFcrModalOpen(true);
@@ -350,45 +569,72 @@ export default function FCR() {
     }
 
     let avgWeightGram = 0;
+    let avgWeightKg = 0;
+
     if (birds > 0 && weightVal > 0) {
       if (formSampleUnit === 'kg') {
         avgWeightGram = Math.round((weightVal * 1000) / birds);
+        avgWeightKg = Number((weightVal / birds).toFixed(3));
       } else {
         avgWeightGram = Math.round(weightVal / birds);
+        avgWeightKg = Number(((weightVal / birds) / 1000).toFixed(3));
       }
     }
 
     let warningMessage = '';
 
-    // Check 1: Impossible chick weight
-    if (formAgeDays <= 5 && avgWeightGram > 250) {
-      warningMessage = isBn
-        ? `১-৫ দিনের বাচ্চার ওজন সাধারণত ৪০-১০০ গ্রাম হয়। এখানে গড় ওজন ${avgWeightGram} গ্রাম দেওয়া হয়েছে, যা অবাস্তব বা ভুল হতে পারে!`
-        : `At age 1-5 days, chick weight is usually 40-100g. Entered ${avgWeightGram}g seems unrealistic!`;
-    } else if (formAgeDays <= 30 && avgWeightGram > 4500) {
-      warningMessage = isBn
-        ? `৩০ দিনের মধ্যে ব্রয়লারের গড় ওজন ${(avgWeightGram/1000).toFixed(1)} কেজি হওয়া অসম্ভব!`
-        : `Average weight ${(avgWeightGram/1000).toFixed(1)} kg at 30 days is impossible!`;
-    }
-
-    // Check 2: Unrealistic feed per bird (using actual living flock count after synced mortality)
-    const liveFlock = Math.max(1, (currentBatch?.totalChicks || 1000) - currentBatchMortality);
-    if (totalFeedKg > 0 && liveFlock > 0) {
-      const feedPerBirdKg = totalFeedKg / liveFlock;
-      if (formAgeDays <= 14 && feedPerBirdKg > 2.5) {
+    // Category-specific sanity checks
+    if (animalTerms.category === 'cattle') {
+      if (animalTerms.breed === 'goat' || animalTerms.breed === 'sheep') {
+        if (avgWeightKg > 150) {
+          warningMessage = isBn
+            ? `ছাগল/ভেড়ার গড় ওজন সাধারণত ৫ – ৬০ কেজি হয়। এখানে ${avgWeightKg.toFixed(1)} কেজি দেওয়া হয়েছে, যা যাচাই করা দরকার!`
+            : `Goat/sheep average weight is usually 5-60 kg. Entered ${avgWeightKg.toFixed(1)} kg seems high!`;
+        }
+      } else {
+        if (avgWeightKg > 1800) {
+          warningMessage = isBn
+            ? `গরু/মহিষের গড় ওজন সাধারণত ১০০ – ৮০০ কেজি হয়। এখানে ${avgWeightKg.toFixed(1)} কেজি দেওয়া হয়েছে, যা যাচাই করা দরকার!`
+            : `Cattle average weight entered is ${avgWeightKg.toFixed(1)} kg, which seems unusually high!`;
+        }
+      }
+    } else if (animalTerms.category === 'fish') {
+      if (avgWeightGram > 25000) {
         warningMessage = isBn
-          ? `প্রতিটি বাচ্চার গড় খাবার পড়েছে ${feedPerBirdKg.toFixed(2)} কেজি, যা ${formAgeDays} দিনের বাচ্চার জন্য অসম্ভব রকমের বেশি!`
-          : `Feed per bird is ${feedPerBirdKg.toFixed(2)} kg, which is impossibly high for age ${formAgeDays}!`;
+          ? `মাছের গড় ওজন ${(avgWeightGram / 1000).toFixed(1)} কেজি দেওয়া হয়েছে, যা অস্বাভাবিক মনে হচ্ছে!`
+          : `Fish average weight seems unusually high!`;
+      }
+    } else {
+      // Poultry
+      if (formAgeDays <= 5 && avgWeightGram > 250) {
+        warningMessage = isBn
+          ? `১-৫ দিনের বাচ্চার ওজন সাধারণত ৪০-১০০ গ্রাম হয়। এখানে গড় ওজন ${avgWeightGram} গ্রাম দেওয়া হয়েছে, যা অবাস্তব বা ভুল হতে পারে!`
+          : `At age 1-5 days, chick weight is usually 40-100g. Entered ${avgWeightGram}g seems unrealistic!`;
+      } else if (formAgeDays <= 30 && avgWeightGram > 4500) {
+        warningMessage = isBn
+          ? `৩০ দিনের মধ্যে ব্রয়লারের গড় ওজন ${(avgWeightGram/1000).toFixed(1)} কেজি হওয়া অসম্ভব!`
+          : `Average weight ${(avgWeightGram/1000).toFixed(1)} kg at 30 days is impossible!`;
+      }
+
+      // Check feed per bird for poultry
+      const liveFlock = Math.max(1, (currentBatch?.totalChicks || 1000) - currentBatchMortality);
+      if (totalFeedKg > 0 && liveFlock > 0) {
+        const feedPerBirdKg = totalFeedKg / liveFlock;
+        if (formAgeDays <= 14 && feedPerBirdKg > 2.5) {
+          warningMessage = isBn
+            ? `প্রতিটি বাচ্চার গড় খাবার পড়েছে ${feedPerBirdKg.toFixed(2)} কেজি, যা ${formAgeDays} দিনের বাচ্চার জন্য অসম্ভব রকমের বেশি!`
+            : `Feed per bird is ${feedPerBirdKg.toFixed(2)} kg, which is impossibly high for age ${formAgeDays}!`;
+        }
       }
     }
 
     return {
       avgWeightGram,
-      avgWeightKg: Number((avgWeightGram / 1000).toFixed(3)),
+      avgWeightKg,
       totalFeedKg,
       warningMessage
     };
-  }, [formSampleCount, formSampleTotalWeight, formSampleUnit, formFeedAmount, formFeedMode, formAgeDays, currentBatch, currentBatchMortality, isBn]);
+  }, [formSampleCount, formSampleTotalWeight, formSampleUnit, formFeedAmount, formFeedMode, formAgeDays, currentBatch, currentBatchMortality, animalTerms, isBn]);
 
   // Handle Save FCR Entry
   const handleSaveFcrEntry = async (e: React.FormEvent) => {
@@ -398,7 +644,7 @@ export default function FCR() {
     const birds = Number(formSampleCount || 0);
     const sampleWeight = Number(formSampleTotalWeight || 0);
     if (birds <= 0 || sampleWeight <= 0) {
-      toast.error(isBn ? 'স্যাম্পল পাখির সংখ্যা ও মোট ওজন সঠিকভাবে দিন' : 'Enter valid sample count and weight');
+      toast.error(isBn ? `স্যাম্পল ${animalTerms.animalName}-র সংখ্যা ও মোট ওজন সঠিকভাবে দিন` : 'Enter valid sample count and weight');
       return;
     }
 
@@ -477,80 +723,56 @@ export default function FCR() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
+    <div className="space-y-4 pb-12">
       {/* ------------------------------------------------------------ */}
-      {/* TOP HEADER */}
+      {/* TOP PAGE HEADER CARD */}
       {/* ------------------------------------------------------------ */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <button
-                onClick={() => navigate('/')}
-                className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition shrink-0"
-                title={isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <span className="p-1 sm:p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
-                    <Calculator className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </span>
-                  <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate">
-                    {isBn ? 'FCR হিসাব ও রূপান্তর হার' : 'Feed Conversion Ratio (FCR)'}
-                  </h1>
-                </div>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-                  {isBn
-                    ? 'খামারের ক্যাটাগরি, জাত ও ব্যাচ ভিত্তিক খাঁটি FCR এবং খাদ্য মজুদ রানওয়ে'
-                    : 'Batch-isolated actual FCR calculation & progressive feed stock runway'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 sm:hidden shrink-0">
-              <button
-                onClick={loadBatchRecords}
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
-                title={isBn ? 'রিফ্রেশ' : 'Refresh'}
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              {currentBatch && (
-                <button
-                  onClick={handleOpenFcrModal}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{isBn ? 'পরিমাপ এন্ট্রি' : 'Add Entry'}</span>
-                </button>
-              )}
-            </div>
+      <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200/80 flex flex-wrap gap-2 justify-between items-center">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/')}
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition shrink-0"
+            title={isBn ? 'ড্যাশবোর্ডে ফিরে যান' : 'Back to Dashboard'}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
+            <Calculator className="w-5 h-5" />
           </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+              {isBn ? 'FCR হিসাব ও রূপান্তর হার' : 'Feed Conversion Ratio (FCR)'}
+            </h1>
+            <p className="text-[11px] text-slate-500">
+              {isBn
+                ? 'পোল্ট্রি, গবাদি পশু ও মাছের জাতভিত্তিক খাঁটি FCR ও খাদ্য স্টক বিশ্লেষণ'
+                : 'Scientific FCR calculation & feed stock analysis'}
+            </p>
+          </div>
+        </div>
 
-          <div className="hidden sm:flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadBatchRecords}
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition border border-slate-200 text-xs flex items-center gap-1 font-bold"
+            title={isBn ? 'রিফ্রেশ' : 'Refresh'}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">{isBn ? 'রিফ্রেশ' : 'Refresh'}</span>
+          </button>
+          {currentBatch && (
             <button
-              onClick={loadBatchRecords}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
-              title={isBn ? 'রিফ্রেশ' : 'Refresh'}
+              onClick={handleOpenFcrModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
             >
-              <RefreshCw className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
+              <span>{isBn ? 'FCR তথ্য এন্ট্রি' : 'Add Measurement'}</span>
             </button>
-            {currentBatch && (
-              <button
-                onClick={handleOpenFcrModal}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{isBn ? 'FCR পরিমাপ এন্ট্রি' : 'New FCR Entry'}</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="space-y-4">
         {/* ------------------------------------------------------------ */}
         {/* STEP 1: CATEGORY -> BREED -> BATCH SELECTOR */}
         {/* ------------------------------------------------------------ */}
@@ -575,9 +797,9 @@ export default function FCR() {
                   setSelectedBreed(firstBreed);
                   setSelectedBatchId('');
                 }}
-                className={`py-2.5 px-3 rounded-lg text-sm font-semibold border transition text-center ${
+                className={`py-2.5 px-3 rounded-lg text-sm font-semibold border transition text-center cursor-pointer ${
                   selectedCategory === cat
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs font-bold'
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -597,9 +819,9 @@ export default function FCR() {
                   setSelectedBreed(br.code);
                   setSelectedBatchId('');
                 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
                   selectedBreed === br.code
-                    ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                    ? 'bg-emerald-700 border-emerald-700 text-white shadow-xs font-bold'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
@@ -623,7 +845,7 @@ export default function FCR() {
                 </span>
                 <button
                   onClick={() => navigate('/batches')}
-                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium"
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium cursor-pointer"
                 >
                   {isBn ? 'নতুন ব্যাচ' : 'New Batch'}
                 </button>
@@ -632,13 +854,13 @@ export default function FCR() {
               <select
                 value={selectedBatchId}
                 onChange={e => setSelectedBatchId(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
               >
                 {availableBatches.map(b => {
                   const age = calculateBatchAgeFromStartDate(b.startDate);
                   return (
                     <option key={b.id} value={b.id}>
-                      {b.batchName} — {isBn ? `বয়স: ${age} দিন | শুরুর সংখ্যা: ${b.totalChicks} টি` : `Age: ${age}d | Total: ${b.totalChicks}`}
+                      {b.batchName} — {isBn ? `বয়স: ${age} দিন | শুরুর সংখ্যা: ${b.totalChicks} ${animalTerms.countUnit}` : `Age: ${age}d | Total: ${b.totalChicks}`}
                     </option>
                   );
                 })}
@@ -718,9 +940,9 @@ export default function FCR() {
             {/* Flock Live Count & Mortality Summary */}
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <div className="p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-center flex flex-col justify-between">
-                <span className="block text-[10px] sm:text-xs text-slate-500 font-semibold">{isBn ? 'শুরুর সংখ্যা' : 'Initial Count'}</span>
+                <span className="block text-[10px] sm:text-xs text-slate-500 font-semibold">{animalTerms.initialCountLabel}</span>
                 <span className="text-base sm:text-lg font-black text-slate-800 my-0.5">{currentBatch.totalChicks}</span>
-                <span className="text-[10px] sm:text-xs text-slate-400 block">{isBn ? 'টি বাচ্চা' : 'birds'}</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 block">{animalTerms.countUnit}</span>
               </div>
 
               <div 
@@ -745,9 +967,9 @@ export default function FCR() {
               </div>
 
               <div className="p-2 sm:p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center flex flex-col justify-between">
-                <span className="block text-[10px] sm:text-xs text-emerald-700 font-semibold">{isBn ? 'বর্তমানে জীবিত' : 'Current Alive'}</span>
+                <span className="block text-[10px] sm:text-xs text-emerald-700 font-semibold">{animalTerms.liveLabel}</span>
                 <span className="text-base sm:text-lg font-black text-emerald-800 my-0.5">{fcrResult.currentLiveCount}</span>
-                <span className="text-[10px] sm:text-xs text-emerald-600 block font-medium">{isBn ? 'টি বেঁচে আছে' : 'living birds'}</span>
+                <span className="text-[10px] sm:text-xs text-emerald-600 block font-medium">{animalTerms.liveUnit}</span>
               </div>
             </div>
           </div>
@@ -768,7 +990,7 @@ export default function FCR() {
               </p>
               <p className="text-xs text-amber-700 font-medium pt-1">
                 {isBn
-                  ? 'উপরে "FCR তথ্য এন্ট্রি" বোতামে ক্লিক করে স্যাম্পল মুরগির ওজন বা মোট খাবারের পরিমাণ পুনরায় যাচাই ও সংশোধন করুন।'
+                  ? `উপরে "FCR তথ্য এন্ট্রি" বোতামে ক্লিক করে স্যাম্পল ${animalTerms.animalName}-র ওজন বা মোট খাবারের পরিমাণ পুনরায় যাচাই ও সংশোধন করুন।`
                   : 'Please check your sample weight or cumulative feed entry to correct unrealistic numbers.'}
               </p>
             </div>
@@ -780,14 +1002,14 @@ export default function FCR() {
         {/* ------------------------------------------------------------ */}
         {currentBatch && fcrResult && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+            <div className="bg-emerald-800 text-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Scale className="w-5 h-5 text-emerald-400" />
+                <Scale className="w-5 h-5 text-emerald-300" />
                 <h3 className="font-bold text-base">
-                  {isBn ? 'খাদ্য রূপান্তর অনুপাত (FCR) বিশ্লেষণ' : 'Feed Conversion Ratio (FCR) Analysis'}
+                  {isBn ? `${animalTerms.animalName}-র খাদ্য রূপান্তর অনুপাত (FCR) বিশ্লেষণ` : `${animalTerms.animalName} FCR Analysis`}
                 </h3>
               </div>
-              <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="text-xs px-2.5 py-1 rounded bg-emerald-900/80 text-emerald-100 border border-emerald-700/80">
                 {isBn ? `স্ট্যান্ডার্ড রেঞ্জ: ${fcrResult.benchmark.idealMin} – ${fcrResult.benchmark.idealMax}` : `Standard: ${fcrResult.benchmark.idealMin} – ${fcrResult.benchmark.idealMax}`}
               </span>
             </div>
@@ -805,14 +1027,14 @@ export default function FCR() {
                     </h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
                       {isBn
-                        ? `সর্বশেষ পরিমাপ নেওয়া হয়েছিল ${fcrResult.latestMeasurementAgeDays} দিন বয়সে (FCR ছিল ${fcrResult.actualFcr || '—'})। ইতিমধ্যে ১ বা একাধিক দিন পার হওয়ায় মুরগি নতুন খাবার খেয়েছে ও ওজন বেড়েছে। আজ পর্যন্ত মোট খাবার ও স্যাম্পল মুরগির ওজনের তথ্য দিন।`
-                        : `Last measurement was on Day ${fcrResult.latestMeasurementAgeDays}. Since days have passed, please enter today's cumulative feed and sample bird weight.`}
+                        ? `সর্বশেষ পরিমাপ নেওয়া হয়েছিল ${fcrResult.latestMeasurementAgeDays} দিন বয়সে (FCR ছিল ${fcrResult.actualFcr || '—'})। ইতিমধ্যে ১ বা একাধিক দিন পার হওয়ায় ${animalTerms.animalName} নতুন খাবার খেয়েছে ও ওজন বেড়েছে। আজ পর্যন্ত মোট খাবার ও স্যাম্পল ${animalTerms.animalName}-র ওজনের তথ্য দিন।`
+                        : `Last measurement was on Day ${fcrResult.latestMeasurementAgeDays}. Please enter today's cumulative feed and sample weight.`}
                     </p>
                   </div>
 
                   <button
                     onClick={handleOpenFcrModal}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs transition"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>{isBn ? `আজ ${fcrResult.batchAgeDays}তম দিনের তথ্য এন্ট্রি দিন` : `Enter Day ${fcrResult.batchAgeDays} Data`}</span>
@@ -825,7 +1047,7 @@ export default function FCR() {
                       </span>
                       <div className="flex items-center justify-between">
                         <span>{isBn ? 'FCR:' : 'FCR:'} <strong>{fcrResult.actualFcr}</strong></span>
-                        <span>{isBn ? 'গড় ওজন:' : 'Avg Weight:'} <strong>{fcrResult.latestMeasuredAvgWeightGram} গ্রাম</strong></span>
+                        <span>{isBn ? 'গড় ওজন:' : 'Avg Weight:'} <strong>{animalTerms.category === 'cattle' ? `${fcrResult.latestMeasuredAvgWeightKg} কেজি` : `${fcrResult.latestMeasuredAvgWeightGram} গ্রাম`}</strong></span>
                         <span>{isBn ? 'মোট খাবার:' : 'Total Feed:'} <strong>{fcrResult.totalActualFeedUsedKg} কেজি</strong></span>
                       </div>
                     </div>
@@ -863,7 +1085,7 @@ export default function FCR() {
                     <div className="text-right flex flex-col items-center sm:items-end gap-1">
                       <button
                         onClick={handleOpenFcrModal}
-                        className="px-3.5 py-1.5 bg-white border border-slate-300 hover:border-emerald-500 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition"
+                        className="px-3.5 py-1.5 bg-white border border-slate-300 hover:border-emerald-500 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
                       >
                         {isBn ? 'পরিমাপ আপডেট করুন' : 'Edit / Update'}
                       </button>
@@ -877,13 +1099,17 @@ export default function FCR() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
                       <span className="text-xs text-slate-500 block mb-1">
-                        {isBn ? 'স্যাম্পল পাখির গড় ওজন' : 'Sample Avg Weight'}
+                        {isBn ? `স্যাম্পল ${animalTerms.animalName}-র গড় ওজন` : `Sample Avg Weight`}
                       </span>
                       <span className="text-xl font-bold text-slate-900">
-                        {fcrResult.latestMeasuredAvgWeightGram} <span className="text-xs font-normal">গ্রাম</span>
+                        {animalTerms.category === 'cattle' ? (
+                          <>{fcrResult.latestMeasuredAvgWeightKg} <span className="text-xs font-normal">কেজি</span></>
+                        ) : (
+                          <>{fcrResult.latestMeasuredAvgWeightGram} <span className="text-xs font-normal">গ্রাম</span></>
+                        )}
                       </span>
                       <span className="text-2xs text-slate-400 block mt-0.5">
-                        ({fcrResult.latestMeasuredAvgWeightKg} কেজি/পাখি)
+                        ({fcrResult.latestMeasuredAvgWeightKg} কেজি/{animalTerms.animalName})
                       </span>
                     </div>
 
@@ -901,19 +1127,19 @@ export default function FCR() {
 
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
                       <span className="text-xs text-slate-500 block mb-1">
-                        {isBn ? 'মোট জীবন্ত ওজন বৃদ্ধি' : 'Flock Biomass Gain'}
+                        {isBn ? 'মোট জীবন্ত ওজন বৃদ্ধি' : 'Biomass Gain'}
                       </span>
                       <span className="text-xl font-bold text-slate-900">
                         {fcrResult.totalFlockBiomassGainKg} <span className="text-xs font-normal">কেজি</span>
                       </span>
                       <span className="text-2xs text-slate-400 block mt-0.5">
-                        ({fcrResult.currentLiveCount}টি জীবিত পাখি)
+                        ({fcrResult.currentLiveCount}{animalTerms.countUnit})
                       </span>
                     </div>
 
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
                       <span className="text-xs text-slate-500 block mb-1">
-                        {isBn ? 'প্রতি কেজি মাংসে খাদ্য খরচ' : 'Feed Cost / kg Gain'}
+                        {isBn ? (animalTerms.category === 'cattle' ? 'প্রতি কেজি বৃদ্ধিতে খাদ্য খরচ' : 'প্রতি কেজি মাংসে খাদ্য খরচ') : 'Feed Cost / kg Gain'}
                       </span>
                       <span className="text-xl font-bold text-emerald-800">
                         {feedStockSummary?.costPerKgLiveGain ? `${feedStockSummary.costPerKgLiveGain} ৳` : '—'}
@@ -933,7 +1159,11 @@ export default function FCR() {
                       <strong>FCR = মোট প্রকৃত খাবার ({fcrResult.totalActualFeedUsedKg} কেজি) ÷ মোট ওজন বৃদ্ধি ({fcrResult.totalFlockBiomassGainKg} কেজি) = {fcrResult.actualFcr}</strong>
                     </p>
                     <p className="text-2xs text-slate-500">
-                      * প্রতিটি পাখির গড় ওজন বৃদ্ধি = {fcrResult.latestMeasuredAvgWeightGram} গ্রাম - {fcrResult.initialWeightGram} গ্রাম (১ম দিনের বাচ্চা) = {fcrResult.avgWeightGainGram} গ্রাম ({fcrResult.avgWeightGainKg} কেজি)।
+                      * প্রতিটি {animalTerms.animalName}-র গড় ওজন বৃদ্ধি = {
+                        animalTerms.category === 'cattle' 
+                          ? `${fcrResult.latestMeasuredAvgWeightKg} কেজি - ${(fcrResult.initialWeightGram / 1000).toFixed(1)} কেজি (শুরুর গড় ওজন)` 
+                          : `${fcrResult.latestMeasuredAvgWeightGram} গ্রাম - ${fcrResult.initialWeightGram} গ্রাম (শুরুর বাচ্চা/পোনা)`
+                      } = {fcrResult.avgWeightGainKg} কেজি।
                     </p>
                   </div>
                 </div>
@@ -949,13 +1179,13 @@ export default function FCR() {
                     </h4>
                     <p className="text-xs text-slate-500">
                       {isBn
-                        ? `ব্যাচের বর্তমান বয়স ${fcrResult.batchAgeDays} দিন। শুরু থেকে আজ পর্যন্ত মোট কত কেজি খাবার খেয়েছে এবং ১০টি স্যাম্পল মুরগির মোট ওজন দিয়ে প্রথম FCR দেখুন।`
+                        ? `ব্যাচের বর্তমান বয়স ${fcrResult.batchAgeDays} দিন। শুরু থেকে আজ পর্যন্ত মোট কত কেজি খাবার খেয়েছে এবং স্যাম্পল ${animalTerms.animalName}-র ওজন দিয়ে প্রথম FCR দেখুন।`
                         : `Current age is ${fcrResult.batchAgeDays} days. Enter total feed used and sample weight to calculate FCR.`}
                     </p>
                   </div>
                   <button
                     onClick={handleOpenFcrModal}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs transition"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs transition cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>{isBn ? 'প্রথম FCR পরিমাপ এন্ট্রি দিন' : 'Enter First Measurement'}</span>
@@ -1044,8 +1274,8 @@ export default function FCR() {
                 </h4>
                 <p className="text-xs leading-relaxed opacity-90">
                   {isBn
-                    ? `মুরগির বয়স বাড়ার সাথে সাথে প্রতিদিন খাবারের চাহিদা স্বয়ংক্রিয়ভাবে বাড়ে (বৈজ্ঞানিক গ্রোথ কার্ভ অনুযায়ী)। বর্তমান ${fcrResult.currentLiveCount}টি মুরগির জন্য এই ${feedStockSummary.remainingBags} বস্তা খাদ্য ব্যাচের বয়স প্রায় ${feedStockSummary.stockRunsOutAtFlockAge} দিন পর্যন্ত চলবে।`
-                    : `Feed consumption increases daily as birds grow. For ${fcrResult.currentLiveCount} birds, remaining ${feedStockSummary.remainingBags} bags will last until flock age ${feedStockSummary.stockRunsOutAtFlockAge} days.`}
+                    ? `${animalTerms.animalName}-র বৃদ্ধির সাথে সাথে প্রতিদিন খাবারের চাহিদা স্বয়ংক্রিয়ভাবে বাড়ে (বৈজ্ঞানিক গ্রোথ কার্ভ অনুযায়ী)। বর্তমান ${fcrResult.currentLiveCount}টি ${animalTerms.animalName}-র জন্য এই ${feedStockSummary.remainingBags} বস্তা খাদ্য ব্যাচের বয়স প্রায় ${feedStockSummary.stockRunsOutAtFlockAge} দিন পর্যন্ত চলবে।`
+                    : `Feed consumption increases daily as ${animalTerms.animalName} grows. For ${fcrResult.currentLiveCount} ${animalTerms.countUnit}, remaining ${feedStockSummary.remainingBags} bags will last until age ${feedStockSummary.stockRunsOutAtFlockAge} days.`}
                 </p>
                 {feedStockSummary.daysRunway <= 3 && (
                   <p className="text-xs font-bold text-rose-700 pt-1">
@@ -1064,7 +1294,7 @@ export default function FCR() {
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-800">
-                {isBn ? 'এই ব্যাচের অতীত FCR ও ওজনের রেকর্ড' : 'Measurement & Weight History'}
+                {isBn ? `এই ব্যাচের অতীত FCR ও ${animalTerms.animalName}-র ওজনের রেকর্ড` : 'Measurement & Weight History'}
               </h3>
               <span className="text-xs text-slate-500">
                 {isBn ? `মোট রেকর্ড: ${dailyRecords.length}টি` : `Total records: ${dailyRecords.length}`}
@@ -1076,9 +1306,9 @@ export default function FCR() {
                 <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-semibold">{isBn ? 'তারিখ ও বয়স' : 'Date & Age'}</th>
-                    <th className="px-4 py-3 font-semibold">{isBn ? 'স্যাম্পল ওজন' : 'Sample Avg Weight'}</th>
+                    <th className="px-4 py-3 font-semibold">{isBn ? `স্যাম্পল ${animalTerms.animalName} ওজন` : 'Sample Weight'}</th>
                     <th className="px-4 py-3 font-semibold">{isBn ? 'খাবার খরচ' : 'Feed Consumed'}</th>
-                    <th className="px-4 py-3 font-semibold">{isBn ? 'জীবিত পাখি' : 'Live Count'}</th>
+                    <th className="px-4 py-3 font-semibold">{animalTerms.liveLabel}</th>
                     <th className="px-4 py-3 font-semibold">{isBn ? 'ধরন' : 'Type'}</th>
                     <th className="px-4 py-3 text-right font-semibold">{isBn ? 'অ্যাকশন' : 'Action'}</th>
                   </tr>
@@ -1096,9 +1326,13 @@ export default function FCR() {
                       <td className="px-4 py-3">
                         {rec.avgWeightGram ? (
                           <span>
-                            <strong>{rec.avgWeightGram}</strong> গ্রাম
+                            <strong>
+                              {animalTerms.category === 'cattle' 
+                                ? `${(rec.avgWeightGram / 1000).toFixed(1)} কেজি` 
+                                : `${rec.avgWeightGram} গ্রাম`}
+                            </strong>
                             <span className="block text-2xs text-slate-400">
-                              ({rec.weightSampleCount || 10}টি মুরগি = {rec.totalSampleWeightKg} কেজি)
+                              ({rec.weightSampleCount || 1}টি {animalTerms.animalName} = {rec.totalSampleWeightKg} কেজি)
                             </span>
                           </span>
                         ) : (
@@ -1120,7 +1354,7 @@ export default function FCR() {
                       </td>
 
                       <td className="px-4 py-3">
-                        {rec.currentLiveCount} টি
+                        {rec.currentLiveCount} {animalTerms.countUnit}
                         {rec.todayMortality && rec.todayMortality > 0 ? (
                           <span className="block text-2xs text-rose-600">
                             {isBn ? `(-${rec.todayMortality} মৃত্যু)` : `(-${rec.todayMortality} dead)`}
@@ -1143,7 +1377,7 @@ export default function FCR() {
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => handleDeleteRecord(rec)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
                           title={isBn ? 'মুছে ফেলুন' : 'Delete'}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1167,7 +1401,7 @@ export default function FCR() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  {isBn ? 'FCR পরিমাপ ও ওজন এন্ট্রি' : 'FCR Measurement & Weight Entry'}
+                  {isBn ? `${animalTerms.animalName}-র FCR পরিমাপ ও ওজন এন্ট্রি` : `${animalTerms.animalName} FCR & Weight Entry`}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {currentBatch.batchName} ({isBn ? 'ব্যাচ' : 'Batch'})
@@ -1175,7 +1409,7 @@ export default function FCR() {
               </div>
               <button
                 onClick={() => setIsFcrModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1186,12 +1420,12 @@ export default function FCR() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {isBn ? 'মুরগির বয়স (দিন)' : 'Flock Age (Days)'}
+                    {animalTerms.ageLabel}
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max="365"
+                    max="1000"
                     value={formAgeDays}
                     onChange={e => setFormAgeDays(Number(e.target.value))}
                     required
@@ -1226,8 +1460,8 @@ export default function FCR() {
                     <button
                       type="button"
                       onClick={() => setFormFeedMode('kg')}
-                      className={`px-2 py-0.5 text-xs font-medium rounded ${
-                        formFeedMode === 'kg' ? 'bg-emerald-600 text-white' : 'text-slate-600'
+                      className={`px-2 py-0.5 text-xs font-medium rounded cursor-pointer ${
+                        formFeedMode === 'kg' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600'
                       }`}
                     >
                       {isBn ? 'কেজি' : 'KG'}
@@ -1235,8 +1469,8 @@ export default function FCR() {
                     <button
                       type="button"
                       onClick={() => setFormFeedMode('bag')}
-                      className={`px-2 py-0.5 text-xs font-medium rounded ${
-                        formFeedMode === 'bag' ? 'bg-emerald-600 text-white' : 'text-slate-600'
+                      className={`px-2 py-0.5 text-xs font-medium rounded cursor-pointer ${
+                        formFeedMode === 'bag' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600'
                       }`}
                     >
                       {isBn ? 'বস্তা' : 'Bag'}
@@ -1263,20 +1497,20 @@ export default function FCR() {
                 <p className="text-2xs text-emerald-800 leading-relaxed">
                   {isBn
                     ? `* এই ${formAgeDays} দিনে সর্বমোট যত খাবার খাওয়ানো হয়েছে। স্টকে পড়ে থাকা খাবার এতে অন্তর্ভুক্ত করবেন না।`
-                    : `* Actual feed eaten by birds up to day ${formAgeDays}. Do not include unused stock.`}
+                    : `* Actual feed consumed up to day ${formAgeDays}. Do not include unused stock.`}
                 </p>
               </div>
 
-              {/* Sample Bird Weighing */}
+              {/* Sample Animal Weighing */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <label className="block text-xs font-bold text-slate-800">
-                  {isBn ? 'স্যাম্পল পাখির ওজন পরিমাপ:' : 'Sample Bird Weighing:'}
+                  {animalTerms.sampleLabel}:
                 </label>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-2xs text-slate-500 mb-1">
-                      {isBn ? 'কতটি পাখি মেপেছেন?' : 'Number of Birds Weighed'}
+                      {animalTerms.sampleCountPrompt}
                     </label>
                     <input
                       type="number"
@@ -1285,7 +1519,7 @@ export default function FCR() {
                       value={formSampleCount}
                       onChange={e => setFormSampleCount(e.target.value)}
                       required
-                      placeholder="10"
+                      placeholder={animalTerms.defaultSampleCount}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900"
                     />
                   </div>
@@ -1299,14 +1533,14 @@ export default function FCR() {
                         <button
                           type="button"
                           onClick={() => setFormSampleUnit('kg')}
-                          className={`px-1.5 py-0.2 rounded ${formSampleUnit === 'kg' ? 'bg-slate-700 text-white' : ''}`}
+                          className={`px-1.5 py-0.2 rounded cursor-pointer ${formSampleUnit === 'kg' ? 'bg-slate-700 text-white font-bold' : ''}`}
                         >
                           কেজি
                         </button>
                         <button
                           type="button"
                           onClick={() => setFormSampleUnit('g')}
-                          className={`px-1.5 py-0.2 rounded ${formSampleUnit === 'g' ? 'bg-slate-700 text-white' : ''}`}
+                          className={`px-1.5 py-0.2 rounded cursor-pointer ${formSampleUnit === 'g' ? 'bg-slate-700 text-white font-bold' : ''}`}
                         >
                           গ্রাম
                         </button>
@@ -1317,7 +1551,7 @@ export default function FCR() {
                       type="number"
                       step="0.01"
                       min="0.01"
-                      placeholder={formSampleUnit === 'kg' ? 'যেমন: ৯.৫' : 'যেমন: ৯৫০০'}
+                      placeholder={formSampleUnit === 'kg' ? animalTerms.sampleWeightPlaceholder : 'যেমন: ২৫০০'}
                       value={formSampleTotalWeight}
                       onChange={e => setFormSampleTotalWeight(e.target.value)}
                       required
@@ -1328,9 +1562,11 @@ export default function FCR() {
 
                 {modalSanity.avgWeightGram > 0 && (
                   <div className="p-2 bg-white border border-slate-200 rounded text-xs text-slate-700 flex items-center justify-between">
-                    <span>{isBn ? 'প্রতিটি পাখির গড় ওজন:' : 'Average weight per bird:'}</span>
+                    <span>{isBn ? `প্রতিটি ${animalTerms.animalName}-র গড় ওজন:` : `Average weight per ${animalTerms.animalName}:`}</span>
                     <span className="font-bold text-emerald-700">
-                      {modalSanity.avgWeightGram} গ্রাম ({modalSanity.avgWeightKg} কেজি)
+                      {animalTerms.category === 'cattle' 
+                        ? `${modalSanity.avgWeightKg} কেজি` 
+                        : `${modalSanity.avgWeightGram} গ্রাম (${modalSanity.avgWeightKg} কেজি)`}
                     </span>
                   </div>
                 )}
@@ -1341,11 +1577,11 @@ export default function FCR() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5 font-bold text-rose-900">
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    <span>{isBn ? 'মৃত্যু এন্ট্রি থেকে সিঙ্ককৃত তথ্য' : 'Mortality (Synced from Mortality Management)'}</span>
+                    <span>{isBn ? `${animalTerms.animalName} মৃত্যু এন্ট্রি থেকে সিঙ্ককৃত তথ্য` : 'Mortality (Synced from Mortality Management)'}</span>
                   </div>
                   <p className="text-2xs text-rose-700 font-medium">
                     {isBn 
-                      ? 'মৃত্যু এন্ট্রি অপশনে দেওয়া মৃত্যুর হিসাব এখানে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়ে গেছে। এখানে আর আলাদা করে মৃত্যু দেওয়া লাগবে না।' 
+                      ? 'মৃত্যু এন্ট্রি অপশনে দেওয়া মৃত্যুর হিসাব এখানে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়ে গেছে। এখানে আর আলাদা করে এন্ট্রি লাগবে না।' 
                       : 'Mortality entered in Mortality Management is automatically synced here. No re-entry needed.'}
                   </p>
                 </div>
@@ -1354,7 +1590,7 @@ export default function FCR() {
                     {currentBatchMortality} {isBn ? 'টি মৃত' : 'dead'}
                   </span>
                   <span className="text-2xs text-emerald-700 font-bold block">
-                    {isBn ? `জীবিত: ${Math.max(0, currentBatch.totalChicks - currentBatchMortality)} টি` : `Alive: ${Math.max(0, currentBatch.totalChicks - currentBatchMortality)}`}
+                    {isBn ? `জীবিত: ${Math.max(0, currentBatch.totalChicks - currentBatchMortality)} ${animalTerms.countUnit}` : `Alive: ${Math.max(0, currentBatch.totalChicks - currentBatchMortality)}`}
                   </span>
                 </div>
               </div>
@@ -1372,14 +1608,14 @@ export default function FCR() {
                 <button
                   type="button"
                   onClick={() => setIsFcrModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
                 >
                   {isBn ? 'বাতিল' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs disabled:opacity-50 transition"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-xs disabled:opacity-50 transition cursor-pointer"
                 >
                   {isSubmitting ? (isBn ? 'সংরক্ষণ হচ্ছে...' : 'Saving...') : (isBn ? 'FCR হিসাব করুন ও সংরক্ষণ করুন' : 'Calculate & Save FCR')}
                 </button>

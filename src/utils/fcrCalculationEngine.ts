@@ -398,25 +398,87 @@ export function getExpectedStandardForAge(
   }
 
   if (category === 'cattle') {
-    const currentKg = Number((120 + d * 0.8).toFixed(1));
-
+    if (breed.includes('goat') || breed.includes('ছাগল') || breed.includes('খাসি')) {
+      const currentKg = Number((10 + d * 0.12).toFixed(1));
+      return {
+        expectedAvgWeightGram: Math.round(currentKg * 1000),
+        expectedAvgWeightKg: currentKg,
+        expectedFcrRange: '৫.৫০ – ৭.২০',
+        sourceNoteBn: 'বয়সভিত্তিক ছাগল/খাসি benchmark',
+        sourceNoteEn: 'Age-based goat fattening benchmark'
+      };
+    }
+    if (breed.includes('sheep') || breed.includes('ভেড়া') || breed.includes('ভেড়া') || breed.includes('গাড়ল')) {
+      const currentKg = Number((12 + d * 0.13).toFixed(1));
+      return {
+        expectedAvgWeightGram: Math.round(currentKg * 1000),
+        expectedAvgWeightKg: currentKg,
+        expectedFcrRange: '৫.৫০ – ৭.৫০',
+        sourceNoteBn: 'বয়সভিত্তিক ভেড়া/গাড়ল benchmark',
+        sourceNoteEn: 'Age-based sheep benchmark'
+      };
+    }
+    if (breed.includes('dairy') || breed.includes('গাভী') || breed.includes('দুধ')) {
+      const currentKg = Number((250 + d * 0.35).toFixed(1));
+      return {
+        expectedAvgWeightGram: Math.round(currentKg * 1000),
+        expectedAvgWeightKg: currentKg,
+        expectedFcrRange: '০.৮৫ – ১.৩০',
+        sourceNoteBn: 'বয়সভিত্তিক ডেইরি গাভী benchmark',
+        sourceNoteEn: 'Age-based dairy cattle benchmark'
+      };
+    }
+    if (breed.includes('buffalo') || breed.includes('মহিষ')) {
+      const currentKg = Number((180 + d * 0.75).toFixed(1));
+      return {
+        expectedAvgWeightGram: Math.round(currentKg * 1000),
+        expectedAvgWeightKg: currentKg,
+        expectedFcrRange: '৬.৫০ – ৮.৫০',
+        sourceNoteBn: 'বয়সভিত্তিক মহিষ benchmark',
+        sourceNoteEn: 'Age-based buffalo benchmark'
+      };
+    }
+    // Default beef fattening
+    const currentKg = Number((120 + d * 0.85).toFixed(1));
     return {
       expectedAvgWeightGram: Math.round(currentKg * 1000),
       expectedAvgWeightKg: currentKg,
-      expectedFcrRange: '৬.০ – ৭.৫',
-      sourceNoteBn: 'বয়সভিত্তিক cattle benchmark',
-      sourceNoteEn: 'Age-based cattle benchmark'
+      expectedFcrRange: '৬.০০ – ৭.৫০',
+      sourceNoteBn: 'বয়সভিত্তিক গরু মোটাতাজাকরণ benchmark',
+      sourceNoteEn: 'Age-based beef cattle benchmark'
     };
   }
 
-  const fishGram = Math.round(5 + d * 2.5);
+  // Fish category standards
+  let expectedFcr = '১.২০ – ১.৫০';
+  let dailyGainG = 2.5;
+  let startWeightG = 5;
 
+  if (breed.includes('telapia') || breed.includes('তেলাপিয়া')) {
+    expectedFcr = '১.১৫ – ১.৪৫';
+    dailyGainG = 2.8;
+    startWeightG = 5;
+  } else if (breed.includes('carp') || breed.includes('রুই') || breed.includes('কার্প')) {
+    expectedFcr = '১.৪০ – ১.৮৫';
+    dailyGainG = 3.5;
+    startWeightG = 15;
+  } else if (breed.includes('pangash') || breed.includes('পাঙ্গাস')) {
+    expectedFcr = '১.২৫ – ১.৫৫';
+    dailyGainG = 4.2;
+    startWeightG = 10;
+  } else if (breed.includes('shing') || breed.includes('pabda') || breed.includes('শিং')) {
+    expectedFcr = '১.২০ – ১.৫০';
+    dailyGainG = 1.2;
+    startWeightG = 3;
+  }
+
+  const fishGram = Math.round(startWeightG + d * dailyGainG);
   return {
     expectedAvgWeightGram: fishGram,
     expectedAvgWeightKg: Number((fishGram / 1000).toFixed(3)),
-    expectedFcrRange: '১.২০ – ১.৫০',
-    sourceNoteBn: 'বয়সভিত্তিক fish benchmark',
-    sourceNoteEn: 'Age-based fish benchmark'
+    expectedFcrRange: expectedFcr,
+    sourceNoteBn: 'বয়সভিত্তিক মৎস্য benchmark',
+    sourceNoteEn: 'Age-based fish aquaculture benchmark'
   };
 }
 
@@ -750,38 +812,70 @@ export function calculateStrictBatchFcr(
     }
   }
 
-  // Sanity Validation Engine
+  // Sanity Validation Engine (Category & Breed Aware)
   let sanityWarning: BatchFcrResult['sanityWarning'] = null;
   if (latestSample) {
-    if (latestSample.ageDays <= 5 && latestSample.avgWeightGram > 250) {
-      sanityWarning = {
-        isAbnormal: true,
-        messageBn: `অস্বাভাবিক ওজন! ১-৫ দিনের বাচ্চার ওজন সাধারণত ৪০-১০০ গ্রাম হয়। কিন্তু এখানে গড় ওজন ${latestSample.avgWeightGram} গ্রাম (বা ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি) দেওয়া হয়েছে।`,
-        messageEn: `Abnormal weight! At age 1-5 days, weight is 40-100g. Entered average weight is ${latestSample.avgWeightGram}g.`
-      };
-    } else if (latestSample.avgWeightGram > 4500 && latestSample.ageDays <= 30) {
-      sanityWarning = {
-        isAbnormal: true,
-        messageBn: `অস্বাভাবিক ওজন! ৩০ দিনের মধ্যে মুরগির গড় ওজন ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি হওয়া অসম্ভব।`,
-        messageEn: `Abnormal weight! Average weight of ${(latestSample.avgWeightGram/1000).toFixed(1)} kg at 30 days is unrealistic.`
-      };
-    } else if (totalActualFeedUsedKg > 0 && currentLiveCount > 0) {
-      const feedPerBirdKg = totalActualFeedUsedKg / currentLiveCount;
-      if (latestSample.ageDays <= 14 && feedPerBirdKg > 2.5) {
+    if (batch.farmType === 'poultry') {
+      if (latestSample.ageDays <= 5 && latestSample.avgWeightGram > 250) {
         sanityWarning = {
           isAbnormal: true,
-          messageBn: `অস্বাভাবিক খাবার খরচ! ${currentLiveCount}টি বাচ্চার জন্য মোট ${totalActualFeedUsedKg} কেজি খাবার (প্রতি বাচ্চায় ${feedPerBirdKg.toFixed(2)} কেজি) অসম্ভব রকমের বেশি।`,
-          messageEn: `Abnormal feed consumption! ${totalActualFeedUsedKg} kg for ${currentLiveCount} chicks is unrealistically high.`
+          messageBn: `অস্বাভাবিক ওজন! ১-৫ দিনের বাচ্চার ওজন সাধারণত ৪০-১০০ গ্রাম হয়। কিন্তু এখানে গড় ওজন ${latestSample.avgWeightGram} গ্রাম (বা ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি) দেওয়া হয়েছে।`,
+          messageEn: `Abnormal weight! At age 1-5 days, weight is 40-100g. Entered average weight is ${latestSample.avgWeightGram}g.`
+        };
+      } else if (latestSample.avgWeightGram > 4500 && latestSample.ageDays <= 30) {
+        sanityWarning = {
+          isAbnormal: true,
+          messageBn: `অস্বাভাবিক ওজন! ৩০ দিনের মধ্যে মুরগির গড় ওজন ${(latestSample.avgWeightGram/1000).toFixed(1)} কেজি হওয়া অসম্ভব।`,
+          messageEn: `Abnormal weight! Average weight of ${(latestSample.avgWeightGram/1000).toFixed(1)} kg at 30 days is unrealistic.`
+        };
+      } else if (totalActualFeedUsedKg > 0 && currentLiveCount > 0) {
+        const feedPerBirdKg = totalActualFeedUsedKg / currentLiveCount;
+        if (latestSample.ageDays <= 14 && feedPerBirdKg > 2.5) {
+          sanityWarning = {
+            isAbnormal: true,
+            messageBn: `অস্বাভাবিক খাবার খরচ! ${currentLiveCount}টি বাচ্চার জন্য মোট ${totalActualFeedUsedKg} কেজি খাবার (প্রতি বাচ্চায় ${feedPerBirdKg.toFixed(2)} কেজি) অসম্ভব রকমের বেশি।`,
+            messageEn: `Abnormal feed consumption! ${totalActualFeedUsedKg} kg for ${currentLiveCount} chicks is unrealistically high.`
+          };
+        }
+      }
+    } else if (batch.farmType === 'cattle') {
+      const avgKg = latestSample.avgWeightKg;
+      const sub = (batch.subBreed || '').toLowerCase();
+      if (sub === 'goat' || sub === 'sheep') {
+        if (avgKg > 150) {
+          sanityWarning = {
+            isAbnormal: true,
+            messageBn: `অস্বাভাবিক ওজন! ছাগল/ভেড়ার গড় ওজন সাধারণত ৫ – ৬০ কেজি হয়। এখানে ${avgKg.toFixed(1)} কেজি দেওয়া হয়েছে।`,
+            messageEn: `Abnormal weight! Goat/sheep average weight is usually 5-60 kg. Entered ${avgKg.toFixed(1)} kg.`
+          };
+        }
+      } else {
+        if (avgKg > 1800) {
+          sanityWarning = {
+            isAbnormal: true,
+            messageBn: `অস্বাভাবিক ওজন! গরু/মহিষের গড় ওজন সাধারণত ১০০ – ৮০০ কেজি হয়। এখানে ${avgKg.toFixed(1)} কেজি দেওয়া হয়েছে।`,
+            messageEn: `Abnormal weight! Cattle average weight entered is ${avgKg.toFixed(1)} kg.`
+          };
+        }
+      }
+    } else if (batch.farmType === 'fish') {
+      if (latestSample.avgWeightGram > 25000) {
+        sanityWarning = {
+          isAbnormal: true,
+          messageBn: `অস্বাভাবিক ওজন! মাছের গড় ওজন ${(latestSample.avgWeightGram / 1000).toFixed(1)} কেজি দেওয়া হয়েছে, যা যাচাই করা প্রয়োজন।`,
+          messageEn: `Abnormal weight! Fish average weight is ${(latestSample.avgWeightGram / 1000).toFixed(1)} kg.`
         };
       }
     }
 
     if (!sanityWarning && actualFcr !== null) {
-      if (actualFcr < 0.6 || actualFcr > 4.5) {
+      const minReasonable = batch.farmType === 'cattle' ? 0.8 : (batch.farmType === 'fish' ? 0.7 : 0.6);
+      const maxReasonable = batch.farmType === 'cattle' ? (benchmark.acceptableMax * 1.5) : (benchmark.acceptableMax * 1.6);
+      if (actualFcr < minReasonable || actualFcr > maxReasonable) {
         sanityWarning = {
           isAbnormal: true,
-          messageBn: `অস্বাভাবিক FCR (${actualFcr})! সাধারণত ব্রয়লারের FCR ১.৪০ – ১.৭০ এর মধ্যে থাকে। খাদ্য বা ওজনের তথ্যে কোনো ভুল আছে কি না যাচাই করুন।`,
-          messageEn: `Abnormal FCR (${actualFcr})! Standard broiler FCR is 1.40 - 1.70. Please verify feed or weight entries.`
+          messageBn: `অস্বাভাবিক FCR (${actualFcr})! সাধারণত ${benchmark.nameBn}-এর আদর্শ FCR ${benchmark.idealMin} – ${benchmark.idealMax} এর মধ্যে থাকে। খাদ্য বা ওজনের তথ্যে কোনো ভুল আছে কি না যাচাই করুন।`,
+          messageEn: `Abnormal FCR (${actualFcr})! Standard ${benchmark.nameEn} FCR is ${benchmark.idealMin} - ${benchmark.idealMax}. Please verify feed or weight entries.`
         };
       }
     }

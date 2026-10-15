@@ -1281,8 +1281,8 @@ export const BroilerDailySopCard: React.FC<BroilerDailySopCardProps> = ({
                   </div>
                 )}
 
-                {/* Master Table with Horizontal Scroll Support on Mobile */}
-                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto rounded-2xl border border-slate-200 relative bg-white shadow-2xs`}>
+                {/* Master Table with Horizontal Scroll Support on Mobile & Sticky Header */}
+                <div className={`${fullChartMobileMode === 'table' ? 'block' : 'hidden'} sm:block overflow-x-auto max-h-[65vh] sm:max-h-[72vh] overflow-y-auto rounded-2xl border border-slate-200 relative bg-white shadow-2xs`}>
                   {/* Mobile Horizontal Swipe Notice */}
                   <div className="sm:hidden flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 border-b border-emerald-200 text-[10px] font-bold text-emerald-900">
                     <span className="flex items-center gap-1">
