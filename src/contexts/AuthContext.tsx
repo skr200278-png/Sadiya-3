@@ -3,13 +3,7 @@ import { User, onAuthStateChanged, signOut, getRedirectResult } from 'firebase/a
 import { auth } from '../firebase';
 import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 
-export const DEMO_USER: any = {
-  uid: 'demo_khamari_user_1',
-  email: 'demo@farmmanager.app',
-  displayName: 'ডেমো খামারি',
-  photoURL: null,
-  isAnonymous: true,
-};
+export const DEMO_USER: any = null;
 
 interface AuthContextType {
   currentUser: User | null;
@@ -17,62 +11,46 @@ interface AuthContextType {
   loading: boolean;
   loginAsDemo: () => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
   currentUser: null, 
-  isDemoUser: false,
+  isDemoUser: false, 
   loading: true,
   loginAsDemo: async () => {},
-  logout: async () => {} 
+  logout: async () => {},
+  refreshUser: async () => {}
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('user_has_logged_out') === 'true') {
-      return null;
-    }
-    return DEMO_USER;
-  });
-  const [isDemoUser, setIsDemoUser] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('user_has_logged_out') === 'true') {
-      return false;
-    }
-    return true;
-  });
-  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isDemoUser, setIsDemoUser] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
   const [logoSrc, setLogoSrc] = useState<string>(appLogo);
 
+  const checkUserVerified = (user: User | null): boolean => {
+    if (!user) return false;
+    // Strictly require email to be verified (Google accounts automatically have emailVerified = true)
+    return Boolean(user.emailVerified);
+  };
+
   useEffect(() => {
-    let authUser: User | null = null;
     let authDetermined = false;
-    const hasExplicitlyLoggedOut = typeof window !== 'undefined' && localStorage.getItem('user_has_logged_out') === 'true';
-
-    if (!hasExplicitlyLoggedOut) {
-      authUser = DEMO_USER;
-      setIsDemoUser(true);
-    }
-
-    const minimumSplashTime = 300; // Ultra-fast splash for instantaneous preview rendering
+    const minimumSplashTime = 300;
     const startTime = Date.now();
 
     const finishLoading = () => {
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, minimumSplashTime - elapsed);
       setTimeout(() => {
-        if (!authUser && localStorage.getItem('user_has_logged_out') !== 'true') {
-          setCurrentUser(DEMO_USER);
-          setIsDemoUser(true);
-        } else {
-          setCurrentUser(authUser);
-        }
         setLoading(false);
       }, remaining);
     };
 
-    // Fail-safe timer: never let preview hang indefinitely in sandboxed preview iframe
+    // Fail-safe timer
     const fallbackTimer = setTimeout(() => {
       if (!authDetermined) {
         authDetermined = true;
@@ -82,24 +60,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        localStorage.removeItem('user_has_logged_out');
-        localStorage.removeItem('is_demo_mock');
-        setIsDemoUser(user.isAnonymous);
-        authUser = user;
-      } else if (localStorage.getItem('user_has_logged_out') === 'true') {
-        authUser = null;
-        setIsDemoUser(false);
+        const isVerified = checkUserVerified(user);
+        if (!isVerified) {
+          // Unverified email/password user: don't auto-login into dashboard
+          setCurrentUser(null);
+          setIsDemoUser(false);
+        } else {
+          localStorage.removeItem('user_has_logged_out');
+          localStorage.removeItem('is_demo_mock');
+          setIsDemoUser(false);
+          setCurrentUser(user);
+        }
       } else {
-        authUser = DEMO_USER;
-        setIsDemoUser(true);
+        setCurrentUser(null);
+        setIsDemoUser(false);
       }
 
       if (!authDetermined) {
         authDetermined = true;
         clearTimeout(fallbackTimer);
         finishLoading();
-      } else {
-        setCurrentUser(authUser);
       }
     });
 
@@ -109,11 +89,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const refreshUser = async () => {
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      const user = auth.currentUser;
+      if (checkUserVerified(user)) {
+        localStorage.removeItem('user_has_logged_out');
+        localStorage.removeItem('is_demo_mock');
+        setIsDemoUser(false);
+        setCurrentUser(user);
+      } else {
+        setCurrentUser(null);
+        setIsDemoUser(false);
+      }
+    }
+  };
+
   const loginAsDemo = async () => {
-    localStorage.removeItem('user_has_logged_out');
-    localStorage.setItem('is_demo_mock', 'true');
-    setCurrentUser(DEMO_USER);
-    setIsDemoUser(true);
+    // Demo mode removed per user request
   };
 
   const logout = async () => {
@@ -130,15 +123,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const effectiveIsDemo = Boolean(
-    isDemoUser ||
-    currentUser?.uid === 'demo_khamari_user_1' ||
-    (currentUser as any)?.isAnonymous ||
-    (!auth.currentUser && !!currentUser)
-  );
-
   return (
-    <AuthContext.Provider value={{ currentUser, isDemoUser: effectiveIsDemo, loading, loginAsDemo, logout }}>
+    <AuthContext.Provider value={{ currentUser, isDemoUser: false, loading, loginAsDemo, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

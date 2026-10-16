@@ -95,6 +95,14 @@ class AdMobService {
     return this.isTestMode;
   }
 
+  isInitializedStatus(): boolean {
+    return this.isInitialized;
+  }
+
+  isBannerAdVisible(): boolean {
+    return this.isBannerVisible;
+  }
+
   getActiveConfig() {
     return this.isTestMode ? TEST_AD_CONFIG : PRODUCTION_AD_CONFIG;
   }

@@ -12,6 +12,9 @@ const config: CapacitorConfig = {
       scopes: ['profile', 'email'],
       serverClientId: '430922454720-8n5dnecapap2vuc0blmlqsa8c4fd900l.apps.googleusercontent.com',
       forceCodeForRefreshToken: true
+    },
+    AdMob: {
+      appId: 'ca-app-pub-7705479359559924~9344090205'
     }
   }
 };

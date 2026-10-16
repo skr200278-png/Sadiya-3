@@ -7,6 +7,8 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
+  applyActionCode,
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
@@ -14,7 +16,8 @@ import {
   updateProfile,
   setPersistence,
   indexedDBLocalPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  signOut
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
@@ -37,12 +40,16 @@ import {
   KeyRound,
   X,
   Sparkles,
-  LogIn
+  LogIn,
+  Send,
+  RefreshCw,
+  CheckCheck,
+  MailCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
-  const { currentUser, loginAsDemo } = useAuth();
+  const { currentUser, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -69,6 +76,13 @@ export default function Login() {
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
   const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null);
 
+  // Email Verification Modal State (100% Free Lifetime Firebase Email Verification)
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [checkingVerification, setCheckingVerification] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -80,7 +94,16 @@ export default function Login() {
     }
   });
 
-  // Check URL parameters on mount for Firebase password reset links
+  // Resend Cooldown Countdown Timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Check URL parameters on mount for Firebase password reset links or email verification links
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -96,6 +119,7 @@ export default function Login() {
         }
       }
 
+      // Handle Firebase Password Reset Action Link
       if (modeParam === 'resetPassword' && oobCodeParam) {
         setResetOobCode(oobCodeParam);
         setResetStep('new_password');
@@ -110,8 +134,44 @@ export default function Login() {
             console.warn('Invalid or expired reset code:', err);
           });
       }
+
+      // Handle Firebase Email Verification Action Link
+      if (modeParam === 'verifyEmail' && oobCodeParam) {
+        setLoading(true);
+        applyActionCode(auth, oobCodeParam)
+          .then(async () => {
+            toast.success(
+              language === 'bn'
+                ? '🎉 অভিনন্দন! আপনার জিমেইল সফলভাবে ভেরিফাই হয়েছে। এখন লগইন করুন।'
+                : '🎉 Congratulations! Your email has been verified. Please log in.'
+            );
+            setMode('login');
+            setIsVerificationModalOpen(false);
+            if (auth.currentUser) {
+              await auth.currentUser.reload();
+              await refreshUser();
+            }
+          })
+          .catch((err) => {
+            console.warn('verifyEmail applyActionCode note:', err);
+            toast.error(
+              language === 'bn'
+                ? 'ভেরিফিকেশন লিংকের মেয়াদ শেষ অথবা ইতিমধ্যে ভেরিফাই হয়েছে।'
+                : 'Verification link expired or already verified.'
+            );
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
     } catch (err) {
       console.warn('URL reset param parsing skipped:', err);
+    }
+
+    // Check if an unverified user is sitting in auth
+    if (auth.currentUser && !auth.currentUser.emailVerified) {
+      setVerificationEmail(auth.currentUser.email || '');
+      setIsVerificationModalOpen(true);
     }
 
     // Check for redirect login result (for mobile browsers / popup fallbacks)
@@ -410,8 +470,22 @@ export default function Login() {
           cleanEmail
         );
 
-        toast.success('সফলভাবে অ্যাকাউন্ট তৈরি ও লগইন হয়েছে!');
-        navigate('/', { replace: true });
+        // 🌟 100% Free Lifetime Firebase Email Verification
+        try {
+          await sendEmailVerification(result.user);
+        } catch (verErr) {
+          console.warn('sendEmailVerification on register error:', verErr);
+        }
+
+        setVerificationEmail(cleanEmail);
+        setIsVerificationModalOpen(true);
+        setResendCooldown(60);
+
+        toast.success(
+          language === 'bn'
+            ? 'অ্যাকাউন্ট তৈরি হয়েছে! আপনার জিমেইলে ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
+            : 'Account created! Verification link sent to your Gmail.'
+        );
       } catch (error: any) {
         const errCode = error?.code || '';
         const errMsg = error?.message || '';
@@ -425,6 +499,25 @@ export default function Login() {
               cleanEmail,
               cleanPin
             );
+
+            // Check if existing user email is verified
+            if (!authedResult.user.emailVerified) {
+              try {
+                await sendEmailVerification(authedResult.user);
+              } catch (vErr) {
+                console.warn('sendEmailVerification note:', vErr);
+              }
+              setVerificationEmail(cleanEmail);
+              setIsVerificationModalOpen(true);
+              setResendCooldown(60);
+              toast(
+                language === 'bn'
+                  ? 'আপনার জিমেইলটি এখনও ভেরিফাই করা হয়নি। ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
+                  : 'Email not verified yet. Verification link sent.',
+                { icon: '✉️' }
+              );
+              return;
+            }
 
             await bootstrapUser(
               authedResult.user.uid,
@@ -517,6 +610,27 @@ export default function Login() {
         cleanPin
       );
 
+      // Check if user has verified their email via Firebase
+      if (!authedResult.user.emailVerified) {
+        try {
+          await sendEmailVerification(authedResult.user);
+        } catch (vErr) {
+          console.warn('sendEmailVerification on unverified login note:', vErr);
+        }
+
+        setVerificationEmail(cleanEmail);
+        setIsVerificationModalOpen(true);
+        setResendCooldown(60);
+
+        toast(
+          language === 'bn'
+            ? 'আপনার জিমেইলটি এখনও ভেরিফাই করা হয়নি। আপনার ইনবক্সে ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
+            : 'Email not verified yet. Verification link sent to your inbox.',
+          { icon: '✉️' }
+        );
+        return;
+      }
+
       await bootstrapUser(
         authedResult.user.uid,
         authedResult.user.displayName,
@@ -569,6 +683,124 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  /*
+   * EMAIL VERIFICATION ACTIONS (100% Free Lifetime Google Firebase)
+   */
+  const handleCheckVerification = async () => {
+    setCheckingVerification(true);
+    try {
+      let activeUser = auth.currentUser;
+      if (!activeUser && email.trim() && password.trim()) {
+        try {
+          const authed = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password.trim());
+          activeUser = authed.user;
+        } catch (e) {
+          console.warn('Re-auth on check verification note:', e);
+        }
+      }
+
+      if (!activeUser) {
+        toast.error(
+          language === 'bn'
+            ? 'অনুগ্রহ করে নিচে আপনার ইমেইল ও পিন দিয়ে আবার লগইন করার চেষ্টা করুন।'
+            : 'Please sign in with your email and PIN.'
+        );
+        setIsVerificationModalOpen(false);
+        setMode('login');
+        return;
+      }
+
+      await activeUser.reload();
+      if (activeUser.emailVerified) {
+        await refreshUser();
+        await bootstrapUser(
+          activeUser.uid,
+          activeUser.displayName,
+          activeUser.email
+        );
+        toast.success(
+          language === 'bn'
+            ? '🎉 অভিনন্দন! আপনার জিমেইল সফলভাবে ভেরিফাই হয়েছে। খামারে স্বাগতম!'
+            : '🎉 Congratulations! Your email has been verified. Welcome!'
+        );
+        setIsVerificationModalOpen(false);
+        navigate('/', { replace: true });
+      } else {
+        toast.error(
+          language === 'bn'
+            ? 'এখনও ভেরিফাই করা হয়নি। দয়া করে আপনার জিমেইল ইনবক্স বা স্প্যাম ফোল্ডারের লিংকে ক্লিক করুন।'
+            : 'Email not verified yet. Please click the link sent to your Gmail inbox/spam folder.'
+        );
+      }
+    } catch (err: any) {
+      console.warn('Verification reload error:', err);
+      toast.error(language === 'bn' ? 'যাচাই করা সম্ভব হয়নি। আবার চেষ্টা করুন।' : 'Could not check verification.');
+    } finally {
+      setCheckingVerification(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (resendCooldown > 0) return;
+
+    let activeUser = auth.currentUser;
+    if (!activeUser && email.trim() && password.trim()) {
+      try {
+        const authed = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password.trim());
+        activeUser = authed.user;
+      } catch (e) {
+        console.warn('Re-auth on resend note:', e);
+      }
+    }
+
+    if (!activeUser) {
+      toast.error(
+        language === 'bn'
+          ? 'অনুগ্রহ করে পিন দিয়ে আবার চেষ্টা করুন।'
+          : 'Please enter your PIN and try again.'
+      );
+      setIsVerificationModalOpen(false);
+      setMode('login');
+      return;
+    }
+
+    setResendingEmail(true);
+    try {
+      await sendEmailVerification(activeUser);
+      setResendCooldown(60);
+      toast.success(
+        language === 'bn'
+          ? `নতুন ভেরিফিকেশন লিংক ${verificationEmail || activeUser.email}-এ পাঠানো হয়েছে!`
+          : `New verification link sent to ${verificationEmail || activeUser.email}!`
+      );
+    } catch (err: any) {
+      console.error('Resend verification error:', err);
+      if (err?.code === 'auth/too-many-requests') {
+        toast.error(
+          language === 'bn'
+            ? 'অতিরিক্ত অনুরোধ করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।'
+            : 'Too many requests. Please wait a bit.'
+        );
+      } else {
+        toast.error(
+          language === 'bn' ? 'লিংক পাঠানো যায়নি। ইন্টারনেট চেক করুন।' : 'Failed to send verification link.'
+        );
+      }
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
+  const handleCancelVerification = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('SignOut error on cancel verification:', e);
+    }
+    setIsVerificationModalOpen(false);
+    setMode('login');
   };
 
   /*
@@ -828,30 +1060,8 @@ export default function Login() {
                 : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : 'Continue with Google (1-Click)')}
             </span>
           </button>
-          
-          {/* 🚀 INSTANT DEMO EXPLORE BUTTON */}
-          <button
-            type="button"
-            onClick={async () => {
-              await loginAsDemo();
-              toast.success(language === 'bn' ? 'ডেমো খামারে স্বাগতম!' : 'Welcome to Demo Farm!');
-              navigate('/', { replace: true });
-            }}
-            className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-900 font-bold py-2.5 px-4 rounded-xl border border-emerald-300 shadow-2xs text-xs sm:text-sm transition-all cursor-pointer"
-          >
-            <Sparkles size={15} className="text-emerald-700 shrink-0" />
-            <span>
-              {language === 'bn' ? 'ডেমো খামারি হিসেবে ১-ক্লিকে অ্যাপ দেখুন' : 'Explore App with 1-Click Demo Farm'}
-            </span>
-          </button>
 
-          <p className="text-[10px] text-center text-slate-500 mt-1 mb-3">
-            {language === 'bn'
-              ? '💡 সরাসরি প্রিভিউ দেখতে ওপরের যেকোনো একটি বাটনে চাপ দিন'
-              : '💡 Instant preview: click Google sign-in or Explore with Demo Farm'}
-          </p>
-
-          <div className="relative flex items-center py-1 mb-3">
+          <div className="relative flex items-center py-2 mb-3 mt-3">
             <div className="flex-grow border-t border-gray-200" />
             <span className="flex-shrink-0 mx-2 text-gray-400 text-[10.5px] font-semibold uppercase">
               {language === 'bn' ? 'অথবা ইমেইল ও পাসওয়ার্ড' : 'Or Email & Password'}
@@ -1500,6 +1710,148 @@ export default function Login() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 100% Free Lifetime Firebase Email Verification Modal */}
+      {isVerificationModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
+            {/* Close / Cancel Button */}
+            <button
+              onClick={handleCancelVerification}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all cursor-pointer"
+              title={language === 'bn' ? 'বাতিল' : 'Cancel'}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Modal Header Icon */}
+            <div className="text-center mb-5">
+              <div className="relative w-16 h-16 bg-gradient-to-tr from-emerald-100 to-teal-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-sm border border-emerald-200">
+                <MailCheck size={32} className="text-emerald-700" />
+                <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-600"></span>
+                </span>
+              </div>
+
+              <h3 className="text-lg font-black text-gray-900 tracking-tight">
+                {language === 'bn' ? 'জিমেইল ভেরিফিকেশন লিংক পাঠানো হয়েছে' : 'Gmail Verification Link Sent'}
+              </h3>
+
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-900 max-w-full truncate">
+                <Mail size={13} className="shrink-0 text-emerald-700" />
+                <span className="truncate">{verificationEmail || auth.currentUser?.email || email || 'আপনার জিমেইল'}</span>
+              </div>
+
+              <p className="text-xs text-gray-500 mt-2 max-w-xs mx-auto leading-relaxed">
+                {language === 'bn'
+                  ? 'ভুয়া অ্যাকাউন্ট প্রতিরোধ এবং খামারের ডেটা সুরক্ষিত রাখতে গুগল থেকে আপনার জিমেইলে নিশ্চিতকরণ লিংক পাঠানো হয়েছে।'
+                  : 'To protect your farm data and prevent duplicate spam accounts, an official Google verification link has been sent to your Gmail.'}
+              </p>
+            </div>
+
+            {/* Step-by-Step Instructions */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-5 text-xs text-slate-800 space-y-2">
+              <p className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                <Sparkles size={14} className="text-emerald-600" />
+                {language === 'bn' ? 'খামারে প্রবেশ করার সহজ ৩টি ধাপ:' : 'Simple 3 Steps to Activate:'}
+              </p>
+              <div className="space-y-1.5 text-[11.5px] leading-relaxed text-slate-700">
+                <p className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">১</span>
+                  <span>
+                    {language === 'bn'
+                      ? 'আপনার জিমেইলের Inbox অথবা Spam ফোল্ডার চেক করুন।'
+                      : 'Check your Gmail Inbox or Spam folder.'}
+                  </span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">২</span>
+                  <span>
+                    {language === 'bn'
+                      ? 'গুগল থেকে পাঠানো ভেরিফিকেশন লিংকে ক্লিক করে Confirm করুন।'
+                      : 'Click the verification link from Google to confirm.'}
+                  </span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">৩</span>
+                  <span>
+                    {language === 'bn'
+                      ? 'লিংকে ক্লিক করার পর নিচের বাটনে চাপ দিয়ে সরাসরি প্রবেশ করুন।'
+                      : 'After clicking, tap the button below to enter your farm.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2.5">
+              {/* Primary Check Button */}
+              <button
+                type="button"
+                onClick={handleCheckVerification}
+                disabled={checkingVerification}
+                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-700/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {checkingVerification ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Checking verification...'}
+                  </span>
+                ) : (
+                  <>
+                    <CheckCheck size={18} />
+                    <span>
+                      {language === 'bn' ? 'আমি ভেরিফাই করেছি (খামারে প্রবেশ করুন)' : 'I Have Verified (Enter Farm)'}
+                    </span>
+                  </>
+                )}
+              </button>
+
+              {/* Direct Gmail Link */}
+              <a
+                href="https://mail.google.com"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-2xl border border-slate-300 shadow-2xs text-xs transition-all cursor-pointer"
+              >
+                <Mail size={15} className="text-red-500" />
+                <span>{language === 'bn' ? 'সরাসরি জিমেইল ইনবক্স খুলুন' : 'Open Gmail Inbox'}</span>
+                <ExternalLink size={13} className="text-slate-400" />
+              </a>
+
+              {/* Secondary Actions: Resend & Cancel */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resendingEmail || resendCooldown > 0}
+                  className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw size={13} className={resendingEmail ? 'animate-spin' : ''} />
+                  <span>
+                    {resendCooldown > 0
+                      ? language === 'bn'
+                        ? `পুনরায় পাঠান (${resendCooldown}s)`
+                        : `Resend (${resendCooldown}s)`
+                      : language === 'bn'
+                      ? 'পুনরায় লিংক পাঠান'
+                      : 'Resend Link'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCancelVerification}
+                  className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                >
+                  {language === 'bn' ? 'অন্য অ্যাকাউন্ট / বাতিল' : 'Other Account / Cancel'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -34,8 +34,15 @@ import AppLifecycleHandler from './components/AppLifecycleHandler';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser } = useAuth();
-  return currentUser ? <>{children}</> : <Navigate to="/login" />;
+  const { currentUser, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  return currentUser ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
 function AppRoutes() {

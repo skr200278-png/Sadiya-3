@@ -969,7 +969,7 @@ export default function FCR() {
               <div className="p-2 sm:p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center flex flex-col justify-between">
                 <span className="block text-[10px] sm:text-xs text-emerald-700 font-semibold">{animalTerms.liveLabel}</span>
                 <span className="text-base sm:text-lg font-black text-emerald-800 my-0.5">{fcrResult.currentLiveCount}</span>
-                <span className="text-[10px] sm:text-xs text-emerald-600 block font-medium">{animalTerms.liveUnit}</span>
+                <span className="text-[10px] sm:text-xs text-emerald-600 block font-medium">{animalTerms.countUnit}</span>
               </div>
             </div>
           </div>

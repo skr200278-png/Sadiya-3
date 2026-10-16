@@ -60,10 +60,12 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
   const { userSubscription, isAdmin } = useSystemConfig();
   const isPlayStoreBuild = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
 
-  // For Admin: Auto-enable official Google Test Ads mode to ensure zero invalid click penalties or strikes
+  // Admin gets official Google Test Ads (zero risk of invalid click strikes), Users get Real Production Ads
   useEffect(() => {
     if (isAdmin) {
       admobService.setTestMode(true);
+    } else {
+      admobService.setTestMode(false);
     }
   }, [isAdmin]);
 
@@ -122,13 +124,13 @@ export function AdMobProvider({ children }: { children: React.ReactNode }) {
 
     if (isSensitive) {
       // Remove banner on sensitive data entry screens to avoid blocking keyboard or buttons
-      admobService.removeBanner();
+      admobService.removeBanner().catch(() => {});
     } else if (isBannerScreen) {
-      // Show bottom banner ad on dashboard, home and browsing screens
-      admobService.showBanner();
+      // Show bottom banner ad safely on viewing screens
+      admobService.showBanner().catch(() => {});
     } else {
       // On neutral screens, keep workspace clean
-      admobService.removeBanner();
+      admobService.removeBanner().catch(() => {});
     }
 
     // Attempt respectful interstitial transition when visiting content exploration screens
