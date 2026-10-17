@@ -31,11 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [logoSrc, setLogoSrc] = useState<string>(appLogo);
 
-  const checkUserVerified = (user: User | null): boolean => {
-    if (!user) return false;
-    // Strictly require email to be verified (Google accounts automatically have emailVerified = true)
-    return Boolean(user.emailVerified);
-  };
 
   useEffect(() => {
     let authDetermined = false;
@@ -60,17 +55,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const isVerified = checkUserVerified(user);
-        if (!isVerified) {
-          // Unverified email/password user: don't auto-login into dashboard
-          setCurrentUser(null);
-          setIsDemoUser(false);
-        } else {
-          localStorage.removeItem('user_has_logged_out');
-          localStorage.removeItem('is_demo_mock');
-          setIsDemoUser(false);
-          setCurrentUser(user);
-        }
+        localStorage.removeItem('user_has_logged_out');
+        localStorage.removeItem('is_demo_mock');
+        setIsDemoUser(false);
+        setCurrentUser(user);
       } else {
         setCurrentUser(null);
         setIsDemoUser(false);
@@ -93,15 +81,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (auth.currentUser) {
       await auth.currentUser.reload();
       const user = auth.currentUser;
-      if (checkUserVerified(user)) {
-        localStorage.removeItem('user_has_logged_out');
-        localStorage.removeItem('is_demo_mock');
-        setIsDemoUser(false);
-        setCurrentUser(user);
-      } else {
-        setCurrentUser(null);
-        setIsDemoUser(false);
-      }
+      localStorage.removeItem('user_has_logged_out');
+      localStorage.removeItem('is_demo_mock');
+      setIsDemoUser(false);
+      setCurrentUser(user);
     }
   };
 

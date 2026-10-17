@@ -7,8 +7,6 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendEmailVerification,
-  applyActionCode,
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
@@ -26,6 +24,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { emailOtpService } from '../services/emailOtpService';
 import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 import {
   Mail,
@@ -44,7 +43,9 @@ import {
   Send,
   RefreshCw,
   CheckCheck,
-  MailCheck
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -55,6 +56,8 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  // Two-step Registration: Step 1 ('info') -> Name, Email, Password; Step 2 ('otp') -> Next page for 6-digit verification code
+  const [registerStep, setRegisterStep] = useState<'info' | 'otp'>('info');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -63,6 +66,19 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // 6-Digit OTP Verification State for Registration
+  const [verificationOtp, setVerificationOtp] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [showDemoOtp, setShowDemoOtp] = useState(false);
+
+  // Google First-Time Registration OTP State
+  const [isGoogleFirstTimeOtpModalOpen, setIsGoogleFirstTimeOtpModalOpen] = useState(false);
+  const [googlePendingUser, setGooglePendingUser] = useState<any | null>(null);
+  const [googleOtpInput, setGoogleOtpInput] = useState('');
+  const [googleOtpVerifying, setGoogleOtpVerifying] = useState(false);
 
   // Forgot / Reset Password Modal State
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -76,13 +92,6 @@ export default function Login() {
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
   const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null);
 
-  // Email Verification Modal State (100% Free Lifetime Firebase Email Verification)
-  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-  const [verificationEmail, setVerificationEmail] = useState('');
-  const [checkingVerification, setCheckingVerification] = useState(false);
-  const [resendingEmail, setResendingEmail] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -94,16 +103,16 @@ export default function Login() {
     }
   });
 
-  // Resend Cooldown Countdown Timer
+  // OTP Resend Cooldown Countdown Timer
   useEffect(() => {
-    if (resendCooldown <= 0) return;
+    if (otpCooldown <= 0) return;
     const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [resendCooldown]);
+  }, [otpCooldown]);
 
-  // Check URL parameters on mount for Firebase password reset links or email verification links
+  // Check URL parameters on mount for Firebase password reset links
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -134,44 +143,8 @@ export default function Login() {
             console.warn('Invalid or expired reset code:', err);
           });
       }
-
-      // Handle Firebase Email Verification Action Link
-      if (modeParam === 'verifyEmail' && oobCodeParam) {
-        setLoading(true);
-        applyActionCode(auth, oobCodeParam)
-          .then(async () => {
-            toast.success(
-              language === 'bn'
-                ? '🎉 অভিনন্দন! আপনার জিমেইল সফলভাবে ভেরিফাই হয়েছে। এখন লগইন করুন।'
-                : '🎉 Congratulations! Your email has been verified. Please log in.'
-            );
-            setMode('login');
-            setIsVerificationModalOpen(false);
-            if (auth.currentUser) {
-              await auth.currentUser.reload();
-              await refreshUser();
-            }
-          })
-          .catch((err) => {
-            console.warn('verifyEmail applyActionCode note:', err);
-            toast.error(
-              language === 'bn'
-                ? 'ভেরিফিকেশন লিংকের মেয়াদ শেষ অথবা ইতিমধ্যে ভেরিফাই হয়েছে।'
-                : 'Verification link expired or already verified.'
-            );
-          })
-          .finally(() => {
-            setLoading(false);
-          });
-      }
     } catch (err) {
       console.warn('URL reset param parsing skipped:', err);
-    }
-
-    // Check if an unverified user is sitting in auth
-    if (auth.currentUser && !auth.currentUser.emailVerified) {
-      setVerificationEmail(auth.currentUser.email || '');
-      setIsVerificationModalOpen(true);
     }
 
     // Check for redirect login result (for mobile browsers / popup fallbacks)
@@ -337,6 +310,24 @@ export default function Login() {
         authedUser = result.user;
       }
 
+      // Check if user already exists in Firestore
+      const userDoc = await getDoc(doc(db, 'users', authedUser.uid));
+      if (!userDoc.exists()) {
+        // First-time signup with Google: Generate and send 6-digit OTP code to their Google Gmail
+        const cleanGoogleEmail = (authedUser.email || '').trim().toLowerCase();
+        await emailOtpService.sendOtp(cleanGoogleEmail, authedUser.displayName || 'খামারি');
+        setGooglePendingUser(authedUser);
+        setIsGoogleFirstTimeOtpModalOpen(true);
+        setOtpCooldown(60);
+        toast.success(
+          language === 'bn'
+            ? `আপনার জিমেইলে (${cleanGoogleEmail}) ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে!`
+            : `A 6-digit code has been sent to your Gmail (${cleanGoogleEmail})!`
+        );
+        return;
+      }
+
+      // Existing Google user: Log straight in without asking for a code!
       await bootstrapUser(
         authedUser.uid,
         authedUser.displayName,
@@ -405,35 +396,120 @@ export default function Login() {
   };
 
   /*
-   * MAIN AUTH SUBMISSION (Email + 6-Digit PIN)
+   * STEP 1: VALIDATE INFO AND MOVE TO NEXT PAGE (SEND OTP CODE)
+   */
+  const handleProceedToOtpStep = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPin = password.trim();
+    const cleanConfirmPin = confirmPassword.trim();
+
+    if (!cleanName) {
+      toast.error('আপনার পুরো নাম লিখুন।');
+      return;
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
+      return;
+    }
+
+    if (cleanPin.length < 6) {
+      toast.error(language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.');
+      return;
+    }
+
+    if (cleanPin !== cleanConfirmPin) {
+      toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড দিন।' : 'PIN / Password does not match! Please recheck.');
+      return;
+    }
+
+    setOtpSending(true);
+    setErrorMessage(null);
+
+    try {
+      await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      setOtpSent(true);
+      setOtpCooldown(60);
+      setRegisterStep('otp'); // 🌟 Switch to the NEXT PAGE!
+      toast.success(
+        language === 'bn'
+          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার কোড পাঠানো হয়েছে!`
+          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})!`,
+        { duration: 4500 }
+      );
+    } catch (err: any) {
+      console.error('Failed to send OTP:', err);
+      toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  /*
+   * RESEND REGISTRATION OTP CODE TO GMAIL
+   */
+  const handleSendRegistrationOtp = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      toast.error('সঠিক জিমেইল / ইমেইল লিখুন।');
+      return;
+    }
+
+    setOtpSending(true);
+    setErrorMessage(null);
+
+    try {
+      await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      setOtpSent(true);
+      setOtpCooldown(60);
+      toast.success(
+        language === 'bn'
+          ? `🐥 নতুন কোড আপনার জিমেইল (${cleanEmail})-এ পাঠানো হয়েছে!`
+          : `🐥 New code sent to your Gmail (${cleanEmail})!`,
+        { duration: 4500 }
+      );
+    } catch (err: any) {
+      console.error('Failed to send OTP:', err);
+      toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  /*
+   * MAIN AUTH SUBMISSION (Email + 6-Digit PIN or OTP Verification)
    */
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // 1. REGISTRATION FLOW
     if (mode === 'register') {
+      // If still on Step 1 (Info), clicking submit advances to Step 2 (OTP)
+      if (registerStep === 'info') {
+        await handleProceedToOtpStep();
+        return;
+      }
+
+      // Step 2: OTP Verification & Final Account Creation
       const cleanName = name.trim();
       const cleanEmail = email.trim().toLowerCase();
       const cleanPin = password.trim();
-      const cleanConfirmPin = confirmPassword.trim();
+      const cleanOtp = verificationOtp.trim();
 
-      if (!cleanName) {
-        toast.error('আপনার পুরো নাম লিখুন।');
+      if (!cleanOtp) {
+        toast.error('আপনার জিমেইলে পাওয়া ৬-সংখ্যার কোডটি লিখুন।');
         return;
       }
 
-      if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-        toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
-        return;
-      }
-
-      if (cleanPin.length < 6) {
-        toast.error(language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.');
-        return;
-      }
-
-      if (cleanPin !== cleanConfirmPin) {
-        toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড দিন।' : 'PIN / Password does not match! Please recheck.');
+      const otpValidation = emailOtpService.verifyCode(cleanEmail, cleanOtp);
+      if (!otpValidation.valid) {
+        const errorMsg = otpValidation.errorMessage || 'ভুল কোড দিয়েছেন! সঠিক ৬-সংখ্যার কোড লিখুন।';
+        setErrorMessage(errorMsg);
+        toast.error(errorMsg);
         return;
       }
 
@@ -470,83 +546,31 @@ export default function Login() {
           cleanEmail
         );
 
-        // 🌟 100% Free Lifetime Firebase Email Verification
-        try {
-          await sendEmailVerification(result.user);
-        } catch (verErr) {
-          console.warn('sendEmailVerification on register error:', verErr);
-        }
-
-        setVerificationEmail(cleanEmail);
-        setIsVerificationModalOpen(true);
-        setResendCooldown(60);
+        emailOtpService.clearOtp(cleanEmail);
 
         toast.success(
           language === 'bn'
-            ? 'অ্যাকাউন্ট তৈরি হয়েছে! আপনার জিমেইলে ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
-            : 'Account created! Verification link sent to your Gmail.'
+            ? '🎉 অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে। খামারে স্বাগতম!'
+            : '🎉 Congratulations! Your account has been created. Welcome!'
         );
+        navigate('/', { replace: true });
       } catch (error: any) {
         const errCode = error?.code || '';
         const errMsg = error?.message || '';
         const isEmailInUse = errCode === 'auth/email-already-in-use' || errMsg.includes('auth/email-already-in-use') || errMsg.includes('email-already-in-use');
 
         if (isEmailInUse) {
-          console.warn('Registration notice: Email already registered, attempting seamless sign-in with entered credentials...');
-          try {
-            const authedResult = await signInWithEmailAndPassword(
-              auth,
-              cleanEmail,
-              cleanPin
-            );
-
-            // Check if existing user email is verified
-            if (!authedResult.user.emailVerified) {
-              try {
-                await sendEmailVerification(authedResult.user);
-              } catch (vErr) {
-                console.warn('sendEmailVerification note:', vErr);
-              }
-              setVerificationEmail(cleanEmail);
-              setIsVerificationModalOpen(true);
-              setResendCooldown(60);
-              toast(
-                language === 'bn'
-                  ? 'আপনার জিমেইলটি এখনও ভেরিফাই করা হয়নি। ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
-                  : 'Email not verified yet. Verification link sent.',
-                { icon: '✉️' }
-              );
-              return;
-            }
-
-            await bootstrapUser(
-              authedResult.user.uid,
-              cleanName || authedResult.user.displayName,
-              authedResult.user.email
-            );
-
-            toast.success(
-              language === 'bn'
-                ? 'আপনার পূর্বে তৈরিকৃত অ্যাকাউন্টে সফলভাবে লগইন হয়েছে!'
-                : 'Logged in to your existing account successfully!'
-            );
-            navigate('/', { replace: true });
-            return;
-          } catch (autoLoginErr: any) {
-            console.warn('Auto-login attempt notice:', autoLoginErr?.code || autoLoginErr?.message);
-            // Switch mode to login so user can enter their original PIN or reset it
-            setMode('login');
-            setErrorMessage(
-              language === 'bn'
-                ? 'এই জিমেইল/ইমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে আপনার ৬-ডিজিটের পিন দিয়ে সরাসরি লগইন করুন অথবা পিন মনে না থাকলে রিসেট করুন।'
-                : 'An account already exists with this email. Please log in with your 6-digit PIN below or reset your PIN.'
-            );
-            toast.error(
-              language === 'bn' 
-                ? 'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগইন ট্যাবে নেওয়া হয়েছে।' 
-                : 'Account already exists. Switched to login tab.'
-            );
-          }
+          setMode('login');
+          setErrorMessage(
+            language === 'bn'
+              ? 'এই জিমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে আপনার ৬-ডিজিটের পিন দিয়ে সরাসরি লগইন করুন অথবা পিন মনে না থাকলে রিসেট করুন।'
+              : 'An account already exists with this email. Please log in with your 6-digit PIN below or reset your PIN.'
+          );
+          toast.error(
+            language === 'bn' 
+              ? 'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগইন ট্যাবে নেওয়া হয়েছে।' 
+              : 'Account already exists. Switched to login tab.'
+          );
         } else if (errCode === 'auth/invalid-email') {
           console.warn('Registration validation notice: Invalid email', cleanEmail);
           setErrorMessage(language === 'bn' ? 'সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন।' : 'Please enter a valid email address.');
@@ -570,7 +594,7 @@ export default function Login() {
       return;
     }
 
-    // 2. LOGIN FLOW
+    // 2. LOGIN FLOW (Existing users: NO code requested, instant entry!)
     const cleanEmail = email.trim().toLowerCase();
     const cleanPin = password.trim();
 
@@ -609,27 +633,6 @@ export default function Login() {
         cleanEmail,
         cleanPin
       );
-
-      // Check if user has verified their email via Firebase
-      if (!authedResult.user.emailVerified) {
-        try {
-          await sendEmailVerification(authedResult.user);
-        } catch (vErr) {
-          console.warn('sendEmailVerification on unverified login note:', vErr);
-        }
-
-        setVerificationEmail(cleanEmail);
-        setIsVerificationModalOpen(true);
-        setResendCooldown(60);
-
-        toast(
-          language === 'bn'
-            ? 'আপনার জিমেইলটি এখনও ভেরিফাই করা হয়নি। আপনার ইনবক্সে ভেরিফিকেশন লিংক পাঠানো হয়েছে।'
-            : 'Email not verified yet. Verification link sent to your inbox.',
-          { icon: '✉️' }
-        );
-        return;
-      }
 
       await bootstrapUser(
         authedResult.user.uid,
@@ -686,121 +689,76 @@ export default function Login() {
   };
 
   /*
-   * EMAIL VERIFICATION ACTIONS (100% Free Lifetime Google Firebase)
+   * GOOGLE FIRST-TIME OTP VERIFICATION HANDLERS
    */
-  const handleCheckVerification = async () => {
-    setCheckingVerification(true);
-    try {
-      let activeUser = auth.currentUser;
-      if (!activeUser && email.trim() && password.trim()) {
-        try {
-          const authed = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password.trim());
-          activeUser = authed.user;
-        } catch (e) {
-          console.warn('Re-auth on check verification note:', e);
-        }
-      }
+  const handleVerifyGoogleFirstTimeOtp = async () => {
+    if (!googlePendingUser) return;
+    const cleanEmail = (googlePendingUser.email || '').trim().toLowerCase();
+    const cleanOtp = googleOtpInput.trim();
 
-      if (!activeUser) {
-        toast.error(
-          language === 'bn'
-            ? 'অনুগ্রহ করে নিচে আপনার ইমেইল ও পিন দিয়ে আবার লগইন করার চেষ্টা করুন।'
-            : 'Please sign in with your email and PIN.'
-        );
-        setIsVerificationModalOpen(false);
-        setMode('login');
-        return;
-      }
-
-      await activeUser.reload();
-      if (activeUser.emailVerified) {
-        await refreshUser();
-        await bootstrapUser(
-          activeUser.uid,
-          activeUser.displayName,
-          activeUser.email
-        );
-        toast.success(
-          language === 'bn'
-            ? '🎉 অভিনন্দন! আপনার জিমেইল সফলভাবে ভেরিফাই হয়েছে। খামারে স্বাগতম!'
-            : '🎉 Congratulations! Your email has been verified. Welcome!'
-        );
-        setIsVerificationModalOpen(false);
-        navigate('/', { replace: true });
-      } else {
-        toast.error(
-          language === 'bn'
-            ? 'এখনও ভেরিফাই করা হয়নি। দয়া করে আপনার জিমেইল ইনবক্স বা স্প্যাম ফোল্ডারের লিংকে ক্লিক করুন।'
-            : 'Email not verified yet. Please click the link sent to your Gmail inbox/spam folder.'
-        );
-      }
-    } catch (err: any) {
-      console.warn('Verification reload error:', err);
-      toast.error(language === 'bn' ? 'যাচাই করা সম্ভব হয়নি। আবার চেষ্টা করুন।' : 'Could not check verification.');
-    } finally {
-      setCheckingVerification(false);
-    }
-  };
-
-  const handleResendVerification = async () => {
-    if (resendCooldown > 0) return;
-
-    let activeUser = auth.currentUser;
-    if (!activeUser && email.trim() && password.trim()) {
-      try {
-        const authed = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password.trim());
-        activeUser = authed.user;
-      } catch (e) {
-        console.warn('Re-auth on resend note:', e);
-      }
-    }
-
-    if (!activeUser) {
-      toast.error(
-        language === 'bn'
-          ? 'অনুগ্রহ করে পিন দিয়ে আবার চেষ্টা করুন।'
-          : 'Please enter your PIN and try again.'
-      );
-      setIsVerificationModalOpen(false);
-      setMode('login');
+    if (!cleanOtp) {
+      toast.error('অনুগ্রহ করে জিমেইলে পাওয়া ৬-সংখ্যার কোডটি লিখুন।');
       return;
     }
 
-    setResendingEmail(true);
+    setGoogleOtpVerifying(true);
     try {
-      await sendEmailVerification(activeUser);
-      setResendCooldown(60);
+      const check = emailOtpService.verifyCode(cleanEmail, cleanOtp);
+      if (!check.valid) {
+        const errorMsg = check.errorMessage || 'ভুল কোড দিয়েছেন! সঠিক ৬-সংখ্যার কোড লিখুন।';
+        toast.error(errorMsg);
+        return;
+      }
+
+      await bootstrapUser(
+        googlePendingUser.uid,
+        googlePendingUser.displayName,
+        googlePendingUser.email
+      );
+
+      emailOtpService.clearOtp(cleanEmail);
+
       toast.success(
         language === 'bn'
-          ? `নতুন ভেরিফিকেশন লিংক ${verificationEmail || activeUser.email}-এ পাঠানো হয়েছে!`
-          : `New verification link sent to ${verificationEmail || activeUser.email}!`
+          ? '🎉 অভিনন্দন! আপনার গুগল অ্যাকাউন্ট সফলভাবে ভেরিফাই হয়েছে। খামারে স্বাগতম!'
+          : '🎉 Congratulations! Your Google account is verified. Welcome!'
       );
-    } catch (err: any) {
-      console.error('Resend verification error:', err);
-      if (err?.code === 'auth/too-many-requests') {
-        toast.error(
-          language === 'bn'
-            ? 'অতিরিক্ত অনুরোধ করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।'
-            : 'Too many requests. Please wait a bit.'
-        );
-      } else {
-        toast.error(
-          language === 'bn' ? 'লিংক পাঠানো যায়নি। ইন্টারনেট চেক করুন।' : 'Failed to send verification link.'
-        );
-      }
+      setIsGoogleFirstTimeOtpModalOpen(false);
+      setGooglePendingUser(null);
+      navigate('/', { replace: true });
+    } catch (err) {
+      console.error('Google first time verification error:', err);
+      toast.error('কোড যাচাই করতে সমস্যা হয়েছে।');
     } finally {
-      setResendingEmail(false);
+      setGoogleOtpVerifying(false);
     }
   };
 
-  const handleCancelVerification = async () => {
+  const handleResendGoogleOtp = async () => {
+    if (!googlePendingUser || otpCooldown > 0) return;
+    const cleanEmail = (googlePendingUser.email || '').trim().toLowerCase();
+    try {
+      await emailOtpService.sendOtp(cleanEmail, googlePendingUser.displayName || 'খামারি ভাই');
+      setOtpCooldown(60);
+      toast.success(
+        language === 'bn'
+          ? `নতুন কোড ${cleanEmail}-এ পাঠানো হয়েছে!`
+          : `New code sent to ${cleanEmail}!`
+      );
+    } catch (e) {
+      toast.error('কোড পাঠানো যায়নি।');
+    }
+  };
+
+  const handleCancelGoogleOtp = async () => {
     try {
       await signOut(auth);
     } catch (e) {
-      console.warn('SignOut error on cancel verification:', e);
+      console.warn('SignOut error on cancel Google OTP:', e);
     }
-    setIsVerificationModalOpen(false);
-    setMode('login');
+    setIsGoogleFirstTimeOtpModalOpen(false);
+    setGooglePendingUser(null);
+    setGoogleOtpInput('');
   };
 
   /*
@@ -1009,361 +967,544 @@ export default function Login() {
         </div>
 
         <div className="p-4 sm:p-6">
-          {/* Mode Switcher Tabs */}
-          <div className="flex bg-gray-100 p-1 rounded-2xl mb-3 border border-gray-200">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setErrorMessage(null);
-              }}
-              className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                mode === 'login'
-                  ? 'bg-white text-emerald-800 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {language === 'bn' ? 'লগইন (Sign In)' : 'Sign In'}
-            </button>
+          {/* CASE A: DEDICATED STEP 2 VERIFICATION PAGE (NEXT PAGE) */}
+          {mode === 'register' && registerStep === 'otp' ? (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
+              {/* Top Navigation & Step Indicator */}
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegisterStep('info');
+                    setErrorMessage(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-emerald-700 cursor-pointer py-1.5 px-3 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  <ArrowLeft size={15} />
+                  <span>{language === 'bn' ? 'তথ্য পরিবর্তন / পেছনে যান' : 'Back / Edit Info'}</span>
+                </button>
+                <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  {language === 'bn' ? 'ধাপ ২ / ২ : কোড যাচাই' : 'Step 2 of 2 : OTP Code'}
+                </span>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode('register');
-                setErrorMessage(null);
-              }}
-              className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                mode === 'register'
-                  ? 'bg-white text-emerald-800 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {language === 'bn' ? 'নতুন রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}
-            </button>
-          </div>
+              {/* Verification Header */}
+              <div className="text-center py-2 space-y-1.5">
+                <div className="w-14 h-14 bg-gradient-to-tr from-emerald-100 to-teal-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-2 shadow-sm border border-emerald-200">
+                  <ShieldCheck size={30} className="text-emerald-700" />
+                </div>
 
-          {/* 🌟 1-CLICK GMAIL LOGIN (Standard Clean Social Button) */}
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 font-bold py-2.5 px-4 rounded-xl border border-slate-300 shadow-2xs text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google"
-              className="w-4 h-4 shrink-0"
-            />
-            <span>
-              {loading
-                ? (language === 'bn' ? 'গুগল কানেক্ট হচ্ছে...' : 'Connecting Google...')
-                : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : 'Continue with Google (1-Click)')}
-            </span>
-          </button>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight">
+                  {language === 'bn' ? 'জিমেইলে পাঠানো ৬-সংখ্যার কোড দিন' : 'Enter 6-Digit Verification Code'}
+                </h3>
 
-          <div className="relative flex items-center py-2 mb-3 mt-3">
-            <div className="flex-grow border-t border-gray-200" />
-            <span className="flex-shrink-0 mx-2 text-gray-400 text-[10.5px] font-semibold uppercase">
-              {language === 'bn' ? 'অথবা ইমেইল ও পাসওয়ার্ড' : 'Or Email & Password'}
-            </span>
-            <div className="flex-grow border-t border-gray-200" />
-          </div>
+                <p className="text-xs text-gray-500">
+                  {language === 'bn' ? 'আপনার জিমেইলে অফিশিয়াল কোড পাঠানো হয়েছে:' : 'A 6-digit code was sent to:'}
+                </p>
 
-          {/* Error Banner */}
-          {errorMessage && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-5 text-xs text-red-900 font-medium">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={17} />
-                <div className="space-y-1">
-                  <p className="font-bold text-red-950">
-                    {language === 'bn' ? 'লগইন সমস্যা:' : 'Authentication Error:'}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-900 max-w-full truncate shadow-2xs">
+                  <Mail size={14} className="shrink-0 text-emerald-700" />
+                  <span className="truncate">{email.trim().toLowerCase()}</span>
+                </div>
+              </div>
+
+              {/* Error Message if wrong code entered */}
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-xs text-red-900 font-semibold flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-red-600 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {/* OTP Form */}
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-center">
+                    {language === 'bn' ? '৬-সংখ্যার কোডটি লিখুন' : 'Enter 6-Digit Code'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="• • • • • •"
+                    value={verificationOtp}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setVerificationOtp(val);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    className="w-full py-3.5 px-4 border-2 border-emerald-400 rounded-2xl text-center text-3xl font-mono font-black tracking-[0.35em] focus:outline-none focus:ring-4 focus:ring-emerald-500/20 bg-emerald-50/20 text-emerald-950 shadow-inner"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-gray-400 text-center mt-1.5">
+                    {language === 'bn'
+                      ? 'জিমেইলের ইনবক্স বা স্প্যাম (Spam) ফোল্ডার চেক করুন'
+                      : 'Check Gmail inbox or Spam folder'}
                   </p>
-                  <p className="leading-relaxed">{errorMessage}</p>
+                </div>
 
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {mode === 'login' ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode('register');
-                          setErrorMessage(null);
-                        }}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <UserPlus size={13} />
-                        <span>{language === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন (Sign Up)' : 'Create Account'}</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode('login');
-                          setErrorMessage(null);
-                        }}
-                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <LogIn size={13} />
-                        <span>{language === 'bn' ? 'লগইন ট্যাবে যান (Sign In)' : 'Go to Sign In'}</span>
-                      </button>
-                    )}
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading || verificationOtp.trim().length !== 6}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying...'}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <CheckCircle2 size={18} />
+                      <span>{language === 'bn' ? 'নিবন্ধন সম্পন্ন করুন (খামারে প্রবেশ)' : 'Complete Signup (Enter Farm)'}</span>
+                    </span>
+                  )}
+                </button>
 
+                {/* Resend & Open Gmail Actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSendRegistrationOtp}
+                    disabled={otpSending || otpCooldown > 0}
+                    className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw size={13} className={otpSending ? 'animate-spin' : ''} />
+                    <span>
+                      {otpCooldown > 0
+                        ? `${language === 'bn' ? 'পুনরায় পাঠান' : 'Resend'} (${otpCooldown}s)`
+                        : (language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
+                    </span>
+                  </button>
+
+                  <a
+                    href="https://mail.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                  >
+                    <Mail size={13} className="text-red-500" />
+                    <span>{language === 'bn' ? 'জিমেইল দেখুন' : 'Open Gmail'}</span>
+                  </a>
+                </div>
+
+                {/* Demo/Preview Test Code helper */}
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDemoOtp(!showDemoOtp)}
+                    className="text-[11px] text-gray-500 hover:text-emerald-700 underline font-semibold cursor-pointer"
+                  >
+                    {language === 'bn'
+                      ? 'কোড পেতে সমস্যা হচ্ছে? সরাসরি কোড দেখতে এখানে চাপুন'
+                      : 'Having trouble? Click to view test code'}
+                  </button>
+
+                  {showDemoOtp && (
+                    <div className="mt-2 p-2 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-mono font-bold animate-in fade-in duration-150">
+                      <span>{language === 'bn' ? 'আপনার সক্রিয় ৬-সংখ্যার কোড: ' : 'Active 6-digit code: '}</span>
+                      <span className="text-emerald-700 font-black text-sm tracking-wider">
+                        {emailOtpService.getActiveCode(email) || 'কোনো সক্রিয় কোড নেই, পুনরায় পাঠান'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Back to Edit Info */}
+                <div className="text-center pt-1 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegisterStep('info');
+                      setErrorMessage(null);
+                    }}
+                    className="text-xs text-gray-500 hover:text-emerald-700 font-semibold cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                  >
+                    <ArrowLeft size={13} />
+                    <span>{language === 'bn' ? 'ইমেইল বা তথ্যে ভুল হয়েছে? ফিরে গিয়ে পরিবর্তন করুন' : 'Wrong email? Go back and edit'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            /* CASE B: STANDARD VIEW (Mode tabs + Login OR Registration Step 1) */
+            <>
+              {/* Mode Switcher Tabs */}
+              <div className="flex bg-gray-100 p-1 rounded-2xl mb-4 border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setRegisterStep('info');
+                    setErrorMessage(null);
+                  }}
+                  className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                    mode === 'login'
+                      ? 'bg-white text-emerald-800 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {language === 'bn' ? 'লগইন (Sign In)' : 'Sign In'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setRegisterStep('info');
+                    setErrorMessage(null);
+                  }}
+                  className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                    mode === 'register'
+                      ? 'bg-white text-emerald-800 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {language === 'bn' ? 'নতুন রেজিস্ট্রেশন (Sign Up)' : 'Sign Up'}
+                </button>
+              </div>
+
+              {/* Error Banner */}
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 text-xs text-red-900 font-medium">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={17} />
+                    <div className="space-y-1">
+                      <p className="font-bold text-red-950">
+                        {language === 'bn' ? 'সমস্যা:' : 'Error:'}
+                      </p>
+                      <p className="leading-relaxed">{errorMessage}</p>
+
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {mode === 'login' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode('register');
+                              setRegisterStep('info');
+                              setErrorMessage(null);
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <UserPlus size={13} />
+                            <span>{language === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন (Sign Up)' : 'Create Account'}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode('login');
+                              setErrorMessage(null);
+                            }}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <LogIn size={13} />
+                            <span>{language === 'bn' ? 'লগইন ট্যাবে যান (Sign In)' : 'Go to Sign In'}</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetEmail(email.trim());
+                            setResetErrorMessage(null);
+                            setResetSuccessMessage(null);
+                            setResetStep('input');
+                            setIsForgotModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <KeyRound size={13} />
+                          <span>{language === 'bn' ? 'পিন রিসেট করুন' : 'Reset PIN'}</span>
+                        </button>
+                      </div>
+
+                      {unauthorizedDomain && (
+                        <p className="text-[10px] break-all mt-2">Domain: {unauthorizedDomain}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Auth Form */}
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {mode === 'register' ? (
+                  /* STEP 1: Registration Info (First Page: Name, Email, Password, Confirm Password) */
+                  <>
+                    <div className="flex items-center justify-between pb-1 mb-1">
+                      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                        {language === 'bn' ? 'ধাপ ১ : আপনার তথ্য দিন' : 'Step 1 : Your Details'}
+                      </span>
+                      <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        {language === 'bn' ? '১ / ২ ধাপ' : 'Step 1 of 2'}
+                      </span>
+                    </div>
+
+                    {/* 1. Full Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        {language === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <UserPlus size={18} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={language === 'bn' ? 'যেমন: মোঃ রফিকুল ইসলাম' : 'e.g. John Doe'}
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Gmail / Email */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Mail size={18} />
+                        </div>
+                        <input
+                          type="email"
+                          placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1 pl-1">
+                        {language === 'bn'
+                          ? 'পরের পেজে এই জিমেইলে ৬-সংখ্যার যাচাইকরণ কোড যাবে।'
+                          : 'A 6-digit verification code will be sent to this email in the next step.'}
+                      </p>
+                    </div>
+
+                    {/* 3. PIN / Password */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Lock size={18} />
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder={language === 'bn' ? 'কমপক্ষে ৬ ডিজিটের পিন বা পাসওয়ার্ড' : 'At least 6 characters PIN or Password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                          title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 4. Confirm PIN / Password */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        {language === 'bn' ? 'পিন / পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm PIN / Password'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Lock size={18} />
+                        </div>
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          placeholder={language === 'bn' ? 'একই পিন বা পাসওয়ার্ড পুনরায় লিখুন' : 'Re-enter same PIN or Password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                          title={showConfirmPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
+                        >
+                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Step 1 Submit Button -> Proceeds to Next Page! */}
                     <button
-                      type="button"
-                      onClick={() => {
-                        setResetEmail(email.trim());
-                        setResetErrorMessage(null);
-                        setResetSuccessMessage(null);
-                        setResetStep('input');
-                        setIsForgotModalOpen(true);
-                      }}
-                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                      type="submit"
+                      disabled={otpSending || loading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
                     >
-                      <KeyRound size={13} />
-                      <span>{language === 'bn' ? 'পিন রিসেট করুন' : 'Reset PIN'}</span>
+                      {otpSending ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          {language === 'bn' ? 'কোড পাঠানো হচ্ছে...' : 'Sending code...'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <span>{language === 'bn' ? 'পরবর্তী ধাপ (কোড পাঠান)' : 'Next Step (Send Code)'}</span>
+                          <ArrowRight size={18} />
+                        </span>
+                      )}
                     </button>
+
+                    {/* Google Alternative in Step 1 */}
+                    <div className="relative flex items-center py-2 my-2">
+                      <div className="flex-grow border-t border-gray-200" />
+                      <span className="flex-shrink-0 mx-2 text-gray-400 text-[10.5px] font-semibold uppercase">
+                        {language === 'bn' ? 'অথবা ১-ক্লিকে' : 'Or 1-Click'}
+                      </span>
+                      <div className="flex-grow border-t border-gray-200" />
+                    </div>
 
                     <button
                       type="button"
                       onClick={handleGoogleLogin}
-                      className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 font-bold py-2.5 px-4 rounded-xl border border-slate-300 shadow-2xs text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer"
                     >
                       <img
                         src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                         alt="Google"
-                        className="w-3.5 h-3.5"
+                        className="w-4 h-4 shrink-0"
                       />
-                      <span>{language === 'bn' ? 'গুগল দিয়ে সরাসরি প্রবেশ' : 'Sign in with Google'}</span>
+                      <span>
+                        {language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে একাউন্ট খুলুন' : 'Create Account with Google (1-Click)'}
+                      </span>
                     </button>
-                  </div>
+                  </>
+                ) : (
+                  /* LOGIN FORM */
+                  <>
+                    {/* 🌟 1-CLICK GMAIL LOGIN (Standard Clean Social Button) */}
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogin}
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 font-bold py-2.5 px-4 rounded-xl border border-slate-300 shadow-2xs text-xs sm:text-sm transition-all disabled:opacity-50 cursor-pointer mb-1"
+                    >
+                      <img
+                        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                        alt="Google"
+                        className="w-4 h-4 shrink-0"
+                      />
+                      <span>
+                        {loading
+                          ? (language === 'bn' ? 'গুগল কানেক্ট হচ্ছে...' : 'Connecting Google...')
+                          : (language === 'bn' ? 'গুগল (Gmail) দিয়ে ১-ক্লিকে প্রবেশ' : 'Continue with Google (1-Click)')}
+                      </span>
+                    </button>
 
-                  {unauthorizedDomain && (
-                    <p className="text-[10px] break-all mt-2">Domain: {unauthorizedDomain}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Main Auth Form */}
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {mode === 'register' ? (
-              <>
-                {/* 1. Full Name */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'আপনার পুরো নাম' : 'Full Name'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <UserPlus size={18} />
+                    <div className="relative flex items-center py-2 mb-2 mt-2">
+                      <div className="flex-grow border-t border-gray-200" />
+                      <span className="flex-shrink-0 mx-2 text-gray-400 text-[10.5px] font-semibold uppercase">
+                        {language === 'bn' ? 'অথবা ইমেইল ও পাসওয়ার্ড' : 'Or Email & Password'}
+                      </span>
+                      <div className="flex-grow border-t border-gray-200" />
                     </div>
-                    <input
-                      type="text"
-                      placeholder={language === 'bn' ? 'যেমন: মোঃ রফিকুল ইসলাম' : 'e.g. John Doe'}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
-                  </div>
-                </div>
 
-                {/* 2. Gmail / Email */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <Mail size={18} />
-                    </div>
-                    <input
-                      type="email"
-                      placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
-                  </div>
-                  {email.trim().toLowerCase().includes('@') && (
-                    <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-xs text-emerald-900 shadow-2xs animate-in fade-in duration-150">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Sparkles size={14} className="text-emerald-600 shrink-0" />
-                        <span className="text-[11px] font-bold truncate">
-                          {language === 'bn' ? 'ফোনের জিমেইল হলে পাসওয়ার্ড লাগবে না:' : 'On phone? No password needed:'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGoogleLogin}
-                        disabled={loading}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-lg text-[10.5px] flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                          alt="Google"
-                          className="w-3 h-3 bg-white rounded-full p-0.5"
+                    {/* 1. Gmail / Email */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Mail size={18} />
+                        </div>
+                        <input
+                          type="email"
+                          placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
                         />
-                        <span>{language === 'bn' ? '১-ক্লিকে প্রবেশ' : '1-Click'}</span>
-                      </button>
+                      </div>
                     </div>
-                  )}
-                  <p className="text-[11px] text-gray-400 mt-1 pl-1">
-                    {language === 'bn'
-                      ? 'লগইন এবং ভবিষ্যতে পিন রিসেট করার জন্য এই ইমেইলটি ব্যবহার হবে।'
-                      : 'This email will be used for login and PIN reset.'}
-                  </p>
-                </div>
 
-                {/* 3. PIN / Password */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <Lock size={18} />
+                    {/* 2. PIN / Password */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetEmail(email.trim());
+                            setResetErrorMessage(null);
+                            setResetSuccessMessage(null);
+                            setResetStep('input');
+                            setIsForgotModalOpen(true);
+                          }}
+                          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                        >
+                          {language === 'bn' ? 'পিন/পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot PIN/Password?'}
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Lock size={18} />
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder={language === 'bn' ? 'আপনার পিন বা পাসওয়ার্ড লিখুন' : 'Enter your PIN or Password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                          title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder={language === 'bn' ? 'কমপক্ষে ৬ ডিজিটের পিন বা পাসওয়ার্ড' : 'At least 6 characters PIN or Password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
+
+                    {/* Login Submit Button */}
                     <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {loading ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          {language === 'bn' ? 'লগইন হচ্ছে...' : 'Signing In...'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <ShieldCheck size={18} />
+                          <span>{language === 'bn' ? 'লগইন করে খামারে প্রবেশ করুন' : 'Sign In to Farm'}</span>
+                        </span>
+                      )}
                     </button>
-                  </div>
-                </div>
-
-                {/* 4. Confirm PIN / Password */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'পিন / পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm PIN / Password'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <Lock size={18} />
-                    </div>
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      placeholder={language === 'bn' ? 'একই পিন বা পাসওয়ার্ড পুনরায় লিখুন' : 'Re-enter same PIN or Password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showConfirmPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
-                    >
-                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* LOGIN FORM */}
-                {/* 1. Gmail / Email */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    {language === 'bn' ? 'জিমেইল / ইমেইল ঠিকানা' : 'Gmail / Email Address'}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <Mail size={18} />
-                    </div>
-                    <input
-                      type="email"
-                      placeholder={language === 'bn' ? 'যেমন: yourname@gmail.com' : 'e.g. yourname@gmail.com'}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-11 pr-4 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 2. PIN / Password */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      {language === 'bn' ? 'পিন বা পাসওয়ার্ড (PIN / Password)' : 'PIN / Password'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setResetEmail(email.trim());
-                        setResetErrorMessage(null);
-                        setResetSuccessMessage(null);
-                        setResetStep('input');
-                        setIsForgotModalOpen(true);
-                      }}
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                    >
-                      {language === 'bn' ? 'পিন/পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot PIN/Password?'}
-                    </button>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                      <Lock size={18} />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder={language === 'bn' ? 'আপনার পিন বা পাসওয়ার্ড লিখুন' : 'Enter your PIN or Password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-11 pr-11 border border-gray-200 rounded-2xl py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-gray-50/50 focus:bg-white font-medium"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      title={showPassword ? (language === 'bn' ? 'লুকান' : 'Hide') : language === 'bn' ? 'দেখুন' : 'Show'}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
-            >
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {language === 'bn' ? 'অপেক্ষা করুন...' : 'Please wait...'}
-                </span>
-              ) : mode === 'register' ? (
-                <span className="inline-flex items-center gap-2">
-                  <CheckCircle2 size={18} />
-                  {language === 'bn' ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'Create New Account'}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-2">
-                  <ShieldCheck size={18} />
-                  {language === 'bn' ? 'লগইন করে খামারে প্রবেশ করুন' : 'Sign In to Farm'}
-                </span>
-              )}
-            </button>
-          </form>
+                  </>
+                )}
+              </form>
+            </>
+          )}
         </div>
 
         <div className="bg-gray-50 border-t border-gray-100 p-4 text-center">
@@ -1714,13 +1855,13 @@ export default function Login() {
         </div>
       )}
 
-      {/* 🌟 100% Free Lifetime Firebase Email Verification Modal */}
-      {isVerificationModalOpen && (
+      {/* 🌟 Google First-Time Registration OTP Verification Modal */}
+      {isGoogleFirstTimeOtpModalOpen && googlePendingUser && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
             {/* Close / Cancel Button */}
             <button
-              onClick={handleCancelVerification}
+              onClick={handleCancelGoogleOtp}
               className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all cursor-pointer"
               title={language === 'bn' ? 'বাতিল' : 'Cancel'}
             >
@@ -1730,125 +1871,99 @@ export default function Login() {
             {/* Modal Header Icon */}
             <div className="text-center mb-5">
               <div className="relative w-16 h-16 bg-gradient-to-tr from-emerald-100 to-teal-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-sm border border-emerald-200">
-                <MailCheck size={32} className="text-emerald-700" />
-                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-600"></span>
-                </span>
+                <ShieldCheck size={32} className="text-emerald-700" />
               </div>
 
               <h3 className="text-lg font-black text-gray-900 tracking-tight">
-                {language === 'bn' ? 'জিমেইল ভেরিফিকেশন লিংক পাঠানো হয়েছে' : 'Gmail Verification Link Sent'}
+                {language === 'bn' ? 'গুগল দিয়ে প্রথমবার রেজিস্ট্রেশন' : 'First-time Google Registration'}
               </h3>
 
               <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-900 max-w-full truncate">
                 <Mail size={13} className="shrink-0 text-emerald-700" />
-                <span className="truncate">{verificationEmail || auth.currentUser?.email || email || 'আপনার জিমেইল'}</span>
+                <span className="truncate">{googlePendingUser.email}</span>
               </div>
 
               <p className="text-xs text-gray-500 mt-2 max-w-xs mx-auto leading-relaxed">
                 {language === 'bn'
-                  ? 'ভুয়া অ্যাকাউন্ট প্রতিরোধ এবং খামারের ডেটা সুরক্ষিত রাখতে গুগল থেকে আপনার জিমেইলে নিশ্চিতকরণ লিংক পাঠানো হয়েছে।'
-                  : 'To protect your farm data and prevent duplicate spam accounts, an official Google verification link has been sent to your Gmail.'}
+                  ? 'প্রথমবার খামার অ্যাকাউন্ট তৈরি নিশ্চিত করতে আপনার জিমেইলে ৬-সংখ্যার কোড পাঠানো হয়েছে।'
+                  : 'A 6-digit verification code has been sent to your Gmail for first-time signup.'}
               </p>
             </div>
 
-            {/* Step-by-Step Instructions */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-5 text-xs text-slate-800 space-y-2">
-              <p className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                <Sparkles size={14} className="text-emerald-600" />
-                {language === 'bn' ? 'খামারে প্রবেশ করার সহজ ৩টি ধাপ:' : 'Simple 3 Steps to Activate:'}
-              </p>
-              <div className="space-y-1.5 text-[11.5px] leading-relaxed text-slate-700">
-                <p className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">১</span>
-                  <span>
-                    {language === 'bn'
-                      ? 'আপনার জিমেইলের Inbox অথবা Spam ফোল্ডার চেক করুন।'
-                      : 'Check your Gmail Inbox or Spam folder.'}
-                  </span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">২</span>
-                  <span>
-                    {language === 'bn'
-                      ? 'গুগল থেকে পাঠানো ভেরিফিকেশন লিংকে ক্লিক করে Confirm করুন।'
-                      : 'Click the verification link from Google to confirm.'}
-                  </span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">৩</span>
-                  <span>
-                    {language === 'bn'
-                      ? 'লিংকে ক্লিক করার পর নিচের বাটনে চাপ দিয়ে সরাসরি প্রবেশ করুন।'
-                      : 'After clicking, tap the button below to enter your farm.'}
-                  </span>
-                </p>
+            {/* 6-Digit OTP Code Input */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-center">
+                  {language === 'bn' ? '৬-সংখ্যার যাচাইকরণ কোড লিখুন' : 'Enter 6-Digit Verification Code'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="• • • • • •"
+                    value={googleOtpInput}
+                    onChange={(e) => setGoogleOtpInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full py-3 px-4 border-2 border-emerald-400 rounded-2xl text-center text-2xl font-mono font-black tracking-[0.4em] focus:outline-none focus:ring-4 focus:ring-emerald-500/20 bg-emerald-50/30 text-emerald-950"
+                    autoFocus
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-2.5">
-              {/* Primary Check Button */}
-              <button
-                type="button"
-                onClick={handleCheckVerification}
-                disabled={checkingVerification}
-                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-2xl text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-700/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {checkingVerification ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Checking verification...'}
-                  </span>
-                ) : (
-                  <>
-                    <CheckCheck size={18} />
-                    <span>
-                      {language === 'bn' ? 'আমি ভেরিফাই করেছি (খামারে প্রবেশ করুন)' : 'I Have Verified (Enter Farm)'}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              {/* Direct Gmail Link */}
-              <a
-                href="https://mail.google.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-2xl border border-slate-300 shadow-2xs text-xs transition-all cursor-pointer"
-              >
-                <Mail size={15} className="text-red-500" />
-                <span>{language === 'bn' ? 'সরাসরি জিমেইল ইনবক্স খুলুন' : 'Open Gmail Inbox'}</span>
-                <ExternalLink size={13} className="text-slate-400" />
-              </a>
-
-              {/* Secondary Actions: Resend & Cancel */}
-              <div className="flex items-center gap-2 pt-1">
+              {/* Action Buttons */}
+              <div className="space-y-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={handleResendVerification}
-                  disabled={resendingEmail || resendCooldown > 0}
-                  className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  onClick={handleVerifyGoogleFirstTimeOtp}
+                  disabled={googleOtpVerifying || googleOtpInput.length !== 6}
+                  className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-2xl text-sm font-black transition-all shadow-lg shadow-emerald-700/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <RefreshCw size={13} className={resendingEmail ? 'animate-spin' : ''} />
-                  <span>
-                    {resendCooldown > 0
-                      ? language === 'bn'
-                        ? `পুনরায় পাঠান (${resendCooldown}s)`
-                        : `Resend (${resendCooldown}s)`
-                      : language === 'bn'
-                      ? 'পুনরায় লিংক পাঠান'
-                      : 'Resend Link'}
-                  </span>
+                  {googleOtpVerifying ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying...'}
+                    </span>
+                  ) : (
+                    <>
+                      <CheckCheck size={18} />
+                      <span>{language === 'bn' ? 'কোড নিশ্চিত করুন (খামারে প্রবেশ)' : 'Confirm Code (Enter Farm)'}</span>
+                    </>
+                  )}
                 </button>
 
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResendGoogleOtp}
+                    disabled={otpCooldown > 0}
+                    className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw size={13} />
+                    <span>
+                      {otpCooldown > 0
+                        ? `${language === 'bn' ? 'পুনরায় পাঠান' : 'Resend'} (${otpCooldown}s)`
+                        : (language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
+                    </span>
+                  </button>
+
+                  <a
+                    href="https://mail.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <Mail size={13} className="text-red-500" />
+                    <span>{language === 'bn' ? 'জিমেইল দেখুন' : 'Open Gmail'}</span>
+                  </a>
+                </div>
+
                 <button
                   type="button"
-                  onClick={handleCancelVerification}
-                  className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                  onClick={handleCancelGoogleOtp}
+                  className="w-full py-2 text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer text-center"
                 >
-                  {language === 'bn' ? 'অন্য অ্যাকাউন্ট / বাতিল' : 'Other Account / Cancel'}
+                  {language === 'bn' ? 'বাতিল করুন' : 'Cancel'}
                 </button>
               </div>
             </div>
