@@ -1063,57 +1063,25 @@ export default function Login() {
                   )}
                 </button>
 
-                {/* Resend & Open Gmail Actions */}
-                <div className="flex items-center gap-2 pt-1">
+                {/* Resend Code Action */}
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={handleSendRegistrationOtp}
                     disabled={otpSending || otpCooldown > 0}
-                    className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw size={13} className={otpSending ? 'animate-spin' : ''} />
                     <span>
                       {otpCooldown > 0
-                        ? `${language === 'bn' ? 'পুনরায় পাঠান' : 'Resend'} (${otpCooldown}s)`
+                        ? `${language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code'} (${otpCooldown}s)`
                         : (language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
                     </span>
                   </button>
-
-                  <a
-                    href="https://mail.google.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                  >
-                    <Mail size={13} className="text-red-500" />
-                    <span>{language === 'bn' ? 'জিমেইল দেখুন' : 'Open Gmail'}</span>
-                  </a>
-                </div>
-
-                {/* Demo/Preview Test Code helper */}
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDemoOtp(!showDemoOtp)}
-                    className="text-[11px] text-gray-500 hover:text-emerald-700 underline font-semibold cursor-pointer"
-                  >
-                    {language === 'bn'
-                      ? 'কোড পেতে সমস্যা হচ্ছে? সরাসরি কোড দেখতে এখানে চাপুন'
-                      : 'Having trouble? Click to view test code'}
-                  </button>
-
-                  {showDemoOtp && (
-                    <div className="mt-2 p-2 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-mono font-bold animate-in fade-in duration-150">
-                      <span>{language === 'bn' ? 'আপনার সক্রিয় ৬-সংখ্যার কোড: ' : 'Active 6-digit code: '}</span>
-                      <span className="text-emerald-700 font-black text-sm tracking-wider">
-                        {emailOtpService.getActiveCode(email) || 'কোনো সক্রিয় কোড নেই, পুনরায় পাঠান'}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Back to Edit Info */}
-                <div className="text-center pt-1 border-t border-gray-100">
+                <div className="text-center pt-2 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => {
@@ -1123,7 +1091,7 @@ export default function Login() {
                     className="text-xs text-gray-500 hover:text-emerald-700 font-semibold cursor-pointer flex items-center justify-center gap-1 mx-auto"
                   >
                     <ArrowLeft size={13} />
-                    <span>{language === 'bn' ? 'ইমেইল বা তথ্যে ভুল হয়েছে? ফিরে গিয়ে পরিবর্তন করুন' : 'Wrong email? Go back and edit'}</span>
+                    <span>{language === 'bn' ? 'ইমেইল বা তথ্য পরিবর্তন করতে পেছনে যান' : 'Back to edit info'}</span>
                   </button>
                 </div>
               </form>
@@ -1932,30 +1900,20 @@ export default function Login() {
                   )}
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={handleResendGoogleOtp}
                     disabled={otpCooldown > 0}
-                    className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw size={13} />
                     <span>
                       {otpCooldown > 0
-                        ? `${language === 'bn' ? 'পুনরায় পাঠান' : 'Resend'} (${otpCooldown}s)`
+                        ? `${language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code'} (${otpCooldown}s)`
                         : (language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
                     </span>
                   </button>
-
-                  <a
-                    href="https://mail.google.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <Mail size={13} className="text-red-500" />
-                    <span>{language === 'bn' ? 'জিমেইল দেখুন' : 'Open Gmail'}</span>
-                  </a>
                 </div>
 
                 <button

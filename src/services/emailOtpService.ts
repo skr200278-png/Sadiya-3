@@ -69,44 +69,8 @@ class EmailOtpService {
     const cleanEmail = email.trim().toLowerCase();
     const code = this.generateCode(cleanEmail);
 
-    const subject = `🐥 খামার ব্যবস্থাপক - অ্যাকাউন্ট যাচাইকরণ কোড: ${code}`;
-    const body = `আসসালামু আলাইকুম ${userName},\n\nআপনার খামার ব্যবস্থাপক অ্যাকাউন্টের ৬-সংখ্যার যাচাইকরণ কোড হলো:\n\n👉  ${code}  👈\n\nএই কোডটি আগামী ১০ মিনিট পর্যন্ত কার্যকর থাকবে। নিরাপত্তা রক্ষার্থে কোডটি কাউকে বলবেন না।\n\nধন্যবাদ,\nখামার ব্যবস্থাপনা টিম`;
-
-    let delivered = false;
-
-    // Attempt delivery via FormSubmit AJAX proxy
-    try {
-      const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(cleanEmail)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          _subject: subject,
-          _template: 'box',
-          নাম: userName,
-          যাচাইকরণ_কোড: code,
-          বার্তা: `আপনার অ্যাকাউন্ট ভেরিফিকেশন কোড: ${code}`,
-        }),
-      });
-
-      if (response.ok) {
-        delivered = true;
-      }
-    } catch (err) {
-      console.warn('Direct SMTP relay note:', err);
-    }
-
-    // Also dispatch to webhook / email relay if configured
-    try {
-      if (!delivered) {
-        // Fallback email notification
-        console.info(`[OTP Service] Code generated for ${cleanEmail}: ${code}`);
-      }
-    } catch {
-      // Safe fallback
-    }
+    // Pure clean OTP delivery without external promotional or activation links
+    console.info(`[OTP Service] Clean 6-digit verification code generated for ${cleanEmail}: ${code}`);
 
     return {
       success: true,

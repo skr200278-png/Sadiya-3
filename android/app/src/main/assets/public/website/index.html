@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farm Manager (ফার্ম ম্যানেজার) - স্মার্ট খামার ব্যবস্থাপনা ও বাচ্চার বাজার</title>
+  <meta name="description" content="Farm Manager (ফার্ম ম্যানেজার) - ব্রয়লার, সোনালী, লেয়ার, গরু ও মাছের আধুনিক খামার ব্যবস্থাপনা সফটওয়্যার। FCR চার্ট, বাচ্চার রেট, আয়-ব্যয়, ক্যাশ মেমো ও বাকি খাতা। Smart poultry, dairy & aquaculture farm management software.">
+  <link rel="icon" type="image/png" href="/farm_app_icon_1779214389225.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+    body {
+      font-family: 'Hind Siliguri', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .lang-en {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-600 selection:text-white">
+
+  <!-- Navbar -->
+  <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/farm_manager_logo.jpg" alt="Farm Manager Logo" class="w-10 h-10 rounded-2xl shadow-xs border border-emerald-100 object-cover" onerror="this.src='/farm_app_icon_1779214389225.png'">
+        <div>
+          <span class="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+            Farm Manager <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">ফার্ম ম্যানেজার</span>
+          </span>
+          <p class="text-[11px] text-slate-500 font-medium" data-bn="স্মার্ট পোল্ট্রি, ডেইরি ও মৎস্য খামার সমাধান" data-en="Smart Poultry, Dairy & Fish Farming Solutions">স্মার্ট পোল্ট্রি, ডেইরি ও মৎস্য খামার সমাধান</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <!-- Language Switcher Buttons -->
+        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button onclick="setSiteLang('bn')" id="nav-btn-bn" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white shadow-xs transition-all cursor-pointer">
+            বাংলা
+          </button>
+          <button onclick="setSiteLang('en')" id="nav-btn-en" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer">
+            English
+          </button>
+        </div>
+
+        <a href="/privacy-policy.html" class="text-xs font-bold text-slate-600 hover:text-emerald-700 transition-colors hidden md:inline-block px-2 py-1 rounded-lg hover:bg-slate-50">
+          <span data-bn="🛡️ প্রাইভেসি পলিসি ও রুলস" data-en="🛡️ Privacy Policy & Rules">🛡️ প্রাইভেসি পলিসি ও রুলস</span>
+        </a>
+
+        <a href="/#/" class="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md shadow-emerald-700/20 transition-all">
+          <span data-bn="অ্যাপে প্রবেশ করুন" data-en="Open App">অ্যাপে প্রবেশ করুন</span>
+          <span>→</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="relative bg-gradient-to-b from-emerald-900 via-emerald-800 to-teal-900 text-white overflow-hidden py-14 sm:py-20">
+    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        
+        <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-emerald-200 text-xs font-bold uppercase tracking-wider backdrop-blur-xs border border-white/15">
+            <span data-bn="🚀 গুগল প্লে ও ওয়েব সার্টিফাইড প্ল্যাটফর্ম" data-en="🚀 Google Play & Web Certified Platform">🚀 গুগল প্লে ও ওয়েব সার্টিফাইড প্ল্যাটফর্ম</span>
+          </div>
+
+          <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+            <span data-bn="খামার পরিচালনার সকল হিসাব" data-en="All Farm Accounting & Management">খামার পরিচালনার সকল হিসাব</span> <br class="hidden sm:inline">
+            <span class="text-emerald-300" data-bn="এখন আপনার হাতের মুঠোয়" data-en="Now Right at Your Fingertips">এখন আপনার হাতের মুঠোয়</span>
+          </h1>
+
+          <p class="text-sm sm:text-base text-emerald-100 leading-relaxed max-w-2xl" data-bn="ব্রয়লার, সোনালী, লেয়ার, গরু মোটাতাজাকরণ ও মাছের খামারের দৈনন্দিন খাদ্য গ্রহণ, বাচ্চার রেট, FCR, মর্টালিটি, আয়-ব্যয়, ক্যাশ মেমো ও গ্রাহকের বাকি খাতার ডিজিটাল নির্ভুল সফটওয়্যার।" data-en="All-in-one digital farm management suite for Broiler, Sonali, Layer, Cattle & Fish farming. Track daily feed intake, live chick prices, FCR benchmarks, mortality, income-expense, digital cash memo, and customer dues ledger.">
+            ব্রয়লার, সোনালী, লেয়ার, গরু মোটাতাজাকরণ ও মাছের খামারের দৈনন্দিন খাদ্য গ্রহণ, বাচ্চার রেট, FCR, মর্টালিটি, আয়-ব্যয়, ক্যাশ মেমো ও গ্রাহকের বাকি খাতার ডিজিটাল নির্ভুল সফটওয়্যার।
+          </p>
+
+          <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 pt-2">
+            <a href="/#/" class="px-6 py-3.5 bg-white text-emerald-950 font-black rounded-2xl text-sm shadow-xl hover:bg-emerald-50 active:scale-95 transition-all flex items-center gap-2">
+              <span data-bn="🚀 অ্যাপ চালু করুন (Web App)" data-en="🚀 Open App (Web App)">🚀 অ্যাপ চালু করুন (Web App)</span>
+            </a>
+            <a href="/privacy-policy.html" class="px-5 py-3.5 bg-emerald-700/60 hover:bg-emerald-700 text-white font-bold rounded-2xl text-sm border border-emerald-400/30 transition-all flex items-center gap-2">
+              <span data-bn="🛡️ অফিসিয়াল পলিসি ও রুলস" data-en="🛡️ Official Policy & Rules">🛡️ অফিসিয়াল পলিসি ও রুলস</span>
+            </a>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 pt-6 border-t border-white/15 text-center">
+            <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+              <span class="block text-xl font-black text-emerald-300">১০,০০০+</span>
+              <span class="text-[11px] text-emerald-200" data-bn="সন্তুষ্ট খামারি" data-en="Active Farmers">সন্তুষ্ট খামারি</span>
+            </div>
+            <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+              <span class="block text-xl font-black text-emerald-300">১০০%</span>
+              <span class="text-[11px] text-emerald-200" data-bn="ক্লাউড ব্যাকআপ" data-en="Cloud Backup">ক্লাউড ব্যাকআপ</span>
+            </div>
+            <div class="p-3 bg-white/5 rounded-xl border border-white/10">
+              <span class="block text-xl font-black text-emerald-300" data-bn="০ টাকা" data-en="Free">০ টাকা</span>
+              <span class="text-[11px] text-emerald-200" data-bn="ফ্রি রেজিস্ট্রেশন" data-en="Free Signup">ফ্রি রেজিস্ট্রেশন</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 flex justify-center">
+          <div class="relative w-full max-w-sm">
+            <div class="absolute -inset-1.5 bg-gradient-to-r from-emerald-400 to-teal-400 rounded-3xl blur-md opacity-30"></div>
+            <div class="relative bg-white rounded-3xl p-4 shadow-2xl border border-white/20">
+              <img src="/farm_manager_logo.jpg" alt="Farm Manager Showcase" class="w-full h-auto rounded-2xl shadow-sm object-cover" onerror="this.src='/farm_app_icon_1779214389225.png'">
+              <div class="mt-3.5 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                <div>
+                  <h4 class="font-extrabold text-xs text-emerald-950">Farm Manager Pro</h4>
+                  <p class="text-[10px] text-emerald-700">Google Play Store & Web Application</p>
+                </div>
+                <span class="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-lg">Verified Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Info & Official Links Banner -->
+  <section class="bg-emerald-50 border-b border-emerald-200 py-4">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-emerald-900 font-semibold">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span data-bn="অফিসিয়াল ওয়েবসাইট:" data-en="Official Website:">অফিসিয়াল ওয়েবসাইট:</span>
+          <a href="https://farm-manager-bd.netlify.app/website.html" target="_blank" class="text-emerald-700 font-black underline hover:text-emerald-900">farm-manager-bd.netlify.app/website.html</a>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+          <span data-bn="প্রাইভেসি পলিসি:" data-en="Privacy Policy:">প্রাইভেসি পলিসি:</span>
+          <a href="https://farm-manager-bd.netlify.app/privacy-policy.html" target="_blank" class="text-emerald-700 font-black underline hover:text-emerald-900">farm-manager-bd.netlify.app/privacy-policy.html</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-slate-600">
+        <span data-bn="সহায়তা ইমেইল:" data-en="Support:">সহায়তা ইমেইল:</span>
+        <a href="mailto:sr0632890@gmail.com" class="font-bold text-slate-800 hover:text-emerald-700">sr0632890@gmail.com</a>
+        <span>|</span>
+        <a href="tel:+8801622384379" class="font-bold text-slate-800 hover:text-emerald-700">+8801622384379</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Complete Features Grid -->
+  <section class="py-16 sm:py-20 max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="text-center max-w-2xl mx-auto mb-12 space-y-2">
+      <span class="text-xs font-black text-emerald-700 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full" data-bn="ফিচারসমূহ • ALL APP MODULES" data-en="FEATURES • ALL APP MODULES">
+        ফিচারসমূহ • ALL APP MODULES
+      </span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900" data-bn="খামারের প্রতিটি পদক্ষেপের জন্য বিশেষায়িত সুবিধা" data-en="Specialized Tools for Every Step of Modern Farming">
+        খামারের প্রতিটি পদক্ষেপের জন্য বিশেষায়িত সুবিধা
+      </h2>
+      <p class="text-xs sm:text-sm text-slate-600" data-bn="আমাদের সফটওয়্যার খামারিদের সময় বাঁচায় এবং প্রতিটি ব্যাচে সর্বোচ্চ মুনাফা নিশ্চিত করে।" data-en="Our software saves precious farmer time, eliminates calculation mistakes, and maximizes net profitability in every single batch.">
+        আমাদের সফটওয়্যার খামারিদের সময় বাঁচায় এবং প্রতিটি ব্যাচে সর্বোচ্চ মুনাফা নিশ্চিত করে।
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <!-- 1. বাচ্চার বাজার ও হ্যাচারি রেট -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg">
+          🐥
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="বাচ্চার বাজার ও হ্যাচারি রেট" data-en="Live Chick Market & Hatchery Rates">বাচ্চার বাজার ও হ্যাচারি রেট</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="কাজী, আফতাব, নারিশ, সিপি, প্যারাগনসহ সকল শীর্ষ হ্যাচারির ব্রয়লার ও সোনালীর বাচ্চার লাইভ রেট এবং ডিলারদের ফ্রি লিস্টিং ও সরাসরি বুকিং সুবিধা।" data-en="Daily live chick prices from Kazi, Aftab, Nourish, CP, Paragon, and other top hatcheries with verified dealer listings and direct booking.">
+          কাজী, আফতাব, নারিশ, সিপি, প্যারাগনসহ সকল শীর্ষ হ্যাচারির ব্রয়লার ও সোনালীর বাচ্চার লাইভ রেট এবং ডিলারদের ফ্রি লিস্টিং ও সরাসরি বুকিং সুবিধা।
+        </p>
+      </div>
+
+      <!-- 2. পোল্ট্রি ও খামার হাট -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg">
+          🛒
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="পোল্ট্রি ও খামার হাট (Marketplace)" data-en="Poultry & Livestock Marketplace">পোল্ট্রি ও খামার হাট (Marketplace)</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="কোনো দালাল ছাড়া সরাসরি খামারিদের মধ্যে মুরগি, ডিম, গরু, ছাগল ও খামারের আধুনিক যন্ত্রপাতি পাইকারি ও খুচরা কেনাবেচার উন্মুক্ত ডিজিটাল হাট।" data-en="Direct peer-to-peer marketplace connecting farmers and wholesale buyers for broiler, eggs, cattle, goats, feed and farm equipment without middlemen.">
+          কোনো দালাল ছাড়া সরাসরি খামারিদের মধ্যে মুরগি, ডিম, গরু, ছাগল ও খামারের আধুনিক যন্ত্রপাতি পাইকারি ও খুচরা কেনাবেচার উন্মুক্ত ডিজিটাল হাট।
+        </p>
+      </div>
+
+      <!-- 3. দোকান ও ডিলার ডিরেক্টরি -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-lg">
+          🏪
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="ফিড ও ওষুধের দোকান ডিরেক্টরি" data-en="Feed & Vet Pharmacy Directory">ফিড ও ওষুধের দোকান ডিরেক্টরি</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="আপনার জেলা ও উপজেলার বিশ্বস্ত ফিড ডিলার, পোল্ট্রি মেডিসিন শপ ও আধুনিক খামার ইকুইপমেন্ট সরবরাহকারীদের যোগাযোগের ডিরেক্টরি।" data-en="Discover verified feed dealers, veterinary medicine stores, and farm equipment suppliers in your district and upazila.">
+          আপনার জেলা ও উপজেলার বিশ্বস্ত ফিড ডিলার, পোল্ট্রি মেডিসিন শপ ও আধুনিক খামার ইকুইপমেন্ট সরবরাহকারীদের যোগাযোগের ডিরেক্টরি।
+        </p>
+      </div>
+
+      <!-- 4. ব্যাচ ও জাত ব্যবস্থাপনা -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-lg">
+          📊
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="মাল্টি-ব্যাচ ট্র্যাকিং" data-en="Multi-Batch Tracking">মাল্টি-ব্যাচ ট্র্যাকিং</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="একই সাথে একাধিক ব্রয়লার, সোনালী, লেয়ার, ডেইরি বা মাছের ব্যাচ পরিচালনা করুন। প্রতিটি ব্যাচের বয়স, খাদ্য গ্রহণ ও খরচের পৃথক বিবরণী।" data-en="Manage multiple batches of Broiler, Sonali, Layer, Dairy cattle, or Fish pond simultaneously with independent age, feed, and financial statements.">
+          একই সাথে একাধিক ব্রয়লার, সোনালী, লেয়ার, ডেইরি বা মাছের ব্যাচ পরিচালনা করুন। প্রতিটি ব্যাচের বয়স, খাদ্য গ্রহণ ও খরচের পৃথক বিবরণী।
+        </p>
+      </div>
+
+      <!-- 5. FCR ও ওজন ট্র্যাকার -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-lg">
+          ⚖️
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="FCR ও খাদ্য রূপান্তর হার" data-en="Strict FCR & Feed Efficiency Engine">FCR ও খাদ্য রূপান্তর হার</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="আদর্শ ব্রয়লার ও সোনালী গ্রোথ চার্টের সাথে তুলনা করে বর্তমান ওজনের সাপেক্ষে FCR নির্ণয়। খাবার অপচয় কমিয়ে বাড়তি লাভ নিশ্চিত করুন।" data-en="Automated Feed Conversion Ratio (FCR) calculation against global breeder standards (Cobb 500, Ross 308) to stop feed wastage and optimize feed economics.">
+          আদর্শ ব্রয়লার ও সোনালী গ্রোথ চার্টের সাথে তুলনা করে বর্তমান ওজনের সাপেক্ষে FCR নির্ণয়। খাবার অপচয় কমিয়ে বাড়তি লাভ নিশ্চিত করুন।
+        </p>
+      </div>
+
+      <!-- 6. খাদ্য স্টক ও পুষ্টি হিসাব -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center font-bold text-lg">
+          🌾
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="দৈনিক খাদ্য ও স্টক হিসাব" data-en="Daily Feed Intake & Stock Alerts">দৈনিক খাদ্য ও স্টক হিসাব</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="প্রতিদিন সকালে ও বিকেলে কত বস্তা বা কেজি খাবার লাগলো তার স্বয়ংক্রিয় হিসাব এবং খামারে অবশিষ্ট খাদ্য স্টকের আগাম অ্যালার্ট।" data-en="Monitor daily feed consumption per bird/animal, compare morning and evening feeds, and receive low-stock inventory warnings.">
+          প্রতিদিন সকালে ও বিকেলে কত বস্তা বা কেজি খাবার লাগলো তার স্বয়ংক্রিয় হিসাব এবং খামারে অবশিষ্ট খাদ্য স্টকের আগাম অ্যালার্ট।
+        </p>
+      </div>
+
+      <!-- 7. চিকিৎসা ও ভ্যাকসিন শিডিউল -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center font-bold text-lg">
+          💊
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="ভ্যাকসিন শিডিউল ও চিকিৎসা" data-en="Vaccination Schedule & Disease Protocol">ভ্যাকসিন শিডিউল ও চিকিৎসা</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="রানিখেত, গামবোরোসহ প্রয়োজনীয় ভ্যাকসিনেশনের সময়সূচি, অ্যান্টিবায়োটিকের সঠিক মাত্রা এবং বিক্রয়ের পূর্বে উইথড্রয়াল পিরিয়ড পর্যবেক্ষণ।" data-en="Automated vaccination calendar (Ranikhet, Gumboro, Fowl Pox), antibiotic dosage guide, and food safety withdrawal period countdowns.">
+          রানিখেত, গামবোরোসহ প্রয়োজনীয় ভ্যাকসিনেশনের সময়সূচি, অ্যান্টিবায়োটিকের সঠিক মাত্রা এবং বিক্রয়ের পূর্বে উইথড্রয়াল পিরিয়ড পর্যবেক্ষণ।
+        </p>
+      </div>
+
+      <!-- 8. আয়-ব্যয় ও লাভ-ক্ষতি রিপোর্ট -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-green-100 text-green-800 flex items-center justify-center font-bold text-lg">
+          💰
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="আয়-ব্যয় ও লাভ-ক্ষতি রিপোর্ট" data-en="Profit & Loss Accounting Reports">আয়-ব্যয় ও লাভ-ক্ষতি রিপোর্ট</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="বাচ্চা কেনা, খাদ্য, ওষুধ, বিদ্যুৎ বিল ও বিক্রয়ের প্রতিটি হিসাবের অটোমেটিক হিসাব। ব্যাচ শেষে নিট লাভ বা ক্ষতির স্পষ্ট সামারি।" data-en="Track chick purchase, feed bags, medicines, electricity, and sales. Instantly view batch profit & loss statements and export to PDF.">
+          বাচ্চা কেনা, খাদ্য, ওষুধ, বিদ্যুৎ বিল ও বিক্রয়ের প্রতিটি হিসাবের অটোমেটিক হিসাব। ব্যাচ শেষে নিট লাভ বা ক্ষতির স্পষ্ট সামারি।
+        </p>
+      </div>
+
+      <!-- 9. ডিজিটাল ক্যাশ মেমো -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center font-bold text-lg">
+          🧾
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="ডিজিটাল ক্যাশ মেমো ও রসিদ" data-en="Digital Cash Memo & WhatsApp Invoices">ডিজিটাল ক্যাশ মেমো ও রসিদ</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="মুরগি বা ডিম বিক্রির সময় পাইকার বা ক্রেতাকে ডিজিটাল ক্যাশ মেমো প্রিন্ট করে দিন অথবা হোয়াটসঅ্যাপে এক ক্লিকে শেয়ার করুন।" data-en="Generate branded digital sales invoices and receipts for wholesale bird or egg sales. Print instantly or share directly via WhatsApp.">
+          মুরগি বা ডিম বিক্রির সময় পাইকার বা ক্রেতাকে ডিজিটাল ক্যাশ মেমো প্রিন্ট করে দিন অথবা হোয়াটসঅ্যাপে এক ক্লিকে শেয়ার করুন।
+        </p>
+      </div>
+
+      <!-- 10. বাকি খাতা (Customer Dues) -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center font-bold text-lg">
+          📒
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="বাকি খাতা ও কাস্টমার লেজার" data-en="Customer Dues & Credit Ledger">বাকি খাতা ও কাস্টমার লেজার</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="কোন পাইকারের কাছে কত টাকা বাকি আছে, পরিশোধের তারিখ ও ফোন নম্বরসহ সম্পূর্ণ ডিজিটাল বাকি খাতা সংরক্ষণ করুন।" data-en="Keep track of buyer credit, pending payments, partial collections, and dues recovery with automated SMS/WhatsApp reminders.">
+          কোন পাইকারের কাছে কত টাকা বাকি আছে, পরিশোধের তারিখ ও ফোন নম্বরসহ সম্পূর্ণ ডিজিটাল বাকি খাতা সংরক্ষণ করুন।
+        </p>
+      </div>
+
+      <!-- 11. ভেটেরিনারি ডাক্তার ডিরেক্টরি -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center font-bold text-lg">
+          🩺
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="ভেটেরিনারি ডাক্তার ডিরেক্টরি" data-en="Veterinary Doctor Consultation">ভেটেরিনারি ডাক্তার ডিরেক্টরি</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="খামারে রোগবালাই বা জরুরি অবস্থায় অভিজ্ঞ ভেটেরিনারি চিকিৎসকদের সাথে সরাসরি কল বা মেসেজে দ্রুত পরামর্শ গ্রহণের সুবিধা।" data-en="Connect with registered veterinary doctors and livestock consultants for immediate emergency farm advisory.">
+          খামারে রোগবালাই বা জরুরি অবস্থায় অভিজ্ঞ ভেটেরিনারি চিকিৎসকদের সাথে সরাসরি কল বা মেসেজে দ্রুত পরামর্শ গ্রহণের সুবিধা।
+        </p>
+      </div>
+
+      <!-- 12. বাংলা ও ইংরেজি ভয়েস ইনপুট -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-3">
+        <div class="w-10 h-10 rounded-xl bg-lime-100 text-lime-800 flex items-center justify-center font-bold text-lg">
+          🎙️
+        </div>
+        <h3 class="text-base font-bold text-slate-900" data-bn="স্মার্ট বাংলা ভয়েস ইনপুট" data-en="Smart Voice Data Entry">স্মার্ট বাংলা ভয়েস ইনপুট</h3>
+        <p class="text-xs text-slate-600 leading-relaxed" data-bn="টাইপ করার ঝামেলা নেই! শুধু মাইক্রোফোনে মুখে বলুন — 'আজকে ২০ বস্তা ফিড কিনলাম' এবং সিস্টেম স্বয়ংক্রিয়ভাবে হিসাব লিখে নেবে।" data-en="Hands-free farm record keeping. Speak naturally in Bangla or English — the app parses feed quantities, mortality, and sales automatically.">
+          টাইপ করার ঝামেলা নেই! শুধু মাইক্রোফোনে মুখে বলুন — 'আজকে ২০ বস্তা ফিড কিনলাম' এবং সিস্টেম স্বয়ংক্রিয়ভাবে হিসাব লিখে নেবে।
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Community Rules & Safety Banner (Bilingual) -->
+  <section class="bg-amber-50 border-y border-amber-200 py-12">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black text-2xl shrink-0 shadow-md">
+          ⚠️
+        </div>
+        <div class="space-y-3 w-full">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-xl font-black text-amber-950" data-bn="মার্কেটপ্লেস ও বাচ্চার বাজার ব্যবহারের গুরুত্বপূর্ণ রুলস (Community Rules)" data-en="Important Marketplace & Chick Trading Community Rules">
+              মার্কেটপ্লেস ও বাচ্চার বাজার ব্যবহারের গুরুত্বপূর্ণ রুলস (Community Rules)
+            </h3>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+              Zero Tolerance Policy
+            </span>
+          </div>
+          
+          <p class="text-xs sm:text-sm text-amber-900 leading-relaxed" data-bn="খামারি ও ব্যবসায়ীদের নিরাপত্তার স্বার্থে ফার্ম ম্যানেজার প্ল্যাটফর্ম ব্যবহারে নিচের নিয়মগুলো কঠোরভাবে মেনে চলার অনুরোধ করা হচ্ছে:" data-en="For farmer safety and fraud prevention, all users must strictly comply with the following mandatory community standards:">
+            খামারি ও ব্যবসায়ীদের নিরাপত্তার স্বার্থে ফার্ম ম্যানেজার প্ল্যাটফর্ম ব্যবহারে নিচের নিয়মগুলো কঠোরভাবে মেনে চলার অনুরোধ করা হচ্ছে:
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+            <div class="bg-white p-4 rounded-xl border border-amber-300 shadow-2xs">
+              <span class="font-black text-red-700 block mb-1" data-bn="১. অগ্রিম টাকা পাঠানো নিষেধ" data-en="1. No Advance Payments to Unknowns">১. অগ্রিম টাকা পাঠানো নিষেধ</span>
+              <p class="text-slate-600 leading-relaxed" data-bn="বাচ্চা বা মাল হাতে পাওয়ার পূর্বে কোনো অপরিচিত ব্যক্তিকে বিকাশ, নগদ বা ব্যাংকে অগ্রিম টাকা পাঠানো থেকে বিরত থাকুন।" data-en="Never send advance mobile banking (bKash/Nagad) or bank funds to unverified strangers before inspecting chicks or livestock in person.">
+                বাচ্চা বা মাল হাতে পাওয়ার পূর্বে কোনো অপরিচিত ব্যক্তিকে বিকাশ, নগদ বা ব্যাংকে অগ্রিম টাকা পাঠানো থেকে বিরত থাকুন।
+              </p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-amber-300 shadow-2xs">
+              <span class="font-black text-slate-900 block mb-1" data-bn="২. সঠিক দর ও তথ্য প্রকাশ" data-en="2. Genuine Rates & Authenticity">২. সঠিক দর ও তথ্য প্রকাশ</span>
+              <p class="text-slate-600 leading-relaxed" data-bn="বাচ্চার দর বা পশুর বিজ্ঞাপনে সম্পূর্ণ সত্য ও আসল তথ্য প্রদান করতে হবে। ফেক বিজ্ঞাপন তাৎক্ষণিকভাবে নিষিদ্ধ করা হয়।" data-en="All posted market rates and livestock advertisements must be 100% genuine and verified. Fraudulent or misleading posts result in an instant ban.">
+                বাচ্চার দর বা পশুর বিজ্ঞাপনে সম্পূর্ণ সত্য ও আসল তথ্য প্রদান করতে হবে। ফেক বিজ্ঞাপন তাৎক্ষণিকভাবে নিষিদ্ধ করা হয়।
+              </p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-amber-300 shadow-2xs">
+              <span class="font-black text-slate-900 block mb-1" data-bn="৩. বায়োসিকিউরিটি ও চিকিৎসা" data-en="3. Biosecurity & Withdrawal Period">৩. বায়োসিকিউরিটি ও চিকিৎসা</span>
+              <p class="text-slate-600 leading-relaxed" data-bn="খামারে বায়োসিকিউরিটি বজায় রাখুন এবং অ্যান্টিবায়োটিক ব্যবহারের পর প্রত্যাহারকাল (Withdrawal Period) নিশ্চিত করুন।" data-en="Ensure proper farm disinfection and observe mandatory antibiotic withdrawal periods prior to bird slaughter for human health safety.">
+                খামারে বায়োসিকিউরিটি বজায় রাখুন এবং অ্যান্টিবায়োটিক ব্যবহারের পর প্রত্যাহারকাল (Withdrawal Period) নিশ্চিত করুন।
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Google Play Data Safety & Compliance -->
+  <section class="py-16 max-w-5xl mx-auto px-4 sm:px-6">
+    <div class="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-xs space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div>
+          <span class="text-xs font-black text-emerald-700 uppercase tracking-wider" data-bn="গুগল ডাটা সেফটি নীতিমালা" data-en="Google Play Data Safety">গুগল ডাটা সেফটি নীতিমালা</span>
+          <h3 class="text-xl sm:text-2xl font-black text-slate-900" data-bn="গুগল প্লে স্টোর ও এডমব স্ট্যান্ডার্ড শতভাগ অনুমোদিত" data-en="Fully Compliant with Google Play & AdMob Policies">গুগল প্লে স্টোর ও এডমব স্ট্যান্ডার্ড শতভাগ অনুমোদিত</h3>
+        </div>
+        <a href="/privacy-policy.html" class="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-all">
+          <span data-bn="পূর্ণাঙ্গ প্রাইভেসি পলিসি পড়ুন →" data-en="Read Full Privacy Policy →">পূর্ণাঙ্গ প্রাইভেসি পলিসি পড়ুন →</span>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5">
+          <span class="font-bold text-slate-900 text-sm block" data-bn="🔒 AES-256 এনক্রিপশন" data-en="🔒 AES-256 Encryption">🔒 AES-256 এনক্রিপশন</span>
+          <p class="text-slate-600 leading-relaxed" data-bn="আপনার খামারের আয়-ব্যয় এবং ব্যক্তিগত তথ্য গুগল ক্লাউড ফায়ারবেস ডাটাবেসে সম্পূর্ণ এনক্রিপ্ট করা অবস্থায় সংরক্ষিত থাকে।" data-en="Your farm financial records and batch histories are securely transmitted and stored using industry standard AES-256 encryption.">
+            আপনার খামারের আয়-ব্যয় এবং ব্যক্তিগত তথ্য গুগল ক্লাউড ফায়ারবেস ডাটাবেসে সম্পূর্ণ এনক্রিপ্ট করা অবস্থায় সংরক্ষিত থাকে।
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5">
+          <span class="font-bold text-slate-900 text-sm block" data-bn="🛡️ নিরাপদ বিজ্ঞাপন নীতি" data-en="🛡️ Safe Advertising Policy">🛡️ নিরাপদ বিজ্ঞাপন নীতি</span>
+          <p class="text-slate-600 leading-relaxed" data-bn="এডমব ব্যানার কোনো সেভ বাটনে চাপ ফেলে না। গুগল পলিসি অনুযায়ী কোনো অনাকাঙ্ক্ষিত বা ভুল ক্লিক ঘটার সুযোগ নেই।" data-en="Google AdMob banners follow strict placement guidelines without overlapping interactive buttons, preventing accidental clicks.">
+            এডমব ব্যানার কোনো সেভ বাটনে চাপ ফেলে না। গুগল পলিসি অনুযায়ী কোনো অনাকাঙ্ক্ষিত বা ভুল ক্লিক ঘটার সুযোগ নেই।
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5">
+          <span class="font-bold text-slate-900 text-sm block" data-bn="🗑️ ডাটা মুছে ফেলার অধিকার" data-en="🗑️ Complete Data Deletion">🗑️ ডাটা মুছে ফেলার অধিকার</span>
+          <p class="text-slate-600 leading-relaxed" data-bn="যেকোনো ব্যাচ বা হিসাব অ্যাপ থেকে সরাসরি ডিলিট করা যায় এবং ইমেইল রিকোয়েস্টে ৭ কার্যদিবসে সম্পূর্ণ অ্যাকাউন্ট মুছে ফেলা হয়।" data-en="Users can delete any batch records in real-time or request full account and cloud deletion within 7 business days.">
+            যেকোনো ব্যাচ বা হিসাব অ্যাপ থেকে সরাসরি ডিলিট করা যায় এবং ইমেইল রিকোয়েস্টে ৭ কার্যদিবসে সম্পূর্ণ অ্যাকাউন্ট মুছে ফেলা হয়।
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white py-12 text-center">
+    <div class="max-w-4xl mx-auto px-4 space-y-5">
+      <h2 class="text-2xl sm:text-3xl font-black" data-bn="আজই আপনার খামারকে ডিজিটাল ও লাভজনক করুন" data-en="Make Your Farm Digital & More Profitable Today">
+        আজই আপনার খামারকে ডিজিটাল ও লাভজনক করুন
+      </h2>
+      <p class="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto leading-relaxed" data-bn="হাজার হাজার খামারির সাথে যুক্ত হয়ে শুরু করুন সহজ ও নির্ভরযোগ্য ডিজিটাল খামার ব্যবস্থাপনা।" data-en="Join thousands of farmers streamlining flock accounting and maximizing harvest profits.">
+        হাজার হাজার খামারির সাথে যুক্ত হয়ে শুরু করুন সহজ ও নির্ভরযোগ্য ডিজিটাল খামার ব্যবস্থাপনা।
+      </p>
+      <div class="pt-2">
+        <a href="/#/" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-emerald-950 font-black rounded-2xl text-sm shadow-xl hover:bg-emerald-50 active:scale-95 transition-all">
+          <span data-bn="🚀 ফার্ম ম্যানেজার চালু করুন" data-en="🚀 Launch Farm Manager Pro">🚀 ফার্ম ম্যানেজার চালু করুন</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-8 text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-2.5">
+          <img src="/farm_manager_logo.jpg" alt="Farm Manager Logo" class="w-7 h-7 rounded-lg object-cover" onerror="this.src='/farm_app_icon_1779214389225.png'">
+          <span class="font-black text-slate-800 text-sm">Farm Manager (ফার্ম ম্যানেজার)</span>
+        </div>
+
+        <div class="flex items-center gap-4 text-xs font-semibold">
+          <a href="/privacy-policy.html" class="hover:text-emerald-700 transition-colors" data-bn="প্রাইভেসি পলিসি" data-en="Privacy Policy">প্রাইভেসি পলিসি</a>
+          <a href="/#/" class="hover:text-emerald-700 transition-colors" data-bn="অ্যাপ ড্যাশবোর্ড" data-en="App Dashboard">অ্যাপ ড্যাশবোর্ড</a>
+          <a href="mailto:sr0632890@gmail.com" class="hover:text-emerald-700 transition-colors" data-bn="সাপোর্ট ইমেইল" data-en="Support Email">সাপোর্ট ইমেইল</a>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400">
+        <p>© 2026 Farm Manager Tech (Sk Abu Sufian). All rights reserved.</p>
+        <p data-bn="সাপোর্ট: sr0632890@gmail.com | skabusufian452@gmail.com | ফোন: +8801622384379" data-en="Support: sr0632890@gmail.com | skabusufian452@gmail.com | Phone: +8801622384379">সাপোর্ট: sr0632890@gmail.com | skabusufian452@gmail.com | ফোন: +8801622384379</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bilingual JavaScript -->
+  <script>
+    function setSiteLang(lang) {
+      const isEn = lang === 'en';
+      document.documentElement.lang = lang;
+      
+      const elements = document.querySelectorAll('[data-bn][data-en]');
+      elements.forEach(el => {
+        el.textContent = isEn ? el.getAttribute('data-en') : el.getAttribute('data-bn');
+      });
+
+      const btnBn = document.getElementById('nav-btn-bn');
+      const btnEn = document.getElementById('nav-btn-en');
+
+      if (btnBn && btnEn) {
+        if (isEn) {
+          btnEn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white shadow-xs transition-all cursor-pointer';
+          btnBn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer';
+        } else {
+          btnBn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white shadow-xs transition-all cursor-pointer';
+          btnEn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer';
+        }
+      }
+
+      try {
+        localStorage.setItem('site_lang', lang);
+      } catch (e) {}
+    }
+
+    // Auto-detect saved or default language
+    document.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('site_lang') || 'bn';
+      setSiteLang(saved);
+    });
+  </script>
+
+</body>
+</html>
