@@ -33,50 +33,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let authDetermined = false;
-    const minimumSplashTime = 250;
-    const startTime = Date.now();
 
-    const finishLoading = () => {
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, minimumSplashTime - elapsed);
-      setTimeout(() => {
-        setLoading(false);
-      }, remaining);
-    };
-
-    // If user previously logged out, fallback can be quicker.
-    // If user had an active session, give ample time for Firebase IndexedDB/token refresh.
-    const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-    const fallbackTimeoutMs = isExplicitlyLoggedOut ? 1200 : 5000;
-
+    // Failsafe timer: if Firebase auth doesn't respond within 1200ms, unlock loading
     const fallbackTimer = setTimeout(() => {
       if (!authDetermined) {
         authDetermined = true;
-        finishLoading();
+        setLoading(false);
       }
-    }, fallbackTimeoutMs);
-
-    // Modern Firebase SDK fast-path: resolves as soon as persistent token from IndexedDB is restored
-    if (typeof auth.authStateReady === 'function') {
-      auth.authStateReady().then(() => {
-        if (!authDetermined) {
-          const user = auth.currentUser;
-          if (user) {
-            localStorage.removeItem('user_has_logged_out');
-            localStorage.setItem('has_authenticated_session', 'true');
-            setCurrentUser(user);
-          } else {
-            localStorage.removeItem('has_authenticated_session');
-            setCurrentUser(null);
-          }
-          authDetermined = true;
-          clearTimeout(fallbackTimer);
-          finishLoading();
-        }
-      }).catch((e) => {
-        console.warn('authStateReady check completed with notice:', e);
-      });
-    }
+    }, 1200);
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -94,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!authDetermined) {
         authDetermined = true;
         clearTimeout(fallbackTimer);
-        finishLoading();
+        setLoading(false);
       }
     });
 

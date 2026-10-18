@@ -17,8 +17,8 @@ export const auth = getAuth(app);
 
 // Configure persistent auth state for both web browser and Capacitor / Android environments
 if (typeof window !== 'undefined') {
-  setPersistence(auth, indexedDBLocalPersistence).catch(() => {
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
+  setPersistence(auth, browserLocalPersistence).catch(() => {
+    setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
   });
 }
 
