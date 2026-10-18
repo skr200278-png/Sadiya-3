@@ -50,7 +50,7 @@ import {
 import toast from 'react-hot-toast';
 
 export default function Login() {
-  const { currentUser, refreshUser } = useAuth();
+  const { currentUser, refreshUser, loading: authLoading } = useAuth();
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -166,6 +166,18 @@ export default function Login() {
       });
   }, []);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-16 h-16 rounded-2xl bg-white shadow-md p-2 mb-4 border border-emerald-100 flex items-center justify-center">
+          <img src={appLogo} alt="App Logo" className="w-full h-full object-contain" />
+        </div>
+        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-gray-500 text-sm font-medium">লোড হচ্ছে...</p>
+      </div>
+    );
+  }
+
   if (currentUser) {
     return <Navigate to="/" replace />;
   }
@@ -175,6 +187,8 @@ export default function Login() {
     displayName: string | null = null,
     userEmail: string | null = null
   ) => {
+    localStorage.removeItem('user_has_logged_out');
+    localStorage.setItem('has_authenticated_session', 'true');
     try {
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);

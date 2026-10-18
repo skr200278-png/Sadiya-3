@@ -26,15 +26,14 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => auth.currentUser);
   const [isDemoUser, setIsDemoUser] = useState<boolean>(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !auth.currentUser);
   const [logoSrc, setLogoSrc] = useState<string>(appLogo);
-
 
   useEffect(() => {
     let authDetermined = false;
-    const minimumSplashTime = 300;
+    const minimumSplashTime = 250;
     const startTime = Date.now();
 
     const finishLoading = () => {
@@ -45,21 +44,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, remaining);
     };
 
-    // Fail-safe timer
+    // If user previously logged out, fallback can be quicker.
+    // If user had an active session, give ample time for Firebase IndexedDB/token refresh.
+    const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+    const fallbackTimeoutMs = isExplicitlyLoggedOut ? 1200 : 5000;
+
     const fallbackTimer = setTimeout(() => {
       if (!authDetermined) {
         authDetermined = true;
         finishLoading();
       }
-    }, 600);
+    }, fallbackTimeoutMs);
+
+    // Modern Firebase SDK fast-path: resolves as soon as persistent token from IndexedDB is restored
+    if (typeof auth.authStateReady === 'function') {
+      auth.authStateReady().then(() => {
+        if (!authDetermined) {
+          const user = auth.currentUser;
+          if (user) {
+            localStorage.removeItem('user_has_logged_out');
+            localStorage.setItem('has_authenticated_session', 'true');
+            setCurrentUser(user);
+          } else {
+            localStorage.removeItem('has_authenticated_session');
+            setCurrentUser(null);
+          }
+          authDetermined = true;
+          clearTimeout(fallbackTimer);
+          finishLoading();
+        }
+      }).catch((e) => {
+        console.warn('authStateReady check completed with notice:', e);
+      });
+    }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         localStorage.removeItem('user_has_logged_out');
+        localStorage.setItem('has_authenticated_session', 'true');
         localStorage.removeItem('is_demo_mock');
         setIsDemoUser(false);
         setCurrentUser(user);
       } else {
+        localStorage.removeItem('has_authenticated_session');
         setCurrentUser(null);
         setIsDemoUser(false);
       }
@@ -82,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await auth.currentUser.reload();
       const user = auth.currentUser;
       localStorage.removeItem('user_has_logged_out');
+      localStorage.setItem('has_authenticated_session', 'true');
       localStorage.removeItem('is_demo_mock');
       setIsDemoUser(false);
       setCurrentUser(user);
@@ -95,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       localStorage.setItem('user_has_logged_out', 'true');
+      localStorage.removeItem('has_authenticated_session');
       localStorage.removeItem('is_demo_mock');
       setIsDemoUser(false);
       await signOut(auth);

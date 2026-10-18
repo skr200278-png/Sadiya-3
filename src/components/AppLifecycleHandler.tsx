@@ -10,12 +10,13 @@ export default function AppLifecycleHandler() {
   const lastBackPressTimeRef = useRef<number>(0);
   const isInitialLaunchRef = useRef<boolean>(true);
 
-  // 1. On fresh app launch, always land on Home (like standard mobile apps)
+  // 1. On fresh app launch, always land on Home if user has an active session
   useEffect(() => {
     if (isInitialLaunchRef.current) {
       isInitialLaunchRef.current = false;
       const hashPath = window.location.hash.replace(/^#\/?/, '/');
-      if (hashPath !== '/login' && hashPath !== '/privacy-policy') {
+      const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+      if (!isExplicitlyLoggedOut && hashPath !== '/privacy-policy') {
         navigate('/', { replace: true });
       }
     }
