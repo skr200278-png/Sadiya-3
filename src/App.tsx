@@ -35,23 +35,30 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, loading } = useAuth();
-  if (loading) {
+  const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+  const hasCachedSession = (localStorage.getItem('has_authenticated_session') === 'true' || !!localStorage.getItem('cached_auth_user')) && !isExplicitlyLoggedOut;
+
+  if (loading && !currentUser && !hasCachedSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
-  return currentUser ? <>{children}</> : <Navigate to="/login" replace />;
+  return (currentUser || hasCachedSession) ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
 function AppRoutes() {
+  const { currentUser } = useAuth();
+  const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+  const hasCachedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut;
+
   return (
     <Router>
       <AppLifecycleHandler />
       <AdMobProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={hasCachedSession ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Home />} />

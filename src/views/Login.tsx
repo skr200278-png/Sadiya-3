@@ -166,6 +166,14 @@ export default function Login() {
       });
   }, []);
 
+  const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+  const hasSavedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut;
+
+  // If user already has an active account session, never show the login screen!
+  if (currentUser || hasSavedSession) {
+    return <Navigate to="/" replace />;
+  }
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
@@ -178,10 +186,6 @@ export default function Login() {
     );
   }
 
-  if (currentUser) {
-    return <Navigate to="/" replace />;
-  }
-
   const bootstrapUser = async (
     uid: string,
     displayName: string | null = null,
@@ -189,6 +193,12 @@ export default function Login() {
   ) => {
     localStorage.removeItem('user_has_logged_out');
     localStorage.setItem('has_authenticated_session', 'true');
+    localStorage.setItem('cached_auth_user', JSON.stringify({
+      uid,
+      email: userEmail || '',
+      displayName: displayName || 'খামারি',
+      photoURL: null,
+    }));
     try {
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);

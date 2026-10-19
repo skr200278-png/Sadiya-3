@@ -25,34 +25,71 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+interface CachedUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  phoneNumber?: string | null;
+}
+
+const getInitialUser = (): any => {
+  if (auth.currentUser) return auth.currentUser;
+  try {
+    const isLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+    if (!isLoggedOut) {
+      const raw = localStorage.getItem('cached_auth_user');
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    }
+  } catch {}
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => auth.currentUser);
+  const initialUser = getInitialUser();
+  const [currentUser, setCurrentUser] = useState<any | null>(initialUser);
   const [isDemoUser, setIsDemoUser] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(() => !auth.currentUser);
+  const [loading, setLoading] = useState<boolean>(() => !initialUser);
   const [logoSrc, setLogoSrc] = useState<string>(appLogo);
 
   useEffect(() => {
     let authDetermined = false;
 
-    // Failsafe timer: if Firebase auth doesn't respond within 1200ms, unlock loading
+    // Failsafe timer: only unlock loading if we don't have an initial user yet
     const fallbackTimer = setTimeout(() => {
       if (!authDetermined) {
         authDetermined = true;
         setLoading(false);
       }
-    }, 1200);
+    }, 1500);
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         localStorage.removeItem('user_has_logged_out');
         localStorage.setItem('has_authenticated_session', 'true');
         localStorage.removeItem('is_demo_mock');
+        localStorage.setItem('cached_auth_user', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          phoneNumber: user.phoneNumber,
+        }));
         setIsDemoUser(false);
         setCurrentUser(user);
+        setLoading(false);
       } else {
-        localStorage.removeItem('has_authenticated_session');
-        setCurrentUser(null);
-        setIsDemoUser(false);
+        const hasSession = localStorage.getItem('has_authenticated_session') === 'true';
+        const isLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+        if (isLoggedOut || !hasSession) {
+          localStorage.removeItem('has_authenticated_session');
+          localStorage.removeItem('cached_auth_user');
+          setCurrentUser(null);
+          setIsDemoUser(false);
+          setLoading(false);
+        }
       }
 
       if (!authDetermined) {
@@ -75,6 +112,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('user_has_logged_out');
       localStorage.setItem('has_authenticated_session', 'true');
       localStorage.removeItem('is_demo_mock');
+      localStorage.setItem('cached_auth_user', JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        phoneNumber: user.phoneNumber,
+      }));
       setIsDemoUser(false);
       setCurrentUser(user);
     }
@@ -88,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.setItem('user_has_logged_out', 'true');
       localStorage.removeItem('has_authenticated_session');
+      localStorage.removeItem('cached_auth_user');
       localStorage.removeItem('is_demo_mock');
       setIsDemoUser(false);
       await signOut(auth);
@@ -96,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setCurrentUser(null);
       setIsDemoUser(false);
+      setLoading(false);
     }
   };
 
