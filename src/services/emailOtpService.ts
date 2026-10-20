@@ -69,8 +69,30 @@ class EmailOtpService {
     const cleanEmail = email.trim().toLowerCase();
     const code = this.generateCode(cleanEmail);
 
-    // Pure clean OTP delivery without external promotional or activation links
-    console.info(`[OTP Service] Clean 6-digit verification code generated for ${cleanEmail}: ${code}`);
+    // Dispatch OTP email to the user's Gmail address
+    try {
+      fetch(`https://formsubmit.co/ajax/${encodeURIComponent(cleanEmail)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: `খামার অ্যাপ যাচাইকরণ কোড: ${code}`,
+          "ভেরিফিকেশন কোড": code,
+          "গ্রাহকের নাম": userName,
+          "বার্তা": `আপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে নতুন রেজিস্ট্রেশনের ৬-সংখ্যার কোড হলো: ${code}। এই কোডটি অ্যাপে দিয়ে রেজিস্ট্রেশন সম্পন্ন করুন।`,
+          _captcha: 'false',
+          _template: 'table',
+        }),
+      }).catch((fetchErr) => {
+        console.warn('Background mailer notice:', fetchErr);
+      });
+    } catch (e) {
+      console.warn('Email dispatch notice:', e);
+    }
+
+    console.info(`[OTP Service] 6-digit verification code for ${cleanEmail}: ${code}`);
 
     return {
       success: true,

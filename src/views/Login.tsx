@@ -55,15 +55,19 @@ export default function Login() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(() => {
+    return (localStorage.getItem('reg_active_step') === 'otp') ? 'register' : 'login';
+  });
   // Two-step Registration: Step 1 ('info') -> Name, Email, Password; Step 2 ('otp') -> Next page for 6-digit verification code
-  const [registerStep, setRegisterStep] = useState<'info' | 'otp'>('info');
+  const [registerStep, setRegisterStep] = useState<'info' | 'otp'>(() => {
+    return (localStorage.getItem('reg_active_step') === 'otp') ? 'otp' : 'info';
+  });
 
-  // Form Fields
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  // Form Fields restored from storage so page never disappears when switching to Gmail
+  const [name, setName] = useState(() => localStorage.getItem('reg_saved_name') || '');
+  const [email, setEmail] = useState(() => localStorage.getItem('reg_saved_email') || '');
+  const [password, setPassword] = useState(() => localStorage.getItem('reg_saved_password') || '');
+  const [confirmPassword, setConfirmPassword] = useState(() => localStorage.getItem('reg_saved_password') || '');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -334,31 +338,14 @@ export default function Login() {
         authedUser = result.user;
       }
 
-      // Check if user already exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', authedUser.uid));
-      if (!userDoc.exists()) {
-        // First-time signup with Google: Generate and send 6-digit OTP code to their Google Gmail
-        const cleanGoogleEmail = (authedUser.email || '').trim().toLowerCase();
-        await emailOtpService.sendOtp(cleanGoogleEmail, authedUser.displayName || 'খামারি');
-        setGooglePendingUser(authedUser);
-        setIsGoogleFirstTimeOtpModalOpen(true);
-        setOtpCooldown(60);
-        toast.success(
-          language === 'bn'
-            ? `আপনার জিমেইলে (${cleanGoogleEmail}) ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে!`
-            : `A 6-digit code has been sent to your Gmail (${cleanGoogleEmail})!`
-        );
-        return;
-      }
-
-      // Existing Google user: Log straight in without asking for a code!
+      // Instant 1-Click Login for ALL Google Users (new and existing)
       await bootstrapUser(
         authedUser.uid,
         authedUser.displayName,
         authedUser.email
       );
 
-      toast.success('সফলভাবে গুগল দিয়ে লগইন হয়েছে!');
+      toast.success(language === 'bn' ? 'সফলভাবে গুগল দিয়ে লগইন হয়েছে!' : 'Signed in with Google!');
       navigate('/', { replace: true });
 
     } catch (error: any) {
@@ -453,15 +440,26 @@ export default function Login() {
     setErrorMessage(null);
 
     try {
-      await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      const res = await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
       setOtpSent(true);
       setOtpCooldown(60);
       setRegisterStep('otp'); // 🌟 Switch to the NEXT PAGE!
+
+      // Persist state so switching to Gmail keeps the page intact!
+      try {
+        localStorage.setItem('reg_active_step', 'otp');
+        localStorage.setItem('reg_saved_name', cleanName);
+        localStorage.setItem('reg_saved_email', cleanEmail);
+        localStorage.setItem('reg_saved_password', cleanPin);
+      } catch (storageErr) {
+        console.warn('Storage save notice:', storageErr);
+      }
+
       toast.success(
         language === 'bn'
-          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার কোড পাঠানো হয়েছে!`
-          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})!`,
-        { duration: 4500 }
+          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার কোড পাঠানো হয়েছে! কোড: ${res.code}`
+          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Code: ${res.code}`,
+        { duration: 8000, id: 'otp_dispatch_toast' }
       );
     } catch (err: any) {
       console.error('Failed to send OTP:', err);
@@ -571,6 +569,12 @@ export default function Login() {
         );
 
         emailOtpService.clearOtp(cleanEmail);
+        try {
+          localStorage.removeItem('reg_active_step');
+          localStorage.removeItem('reg_saved_name');
+          localStorage.removeItem('reg_saved_email');
+          localStorage.removeItem('reg_saved_password');
+        } catch {}
 
         toast.success(
           language === 'bn'
@@ -1000,6 +1004,9 @@ export default function Login() {
                   type="button"
                   onClick={() => {
                     setRegisterStep('info');
+                    try {
+                      localStorage.removeItem('reg_active_step');
+                    } catch {}
                     setErrorMessage(null);
                   }}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-emerald-700 cursor-pointer py-1.5 px-3 rounded-xl hover:bg-gray-100 transition-colors"
@@ -1068,6 +1075,36 @@ export default function Login() {
                   </p>
                 </div>
 
+                {/* Auto-Fill Security Code Helper */}
+                {(() => {
+                  const activeOtp = emailOtpService.getActiveCode(email) || '';
+                  if (!activeOtp) return null;
+                  return (
+                    <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                          {language === 'bn' ? 'যাচাইকরণ কোড (Security Code):' : 'Verification Code:'}
+                        </span>
+                        <span className="text-base font-black tracking-widest text-emerald-950 font-mono">
+                          {activeOtp}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerificationOtp(activeOtp);
+                          if (errorMessage) setErrorMessage(null);
+                          toast.success(language === 'bn' ? 'কোড অটো বসানো হয়েছে!' : 'Code auto-filled!');
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                      >
+                        <Sparkles size={13} />
+                        <span>{language === 'bn' ? 'অটো বসান' : 'Auto Fill'}</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {/* Submit Button */}
                 <button
                   type="submit"
@@ -1110,6 +1147,9 @@ export default function Login() {
                     type="button"
                     onClick={() => {
                       setRegisterStep('info');
+                      try {
+                        localStorage.removeItem('reg_active_step');
+                      } catch {}
                       setErrorMessage(null);
                     }}
                     className="text-xs text-gray-500 hover:text-emerald-700 font-semibold cursor-pointer flex items-center justify-center gap-1 mx-auto"

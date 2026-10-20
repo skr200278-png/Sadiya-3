@@ -16,7 +16,7 @@ export default function AppLifecycleHandler() {
       isInitialLaunchRef.current = false;
       const hashPath = window.location.hash.replace(/^#\/?/, '/');
       const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-      if (!isExplicitlyLoggedOut && hashPath !== '/privacy-policy') {
+      if (!isExplicitlyLoggedOut && hashPath !== '/login' && hashPath !== '/privacy-policy') {
         navigate('/', { replace: true });
       }
     }
@@ -31,9 +31,11 @@ export default function AppLifecycleHandler() {
           sessionStorage.setItem('last_backgrounded_time', Date.now().toString());
         } else if (document.visibilityState === 'visible') {
           const lastBackgrounded = Number(sessionStorage.getItem('last_backgrounded_time') || 0);
+          const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
           if (
             lastBackgrounded > 0 && 
             Date.now() - lastBackgrounded > 5000 &&
+            !isExplicitlyLoggedOut &&
             location.pathname !== '/login' &&
             location.pathname !== '/privacy-policy'
           ) {
@@ -81,7 +83,14 @@ export default function AppLifecycleHandler() {
           sessionStorage.setItem('last_backgrounded_time', Date.now().toString());
         } else {
           const lastBackgrounded = Number(sessionStorage.getItem('last_backgrounded_time') || 0);
-          if (lastBackgrounded > 0 && Date.now() - lastBackgrounded > 4000) {
+          const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+          if (
+            lastBackgrounded > 0 && 
+            Date.now() - lastBackgrounded > 3000 && 
+            !isExplicitlyLoggedOut && 
+            location.pathname !== '/login' && 
+            location.pathname !== '/privacy-policy'
+          ) {
             navigate('/', { replace: true });
           }
         }
