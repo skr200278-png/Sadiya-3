@@ -51,7 +51,8 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 function AppRoutes() {
   const { currentUser } = useAuth();
   const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-  const hasCachedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut;
+  const isRegistering = localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
+  const hasCachedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut && !isRegistering;
 
   return (
     <Router>

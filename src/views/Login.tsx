@@ -56,7 +56,7 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>(() => {
-    return (localStorage.getItem('reg_active_step') === 'otp') ? 'register' : 'login';
+    return (localStorage.getItem('reg_mode') === 'register' || localStorage.getItem('reg_active_step') === 'otp') ? 'register' : 'login';
   });
   // Two-step Registration: Step 1 ('info') -> Name, Email, Password; Step 2 ('otp') -> Next page for 6-digit verification code
   const [registerStep, setRegisterStep] = useState<'info' | 'otp'>(() => {
@@ -171,10 +171,11 @@ export default function Login() {
   }, []);
 
   const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-  const hasSavedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut;
+  const isRegistering = localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
+  const hasSavedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut && !isRegistering;
 
   // If user already has an active account session, never show the login screen!
-  if (currentUser || hasSavedSession) {
+  if ((currentUser || hasSavedSession) && !isRegistering) {
     return <Navigate to="/" replace />;
   }
 
@@ -441,12 +442,19 @@ export default function Login() {
 
     try {
       const res = await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      if (!res.success) {
+        toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
+        setErrorMessage(res.message);
+        return;
+      }
+
       setOtpSent(true);
       setOtpCooldown(60);
       setRegisterStep('otp'); // 🌟 Switch to the NEXT PAGE!
 
       // Persist state so switching to Gmail keeps the page intact!
       try {
+        localStorage.setItem('reg_mode', 'register');
         localStorage.setItem('reg_active_step', 'otp');
         localStorage.setItem('reg_saved_name', cleanName);
         localStorage.setItem('reg_saved_email', cleanEmail);
@@ -457,8 +465,8 @@ export default function Login() {
 
       toast.success(
         language === 'bn'
-          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার কোড পাঠানো হয়েছে! কোড: ${res.code}`
-          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Code: ${res.code}`,
+          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে! জিমেইল ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
+          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Please check your inbox or spam folder.`,
         { duration: 8000, id: 'otp_dispatch_toast' }
       );
     } catch (err: any) {
@@ -570,6 +578,7 @@ export default function Login() {
 
         emailOtpService.clearOtp(cleanEmail);
         try {
+          localStorage.removeItem('reg_mode');
           localStorage.removeItem('reg_active_step');
           localStorage.removeItem('reg_saved_name');
           localStorage.removeItem('reg_saved_email');
@@ -1075,35 +1084,20 @@ export default function Login() {
                   </p>
                 </div>
 
-                {/* Auto-Fill Security Code Helper */}
-                {(() => {
-                  const activeOtp = emailOtpService.getActiveCode(email) || '';
-                  if (!activeOtp) return null;
-                  return (
-                    <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                          {language === 'bn' ? 'যাচাইকরণ কোড (Security Code):' : 'Verification Code:'}
-                        </span>
-                        <span className="text-base font-black tracking-widest text-emerald-950 font-mono">
-                          {activeOtp}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setVerificationOtp(activeOtp);
-                          if (errorMessage) setErrorMessage(null);
-                          toast.success(language === 'bn' ? 'কোড অটো বসানো হয়েছে!' : 'Code auto-filled!');
-                        }}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
-                      >
-                        <Sparkles size={13} />
-                        <span>{language === 'bn' ? 'অটো বসান' : 'Auto Fill'}</span>
-                      </button>
-                    </div>
-                  );
-                })()}
+                {/* Security Verification Info Card (Prevent Fake Accounts) */}
+                <div className="bg-emerald-50 border border-emerald-200/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
+                  <ShieldCheck size={20} className="text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-950 leading-relaxed">
+                    <p className="font-bold text-emerald-900 mb-0.5">
+                      {language === 'bn' ? 'জিমেইলে কোড চেক করুন' : 'Check Your Gmail'}
+                    </p>
+                    <p className="text-emerald-800 text-[11px]">
+                      {language === 'bn'
+                        ? 'আপনার জিমেইলের ইনবক্স বা স্প্যাম (Spam) ফোল্ডারে পাঠানো ৬-সংখ্যার কোডটি দেখে লিখুন। কোডটি ৩০ মিনিট পর্যন্ত কার্যকর থাকবে।'
+                        : 'Enter the 6-digit verification code sent to your Gmail inbox or Spam folder. The code is valid for 30 minutes.'}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Submit Button */}
                 <button
@@ -1170,6 +1164,10 @@ export default function Login() {
                   onClick={() => {
                     setMode('login');
                     setRegisterStep('info');
+                    try {
+                      localStorage.removeItem('reg_mode');
+                      localStorage.removeItem('reg_active_step');
+                    } catch {}
                     setErrorMessage(null);
                   }}
                   className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
@@ -1186,6 +1184,9 @@ export default function Login() {
                   onClick={() => {
                     setMode('register');
                     setRegisterStep('info');
+                    try {
+                      localStorage.setItem('reg_mode', 'register');
+                    } catch {}
                     setErrorMessage(null);
                   }}
                   className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
@@ -1216,6 +1217,9 @@ export default function Login() {
                             onClick={() => {
                               setMode('register');
                               setRegisterStep('info');
+                              try {
+                                localStorage.setItem('reg_mode', 'register');
+                              } catch {}
                               setErrorMessage(null);
                             }}
                             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
@@ -1228,6 +1232,10 @@ export default function Login() {
                             type="button"
                             onClick={() => {
                               setMode('login');
+                              try {
+                                localStorage.removeItem('reg_mode');
+                                localStorage.removeItem('reg_active_step');
+                              } catch {}
                               setErrorMessage(null);
                             }}
                             className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"

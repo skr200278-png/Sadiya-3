@@ -16,7 +16,8 @@ export default function AppLifecycleHandler() {
       isInitialLaunchRef.current = false;
       const hashPath = window.location.hash.replace(/^#\/?/, '/');
       const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-      if (!isExplicitlyLoggedOut && hashPath !== '/login' && hashPath !== '/privacy-policy') {
+      const isRegistering = localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
+      if (!isExplicitlyLoggedOut && !isRegistering && hashPath !== '/login' && hashPath !== '/privacy-policy') {
         navigate('/', { replace: true });
       }
     }
@@ -32,10 +33,12 @@ export default function AppLifecycleHandler() {
         } else if (document.visibilityState === 'visible') {
           const lastBackgrounded = Number(sessionStorage.getItem('last_backgrounded_time') || 0);
           const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+          const isRegistering = localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
           if (
             lastBackgrounded > 0 && 
             Date.now() - lastBackgrounded > 5000 &&
             !isExplicitlyLoggedOut &&
+            !isRegistering &&
             location.pathname !== '/login' &&
             location.pathname !== '/privacy-policy'
           ) {
@@ -84,10 +87,12 @@ export default function AppLifecycleHandler() {
         } else {
           const lastBackgrounded = Number(sessionStorage.getItem('last_backgrounded_time') || 0);
           const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+          const isRegistering = localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
           if (
             lastBackgrounded > 0 && 
             Date.now() - lastBackgrounded > 3000 && 
             !isExplicitlyLoggedOut && 
+            !isRegistering &&
             location.pathname !== '/login' && 
             location.pathname !== '/privacy-policy'
           ) {
