@@ -225,7 +225,9 @@ export default function Home() {
       }
       setLoading(false);
     }, (err) => {
-      console.warn("Home user fetch notice:", err);
+      if ((err as any)?.code !== 'permission-denied') {
+        console.warn("Home user fetch notice:", err);
+      }
       setLoading(false);
     });
 

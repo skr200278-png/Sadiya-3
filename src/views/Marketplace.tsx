@@ -99,6 +99,10 @@ export default function Marketplace() {
   const [postToDelete, setPostToDelete] = useState<DemoMarketPost | null>(null);
   const [buyerToDelete, setBuyerToDelete] = useState<DemoMarketBuyer | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isSubmittingPost, setIsSubmittingPost] = useState<boolean>(false);
+  const [isSubmittingBuyer, setIsSubmittingBuyer] = useState<boolean>(false);
+  const submitPostLock = React.useRef<boolean>(false);
+  const submitBuyerLock = React.useRef<boolean>(false);
 
   // Helper for generating clean WhatsApp link
   const formatWhatsAppUrl = (whatsappNum?: string, phoneNum?: string, message: string = '') => {
@@ -244,13 +248,32 @@ export default function Marketplace() {
     };
   }, [currentUser, isDemoUser]);
 
-  // Handle Post Submit
+  // Handle Post Submit (Double-Click Prevention & Deduplication)
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingPost || submitPostLock.current) return;
+
     if (!postForm.farmerName || !postForm.phone || !postForm.birdCount || !postForm.expectedPricePerKg) {
       toast.error(language === 'bn' ? 'অনুগ্রহ করে প্রয়োজনীয় তথ্য পূরণ করুন' : 'Please fill all required fields');
       return;
     }
+
+    // Deduplication check: prevent identical ad within 60 seconds
+    const isDuplicate = posts.some(p => 
+      p.phone === postForm.phone.trim() && 
+      p.farmerName === postForm.farmerName.trim() &&
+      Number(p.birdCount) === Number(postForm.birdCount) &&
+      (Date.now() - new Date(p.createdAt || 0).getTime() < 60000)
+    );
+
+    if (isDuplicate) {
+      toast.success(language === 'bn' ? 'বিজ্ঞাপন ইতিমধ্যে সফলভাবে প্রকাশিত হয়েছে!' : 'Ad already published!');
+      setIsPostModalOpen(false);
+      return;
+    }
+
+    setIsSubmittingPost(true);
+    submitPostLock.current = true;
 
     const birdCountNum = Number(postForm.birdCount) || 0;
     const avgWeightNum = Number(postForm.avgWeightKg) || 0;
@@ -260,23 +283,23 @@ export default function Marketplace() {
     const newPostData = {
       userId: currentUser ? currentUser.uid : 'demo_user',
       postType: postForm.postType || 'sell',
-      farmerName: postForm.farmerName,
-      farmName: postForm.farmName || (postForm.postType === 'buy' ? (language === 'bn' ? 'ক্রেতা / প্রতিষ্ঠান' : 'Buyer Shop') : (language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm')),
-      phone: postForm.phone,
-      whatsapp: finalWhatsApp,
+      farmerName: postForm.farmerName.trim(),
+      farmName: postForm.farmName.trim() || (postForm.postType === 'buy' ? (language === 'bn' ? 'ক্রেতা / প্রতিষ্ঠান' : 'Buyer Shop') : (language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm')),
+      phone: postForm.phone.trim(),
+      whatsapp: finalWhatsApp.trim(),
       country: postForm.country || 'বাংলাদেশ',
       district: postForm.district,
-      upazila: postForm.upazila,
-      locationDetails: postForm.locationDetails || postForm.district,
+      upazila: postForm.upazila.trim(),
+      locationDetails: postForm.locationDetails.trim() || postForm.district,
       poultryType: postForm.poultryType,
       birdCount: birdCountNum,
       avgWeightKg: avgWeightNum,
       totalWeightKg: totalWeightNum,
       expectedPricePerKg: Number(postForm.expectedPricePerKg) || 0,
       isEmergency: postForm.postType === 'sell' ? postForm.isEmergency : false,
-      emergencyReason: postForm.postType === 'sell' ? postForm.emergencyReason : '',
+      emergencyReason: postForm.postType === 'sell' ? postForm.emergencyReason.trim() : '',
       status: 'available' as const,
-      notes: postForm.notes,
+      notes: postForm.notes.trim(),
       createdAt: new Date().toISOString()
     };
 
@@ -297,7 +320,7 @@ export default function Marketplace() {
       );
       setIsPostModalOpen(false);
       admobService.showInterstitialIfEligible('action:saved_market_post', true);
-      // Reset
+      // Reset form
       setPostForm(prev => ({
         ...prev,
         birdCount: '',
@@ -309,32 +332,55 @@ export default function Marketplace() {
       }));
     } catch (err) {
       toast.error(language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করতে সমস্যা হয়েছে' : 'Failed to publish post');
+    } finally {
+      setIsSubmittingPost(false);
+      setTimeout(() => {
+        submitPostLock.current = false;
+      }, 1500);
     }
   };
 
-  // Handle Buyer Submit
+  // Handle Buyer Submit (Double-Click Prevention & Deduplication)
   const handleCreateBuyer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingBuyer || submitBuyerLock.current) return;
+
     if (!buyerForm.buyerName || !buyerForm.businessName || !buyerForm.phone) {
       toast.error(language === 'bn' ? 'নাম, প্রতিষ্ঠানের নাম ও ফোন নম্বর দিন' : 'Please fill buyer details');
       return;
     }
 
+    // Deduplication check: prevent duplicate buyer entry within 60 seconds
+    const isDuplicate = buyers.some(b =>
+      b.phone === buyerForm.phone.trim() &&
+      b.businessName.toLowerCase() === buyerForm.businessName.trim().toLowerCase() &&
+      (Date.now() - new Date(b.createdAt || 0).getTime() < 60000)
+    );
+
+    if (isDuplicate) {
+      toast.success(language === 'bn' ? 'পাইকার ডিরেক্টরিতে নাম ইতিমধ্যে যুক্ত হয়েছে!' : 'Buyer already registered!');
+      setIsBuyerModalOpen(false);
+      return;
+    }
+
+    setIsSubmittingBuyer(true);
+    submitBuyerLock.current = true;
+
     const finalWhatsApp = buyerForm.whatsappSameAsPhone ? buyerForm.phone : (buyerForm.whatsapp || buyerForm.phone);
 
     const newBuyerData = {
       userId: currentUser ? currentUser.uid : 'demo_user',
-      buyerName: buyerForm.buyerName,
-      businessName: buyerForm.businessName,
-      phone: buyerForm.phone,
-      whatsapp: finalWhatsApp,
+      buyerName: buyerForm.buyerName.trim(),
+      businessName: buyerForm.businessName.trim(),
+      phone: buyerForm.phone.trim(),
+      whatsapp: finalWhatsApp.trim(),
       country: buyerForm.country || 'বাংলাদেশ',
       district: buyerForm.district,
-      upazila: buyerForm.upazila,
-      address: buyerForm.address || buyerForm.district,
+      upazila: buyerForm.upazila.trim(),
+      address: buyerForm.address.trim() || buyerForm.district,
       buyingTypes: buyerForm.buyingTypes.length > 0 ? buyerForm.buyingTypes : ['broiler'],
-      currentBuyingRate: buyerForm.currentBuyingRate || (language === 'bn' ? 'চলমান বাজার দর' : 'Market Rate'),
-      dailyDemand: buyerForm.dailyDemand || (language === 'bn' ? 'প্রয়োজন অনুযায়ী' : 'As needed'),
+      currentBuyingRate: buyerForm.currentBuyingRate.trim() || (language === 'bn' ? 'চলমান বাজার দর' : 'Market Rate'),
+      dailyDemand: buyerForm.dailyDemand.trim() || (language === 'bn' ? 'প্রয়োজন অনুযায়ী' : 'As needed'),
       verified: true,
       createdAt: new Date().toISOString()
     };
@@ -363,6 +409,11 @@ export default function Marketplace() {
       }));
     } catch (err) {
       toast.error(language === 'bn' ? 'যুক্ত করতে সমস্যা হয়েছে' : 'Failed to register buyer');
+    } finally {
+      setIsSubmittingBuyer(false);
+      setTimeout(() => {
+        submitBuyerLock.current = false;
+      }, 1500);
     }
   };
 
@@ -1610,13 +1661,23 @@ export default function Marketplace() {
                 />
               </div>
 
-              {/* Submit Button */}
+              {/* Submit Button with Double-Click Protection */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+                disabled={isSubmittingPost}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
               >
-                <Plus size={16} />
-                {language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করুন' : 'Publish Alert'}
+                {isSubmittingPost ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>{language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করা হচ্ছে...' : 'Publishing Alert...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    <span>{language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করুন' : 'Publish Alert'}</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -1814,13 +1875,23 @@ export default function Marketplace() {
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* Submit Button with Double-Click Protection */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+                disabled={isSubmittingBuyer}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
               >
-                <CheckCircle2 size={16} />
-                {language === 'bn' ? 'পাইকার ডিরেক্টরিতে নাম যোগ করুন' : 'Register Buyer Profile'}
+                {isSubmittingBuyer ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>{language === 'bn' ? 'তথ্য সংরক্ষিত হচ্ছে...' : 'Registering Profile...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>{language === 'bn' ? 'পাইকার ডিরেক্টরিতে নাম যোগ করুন' : 'Register Buyer Profile'}</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

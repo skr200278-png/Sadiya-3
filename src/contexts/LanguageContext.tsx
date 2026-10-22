@@ -871,8 +871,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             localStorage.setItem('appCurrencySymbol', uData.currencySymbol);
           }
         }
-      } catch (err) {
-        console.warn('User language & country fetch warning:', err);
+      } catch (err: any) {
+        if (err?.code !== 'permission-denied') {
+          console.warn('User language & country fetch notice:', err?.message || err);
+        }
       }
     };
     fetchUserLang();

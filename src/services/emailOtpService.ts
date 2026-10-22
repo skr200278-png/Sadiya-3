@@ -15,23 +15,66 @@ const OTP_STORAGE_PREFIX = 'farm_app_otp_';
 // Registered & activated FormSubmit token for instant email delivery without activation notices
 const FORMSUBMIT_ACTIVE_TOKEN = '355bb05d9e191eda3180ae230fb4058e';
 
-// Common disposable / fake email domains to protect against fraudulent accounts
+// Rate Limiting & Anti-Hacking Locks
+const RATE_LIMIT_PREFIX = 'farm_otp_rate_';
+const CLIENT_RATE_KEY = 'farm_otp_client_rate';
+const LOCKOUT_PREFIX = 'farm_otp_lock_';
+const MAX_EMAIL_REQUESTS_PER_15MIN = 3;
+const MAX_CLIENT_REQUESTS_PER_15MIN = 5;
+const RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes lockout
+
+// Comprehensive disposable / fake email domains to protect against bot & fraudulent accounts
 const DISPOSABLE_EMAIL_DOMAINS = [
   'tempmail.com',
   '10minutemail.com',
   'mailinator.com',
   'guerrillamail.com',
+  'guerrillamailblock.com',
+  'guerrillamail.net',
+  'guerrillamail.biz',
+  'guerrillamail.org',
+  'grr.la',
   'yopmail.com',
+  'yopmail.net',
   'throwawaymail.com',
   'sharklasers.com',
   'getairmail.com',
   'fakemailgenerator.com',
   'dispostable.com',
   'temp-mail.org',
+  'tempmail.net',
   'nada.ltd',
+  'getnada.com',
   'trashmail.com',
+  'trashmail.net',
   'mohmal.com',
   'crazymailing.com',
+  'burnermail.io',
+  'emailondeck.com',
+  'mytemp.email',
+  'generator.email',
+  'inboxbear.com',
+  'maildrop.cc',
+  'tempail.com',
+  'disposablemail.com',
+  'mailnesia.com',
+  'tempinbox.com',
+  'dropmail.me',
+  'tempmailaddress.com',
+  'armyspy.com',
+  'cuvox.de',
+  'dayrep.com',
+  'einrot.com',
+  'fleckens.hu',
+  'gustr.com',
+  'jourrapide.com',
+  'rhyta.com',
+  'superrito.com',
+  'teleworm.us',
+  'mailpoof.com',
+  'harakirimail.com',
+  'fakeinbox.com',
 ];
 
 class EmailOtpService {
@@ -96,8 +139,26 @@ class EmailOtpService {
   }
 
   /**
+   * Checks if an email is currently locked due to too many failed attempts
+   */
+  public isLockedOut(email: string): { locked: boolean; minutesRemaining: number } {
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      const lockUntil = Number(localStorage.getItem(`${LOCKOUT_PREFIX}${cleanEmail}`) || 0);
+      if (Date.now() < lockUntil) {
+        const minutesRemaining = Math.max(1, Math.ceil((lockUntil - Date.now()) / 60000));
+        return { locked: true, minutesRemaining };
+      }
+      if (lockUntil > 0) {
+        localStorage.removeItem(`${LOCKOUT_PREFIX}${cleanEmail}`);
+      }
+    } catch {}
+    return { locked: false, minutesRemaining: 0 };
+  }
+
+  /**
    * Sends the 6-digit OTP code directly to the recipient's Gmail.
-   * Uses the pre-activated FormSubmit token to bypass 'Activate Form' activation prompts.
+   * Enforces strict rate limits to prevent bot/hacker spamming tools.
    */
   public async sendOtp(
     email: string,
@@ -105,7 +166,7 @@ class EmailOtpService {
   ): Promise<{ success: boolean; code: string; message: string }> {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Prevent fake / disposable emails
+    // 1. Prevent fake / disposable emails
     if (this.isDisposableEmail(cleanEmail)) {
       return {
         success: false,
@@ -114,51 +175,89 @@ class EmailOtpService {
       };
     }
 
+    // 2. Check brute-force lockout
+    const lockInfo = this.isLockedOut(cleanEmail);
+    if (lockInfo.locked) {
+      return {
+        success: false,
+        code: '',
+        message: `অতিরিক্ত ভুল চেষ্টার কারণে এই ইমেইলটি সাময়িকভাবে লক করা হয়েছে। অনুগ্রহ করে ${lockInfo.minutesRemaining} মিনিট পর চেষ্টা করুন।`,
+      };
+    }
+
+    // 3. Email-specific rate limiting (Max 3 OTP requests in 15 minutes)
+    const now = Date.now();
+    try {
+      const emailRateRaw = localStorage.getItem(`${RATE_LIMIT_PREFIX}${cleanEmail}`);
+      const emailTimestamps: number[] = emailRateRaw 
+        ? JSON.parse(emailRateRaw).filter((t: number) => now - t < RATE_WINDOW_MS) 
+        : [];
+
+      if (emailTimestamps.length >= MAX_EMAIL_REQUESTS_PER_15MIN) {
+        const waitMinutes = Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - emailTimestamps[0])) / 60000));
+        return {
+          success: false,
+          code: '',
+          message: `অতিরিক্ত কোড পাঠানোর অনুরোধ করা হয়েছে। নিরাপত্তার স্বার্থে অনুগ্রহ করে ${waitMinutes} মিনিট পর চেষ্টা করুন।`,
+        };
+      }
+
+      // 4. Client/Device global rate limiting (Max 5 requests in 15 minutes across this device)
+      const clientRateRaw = localStorage.getItem(CLIENT_RATE_KEY);
+      const clientTimestamps: number[] = clientRateRaw 
+        ? JSON.parse(clientRateRaw).filter((t: number) => now - t < RATE_WINDOW_MS) 
+        : [];
+
+      if (clientTimestamps.length >= MAX_CLIENT_REQUESTS_PER_15MIN) {
+        return {
+          success: false,
+          code: '',
+          message: 'অস্বাভাবিক বেশি সংখ্যক কোড অনুরোধ সনাক্ত হয়েছে। নিরাপত্তার স্বার্থে ১৫ মিনিট অপেক্ষা করুন।',
+        };
+      }
+
+      // Record rate limit timestamps
+      emailTimestamps.push(now);
+      localStorage.setItem(`${RATE_LIMIT_PREFIX}${cleanEmail}`, JSON.stringify(emailTimestamps));
+      clientTimestamps.push(now);
+      localStorage.setItem(CLIENT_RATE_KEY, JSON.stringify(clientTimestamps));
+    } catch (rateErr) {
+      console.warn('Rate limiter error ignored:', rateErr);
+    }
+
     const code = this.generateCode(cleanEmail);
 
     const emailPayload = {
-      _subject: `খামার অ্যাপের ৬-সংখ্যার কোড: ${code}`,
+      email: cleanEmail,
+      name: userName,
+      _subject: `আপনার খামার অ্যাপের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}`,
+      _autoresponse: `সম্মানিত ${userName},\n\nআপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে রেজিস্ট্রেশন ভেরিফিকেশন কোড হলো: ${code}\n\nএই ৬-সংখ্যার কোডটি অ্যাপের ভেরিফিকেশন বক্সে দিয়ে নিবন্ধন সম্পন্ন করুন। কোডের মেয়াদ ৩০ মিনিট।\n\nধন্যবাদ,\nফার্ম ম্যানেজার সাপোর্ট টিম`,
+      _captcha: 'false',
+      _template: 'box',
+      _replyto: 'skabusufian452@gmail.com',
       "ভেরিফিকেশন কোড": code,
       "ব্যবহারকারী": userName,
       "গ্রাহকের ইমেইল": cleanEmail,
-      "বার্তা": `আপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে রেজিস্ট্রেশন ভেরিফিকেশন কোড হলো: ${code}। এই ৬-সংখ্যার কোডটি অ্যাপে দিয়ে নিবন্ধন সম্পন্ন করুন। কোডের মেয়াদ ৩০ মিনিট।`,
-      _captcha: 'false',
-      _template: 'table',
-      _replyto: cleanEmail,
+      "বার্তা": `নতুন একাউন্ট ভেরিফিকেশন কোড: ${code}। মেয়াদ: ৩০ মিনিট।`,
     };
 
-    // 1. Dispatch using the pre-activated FormSubmit token (Never sends 'Activate Form' messages)
+    // Dispatch using the pre-activated FormSubmit token
+    // Using _autoresponse delivers the code directly to cleanEmail WITHOUT any 'Activate Form' notice!
     try {
-      fetch(`https://formsubmit.co/ajax/${FORMSUBMIT_ACTIVE_TOKEN}`, {
+      const response = await fetch(`https://formsubmit.co/ajax/${FORMSUBMIT_ACTIVE_TOKEN}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: JSON.stringify(emailPayload),
-      }).catch((tokenErr) => {
-        console.warn('Token mailer dispatch notice:', tokenErr);
       });
-    } catch (e) {
-      console.warn('Token dispatch catch notice:', e);
-    }
 
-    // 2. Also send directly to the specific recipient email if different
-    if (cleanEmail !== 'skabusufian452@gmail.com') {
-      try {
-        fetch(`https://formsubmit.co/ajax/${encodeURIComponent(cleanEmail)}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify(emailPayload),
-        }).catch((directErr) => {
-          console.warn('Direct mailer dispatch notice:', directErr);
-        });
-      } catch (e) {
-        console.warn('Direct dispatch catch notice:', e);
+      if (!response.ok) {
+        console.warn('FormSubmit returned status:', response.status);
       }
+    } catch (e) {
+      console.warn('Email dispatch warning (will still allow valid OTP entry):', e);
     }
 
     console.info(`[OTP Service] 6-digit verification code sent to ${cleanEmail}`);
@@ -171,7 +270,8 @@ class EmailOtpService {
   }
 
   /**
-   * Verifies the entered 6-digit code against the stored code
+   * Verifies the entered 6-digit code against the stored code.
+   * Locks out after 5 consecutive failed attempts to stop brute-force hacking tools.
    */
   public verifyCode(
     email: string,
@@ -179,6 +279,15 @@ class EmailOtpService {
   ): { valid: boolean; errorMessage?: string } {
     const cleanEmail = email.trim().toLowerCase();
     const cleanCode = enteredCode.trim();
+
+    // 1. Check lockout
+    const lockInfo = this.isLockedOut(cleanEmail);
+    if (lockInfo.locked) {
+      return {
+        valid: false,
+        errorMessage: `অ্যাকাউন্ট ভেরিফিকেশন সাময়িকভাবে লক করা আছে। অনুগ্রহ করে ${lockInfo.minutesRemaining} মিনিট পর আবার চেষ্টা করুন।`,
+      };
+    }
 
     if (!cleanCode) {
       return {
@@ -214,24 +323,29 @@ class EmailOtpService {
       }
 
       data.attempts += 1;
-      localStorage.setItem(`${OTP_STORAGE_PREFIX}${cleanEmail}`, JSON.stringify(data));
 
-      if (data.attempts > 10) {
+      // 5 Failed attempts = 15-minute brute-force lockout
+      if (data.attempts >= 5) {
         localStorage.removeItem(`${OTP_STORAGE_PREFIX}${cleanEmail}`);
+        localStorage.setItem(`${LOCKOUT_PREFIX}${cleanEmail}`, (Date.now() + LOCKOUT_DURATION_MS).toString());
         return {
           valid: false,
-          errorMessage: 'অতিরিক্ত ভুল চেষ্টার কারণে কোড বাতিল হয়েছে। নতুন কোড পাঠান।',
+          errorMessage: 'টানা ৫ বার ভুল কোড দেওয়ায় নিরাপত্তার জন্য এই ইমেইলটি ১৫ মিনিটের জন্য লক করা হয়েছে।',
         };
       }
 
+      localStorage.setItem(`${OTP_STORAGE_PREFIX}${cleanEmail}`, JSON.stringify(data));
+
       if (data.code === cleanCode) {
-        // Verification succeeded! Clean up stored code
+        // Verification succeeded! Clean up stored code and reset rate counters
         localStorage.removeItem(`${OTP_STORAGE_PREFIX}${cleanEmail}`);
+        localStorage.removeItem(`${LOCKOUT_PREFIX}${cleanEmail}`);
         return { valid: true };
       } else {
+        const remainingAttempts = 5 - data.attempts;
         return {
           valid: false,
-          errorMessage: 'ভুল কোড দিয়েছেন! আপনার জিমেইল চেক করে সঠিক ৬-সংখ্যার কোড লিখুন।',
+          errorMessage: `ভুল কোড দিয়েছেন! সঠিক কোড লিখুন। আর ${remainingAttempts} বার চেষ্টা করা যাবে।`,
         };
       }
     } catch (e) {

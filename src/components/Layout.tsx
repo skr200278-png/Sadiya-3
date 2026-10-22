@@ -46,7 +46,9 @@ export default function Layout() {
           setProfileData(docObj.data());
         }
       }, (err) => {
-        console.warn('Layout profile onSnapshot error:', err);
+        if ((err as any)?.code !== 'permission-denied') {
+          console.warn('Layout profile onSnapshot notice:', err);
+        }
       });
       return () => unsub();
     }

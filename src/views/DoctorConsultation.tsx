@@ -322,10 +322,12 @@ export default function DoctorConsultation() {
   const [urgency, setUrgency] = useState<'routine' | 'emergency'>('emergency');
   const [phone, setPhone] = useState(currentUser?.phoneNumber || '');
   const [submitting, setSubmitting] = useState(false);
+  const submitTicketLock = React.useRef(false);
   
   // Post Doctor Profile Modal State
   const [isDoctorPostModalOpen, setIsDoctorPostModalOpen] = useState(false);
   const [docPosting, setDocPosting] = useState(false);
+  const submitDocLock = React.useRef(false);
   const [doctorForm, setDoctorForm] = useState({
     nameBn: '',
     degreeBn: '',
@@ -422,9 +424,11 @@ export default function DoctorConsultation() {
     };
   };
 
-  // Submit Doctor Profile / Advertisement
+  // Submit Doctor Profile / Advertisement (Double-Click Prevention)
   const handlePostDoctorProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (docPosting || submitDocLock.current) return;
+
     if (!doctorForm.nameBn.trim()) {
       toast.error(language === 'bn' ? 'ডাক্তারের নাম লিখুন' : 'Doctor name is required');
       return;
@@ -435,6 +439,7 @@ export default function DoctorConsultation() {
     }
 
     setDocPosting(true);
+    submitDocLock.current = true;
 
     const specialtyLabels: Record<string, string> = {
       poultry: 'পোল্ট্রি ও পাখি বিশেষজ্ঞ (ব্রয়লার, লেয়ার, সোনালী)',
@@ -522,6 +527,9 @@ export default function DoctorConsultation() {
       toast.error(language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করতে সমস্যা হয়েছে।' : 'Error posting profile');
     } finally {
       setDocPosting(false);
+      setTimeout(() => {
+        submitDocLock.current = false;
+      }, 1500);
     }
   };
 
@@ -608,15 +616,19 @@ export default function DoctorConsultation() {
     }
   };
 
-  // Submit Patient Case via WhatsApp
+  // Submit Patient Case via WhatsApp (Double-Click Prevention)
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting || submitTicketLock.current) return;
+
     if (!symptoms.trim()) {
       toast.error(language === 'bn' ? 'প্রধান লক্ষণ বা সমস্যা লিখুন' : 'Please specify symptoms');
       return;
     }
 
     setSubmitting(true);
+    submitTicketLock.current = true;
+
     try {
       const farmTypeLabel = 
         farmType === 'poultry' ? (language === 'bn' ? 'পোল্ট্রি / মুরগি-পাখি' : 'Poultry / Birds') :
@@ -661,6 +673,9 @@ export default function DoctorConsultation() {
       toast.error(language === 'bn' ? 'হোয়াটসঅ্যাপে পাঠাতে সমস্যা হয়েছে।' : 'Error connecting to WhatsApp');
     } finally {
       setSubmitting(false);
+      setTimeout(() => {
+        submitTicketLock.current = false;
+      }, 1500);
     }
   };
 

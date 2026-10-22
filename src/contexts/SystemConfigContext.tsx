@@ -466,7 +466,9 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
         setUserProfileData(docSnap.data());
       }
     }, (err) => {
-      console.warn("SystemConfig user profile listener notice:", err);
+      if ((err as any)?.code !== 'permission-denied') {
+        console.warn("SystemConfig user profile listener notice:", err);
+      }
     });
     return () => unsub();
   }, [currentUser, isDemoUser]);
@@ -505,7 +507,9 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
           setUserSubscription(null);
         }
       }, (err) => {
-        console.warn("User subscription sync notice:", err);
+        if ((err as any)?.code !== 'permission-denied') {
+          console.warn("User subscription sync notice:", err);
+        }
       });
 
       return () => unsub();

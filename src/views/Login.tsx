@@ -76,7 +76,8 @@ export default function Login() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
-  const [showDemoOtp, setShowDemoOtp] = useState(false);
+  const [botHoneypot, setBotHoneypot] = useState('');
+  const submitAuthLock = React.useRef(false);
 
   // Google First-Time Registration OTP State
   const [isGoogleFirstTimeOtpModalOpen, setIsGoogleFirstTimeOtpModalOpen] = useState(false);
@@ -412,6 +413,29 @@ export default function Login() {
    */
   const handleProceedToOtpStep = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (otpSending || submitAuthLock.current) return;
+
+    // Bot / Hacker Honeypot: Automated scraping tools fill out hidden fields
+    if (botHoneypot.trim()) {
+      console.warn('Bot submission blocked via honeypot.');
+      return;
+    }
+
+    // Rate Limiting: Max 5 registration attempts per device in 15 minutes
+    const now = Date.now();
+    try {
+      const regAttemptsRaw = localStorage.getItem('farm_reg_attempts');
+      const regAttempts: number[] = regAttemptsRaw 
+        ? JSON.parse(regAttemptsRaw).filter((t: number) => now - t < 15 * 60 * 1000) 
+        : [];
+      if (regAttempts.length >= 5) {
+        const errorMsg = 'অতিরিক্ত অ্যাকাউন্ট তৈরির চেষ্টা সনাক্ত হয়েছে। নিরাপত্তার স্বার্থে ১৫ মিনিট অপেক্ষা করুন।';
+        toast.error(errorMsg);
+        setErrorMessage(errorMsg);
+        return;
+      }
+    } catch {}
+
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanPin = password.trim();
@@ -438,6 +462,7 @@ export default function Login() {
     }
 
     setOtpSending(true);
+    submitAuthLock.current = true;
     setErrorMessage(null);
 
     try {
@@ -474,6 +499,9 @@ export default function Login() {
       toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
     } finally {
       setOtpSending(false);
+      setTimeout(() => {
+        submitAuthLock.current = false;
+      }, 1200);
     }
   };
 
@@ -481,6 +509,9 @@ export default function Login() {
    * RESEND REGISTRATION OTP CODE TO GMAIL
    */
   const handleSendRegistrationOtp = async () => {
+    if (otpSending || submitAuthLock.current) return;
+    if (botHoneypot.trim()) return;
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
 
@@ -490,10 +521,16 @@ export default function Login() {
     }
 
     setOtpSending(true);
+    submitAuthLock.current = true;
     setErrorMessage(null);
 
     try {
-      await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      const res = await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
+      if (!res.success) {
+        toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
+        setErrorMessage(res.message);
+        return;
+      }
       setOtpSent(true);
       setOtpCooldown(60);
       toast.success(
@@ -507,6 +544,9 @@ export default function Login() {
       toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।');
     } finally {
       setOtpSending(false);
+      setTimeout(() => {
+        submitAuthLock.current = false;
+      }, 1200);
     }
   };
 
@@ -515,6 +555,15 @@ export default function Login() {
    */
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || submitAuthLock.current) return;
+
+    // Bot honeypot: automated tools populate hidden form fields
+    if (botHoneypot.trim()) {
+      console.warn('Bot attack dropped via honeypot field.');
+      return;
+    }
+
+    submitAuthLock.current = true;
 
     // 1. REGISTRATION FLOW
     if (mode === 'register') {
@@ -532,6 +581,7 @@ export default function Login() {
 
       if (!cleanOtp) {
         toast.error('আপনার জিমেইলে পাওয়া ৬-সংখ্যার কোডটি লিখুন।');
+        submitAuthLock.current = false;
         return;
       }
 
@@ -540,6 +590,7 @@ export default function Login() {
         const errorMsg = otpValidation.errorMessage || 'ভুল কোড দিয়েছেন! সঠিক ৬-সংখ্যার কোড লিখুন।';
         setErrorMessage(errorMsg);
         toast.error(errorMsg);
+        submitAuthLock.current = false;
         return;
       }
 
@@ -577,6 +628,18 @@ export default function Login() {
         );
 
         emailOtpService.clearOtp(cleanEmail);
+
+        // Record successful registration attempt for rate-limiting
+        try {
+          const now = Date.now();
+          const regAttemptsRaw = localStorage.getItem('farm_reg_attempts');
+          const regAttempts: number[] = regAttemptsRaw 
+            ? JSON.parse(regAttemptsRaw).filter((t: number) => now - t < 15 * 60 * 1000) 
+            : [];
+          regAttempts.push(now);
+          localStorage.setItem('farm_reg_attempts', JSON.stringify(regAttempts));
+        } catch {}
+
         try {
           localStorage.removeItem('reg_mode');
           localStorage.removeItem('reg_active_step');
@@ -627,6 +690,9 @@ export default function Login() {
         }
       } finally {
         setLoading(false);
+        setTimeout(() => {
+          submitAuthLock.current = false;
+        }, 1200);
       }
       return;
     }
@@ -722,6 +788,9 @@ export default function Login() {
       }
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        submitAuthLock.current = false;
+      }, 1200);
     }
   };
 
@@ -1271,6 +1340,19 @@ export default function Login() {
 
               {/* Main Auth Form */}
               <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {/* Bot Honeypot field (invisible to users, catches automated hacker/spam tools) */}
+                <div style={{ position: 'absolute', opacity: 0, zIndex: -1, pointerEvents: 'none', height: 0, width: 0, overflow: 'hidden' }} aria-hidden="true">
+                  <label htmlFor="farm_app_security_code">Security Token</label>
+                  <input
+                    id="farm_app_security_code"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={botHoneypot}
+                    onChange={(e) => setBotHoneypot(e.target.value)}
+                  />
+                </div>
+
                 {mode === 'register' ? (
                   /* STEP 1: Registration Info (First Page: Name, Email, Password, Confirm Password) */
                   <>
