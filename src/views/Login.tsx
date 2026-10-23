@@ -413,11 +413,12 @@ export default function Login() {
    */
   const handleProceedToOtpStep = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (otpSending || submitAuthLock.current) return;
+    if (otpSending) return;
 
     // Bot / Hacker Honeypot: Automated scraping tools fill out hidden fields
     if (botHoneypot.trim()) {
       console.warn('Bot submission blocked via honeypot.');
+      submitAuthLock.current = false;
       return;
     }
 
@@ -432,6 +433,7 @@ export default function Login() {
         const errorMsg = 'অতিরিক্ত অ্যাকাউন্ট তৈরির চেষ্টা সনাক্ত হয়েছে। নিরাপত্তার স্বার্থে ১৫ মিনিট অপেক্ষা করুন।';
         toast.error(errorMsg);
         setErrorMessage(errorMsg);
+        submitAuthLock.current = false;
         return;
       }
     } catch {}
@@ -443,26 +445,29 @@ export default function Login() {
 
     if (!cleanName) {
       toast.error('আপনার পুরো নাম লিখুন।');
+      submitAuthLock.current = false;
       return;
     }
 
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
+      submitAuthLock.current = false;
       return;
     }
 
     if (cleanPin.length < 6) {
       toast.error(language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.');
+      submitAuthLock.current = false;
       return;
     }
 
     if (cleanPin !== cleanConfirmPin) {
       toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড দিন।' : 'PIN / Password does not match! Please recheck.');
+      submitAuthLock.current = false;
       return;
     }
 
     setOtpSending(true);
-    submitAuthLock.current = true;
     setErrorMessage(null);
 
     try {
@@ -499,9 +504,7 @@ export default function Login() {
       toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
     } finally {
       setOtpSending(false);
-      setTimeout(() => {
-        submitAuthLock.current = false;
-      }, 1200);
+      submitAuthLock.current = false;
     }
   };
 
@@ -509,7 +512,7 @@ export default function Login() {
    * RESEND REGISTRATION OTP CODE TO GMAIL
    */
   const handleSendRegistrationOtp = async () => {
-    if (otpSending || submitAuthLock.current) return;
+    if (otpSending) return;
     if (botHoneypot.trim()) return;
 
     const cleanEmail = email.trim().toLowerCase();
@@ -521,7 +524,6 @@ export default function Login() {
     }
 
     setOtpSending(true);
-    submitAuthLock.current = true;
     setErrorMessage(null);
 
     try {
@@ -544,9 +546,7 @@ export default function Login() {
       toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।');
     } finally {
       setOtpSending(false);
-      setTimeout(() => {
-        submitAuthLock.current = false;
-      }, 1200);
+      submitAuthLock.current = false;
     }
   };
 
@@ -555,7 +555,13 @@ export default function Login() {
    */
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading || submitAuthLock.current) return;
+
+    // 1. REGISTRATION FLOW - STEP 1 (Info submission -> Send verification code to Gmail)
+    if (mode === 'register' && registerStep === 'info') {
+      submitAuthLock.current = false;
+      await handleProceedToOtpStep(e);
+      return;
+    }
 
     // Bot honeypot: automated tools populate hidden form fields
     if (botHoneypot.trim()) {
@@ -563,17 +569,11 @@ export default function Login() {
       return;
     }
 
+    if (loading || submitAuthLock.current) return;
     submitAuthLock.current = true;
 
-    // 1. REGISTRATION FLOW
+    // 2. REGISTRATION FLOW - STEP 2: OTP Verification & Final Account Creation
     if (mode === 'register') {
-      // If still on Step 1 (Info), clicking submit advances to Step 2 (OTP)
-      if (registerStep === 'info') {
-        await handleProceedToOtpStep();
-        return;
-      }
-
-      // Step 2: OTP Verification & Final Account Creation
       const cleanName = name.trim();
       const cleanEmail = email.trim().toLowerCase();
       const cleanPin = password.trim();
@@ -703,16 +703,19 @@ export default function Login() {
 
     if (!cleanEmail || !cleanPin) {
       toast.error(language === 'bn' ? 'জিমেইল / ইমেইল এবং পিন বা পাসওয়ার্ড দিন।' : 'Please enter Email and PIN / Password.');
+      submitAuthLock.current = false;
       return;
     }
 
     if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা লিখুন (যেমন: name@gmail.com)');
+      submitAuthLock.current = false;
       return;
     }
 
     if (cleanPin.length < 6) {
       toast.error(language === 'bn' ? 'কমপক্ষে ৬ ডিজিট বা অক্ষরের পিন/পাসওয়ার্ড লিখুন।' : 'PIN / Password must be at least 6 characters.');
+      submitAuthLock.current = false;
       return;
     }
 
@@ -1345,9 +1348,10 @@ export default function Login() {
                   <label htmlFor="farm_app_security_code">Security Token</label>
                   <input
                     id="farm_app_security_code"
+                    name="farm_app_security_token_hp"
                     type="text"
                     tabIndex={-1}
-                    autoComplete="off"
+                    autoComplete="new-password"
                     value={botHoneypot}
                     onChange={(e) => setBotHoneypot(e.target.value)}
                   />
@@ -1469,6 +1473,7 @@ export default function Login() {
                     {/* Step 1 Submit Button -> Proceeds to Next Page! */}
                     <button
                       type="submit"
+                      onClick={(e) => handleProceedToOtpStep(e)}
                       disabled={otpSending || loading}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
                     >
