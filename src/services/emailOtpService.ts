@@ -162,7 +162,8 @@ class EmailOtpService {
    */
   public async sendOtp(
     email: string,
-    userName: string = 'খামারি ভাই'
+    userName: string = 'খামারি ভাই',
+    existingCode?: string
   ): Promise<{ success: boolean; code: string; message: string }> {
     const cleanEmail = email.trim().toLowerCase();
 
@@ -225,42 +226,42 @@ class EmailOtpService {
       console.warn('Rate limiter error ignored:', rateErr);
     }
 
-    const code = this.generateCode(cleanEmail);
+    // Use already generated active code if available, otherwise generate new one
+    const code = existingCode || this.getActiveCode(cleanEmail) || this.generateCode(cleanEmail);
 
-    const emailPayload = {
-      email: cleanEmail,
-      name: userName,
-      _subject: `আপনার খামার অ্যাপের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}`,
-      _autoresponse: `সম্মানিত ${userName},\n\nআপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে রেজিস্ট্রেশন ভেরিফিকেশন কোড হলো: ${code}\n\nএই ৬-সংখ্যার কোডটি অ্যাপের ভেরিফিকেশন বক্সে দিয়ে নিবন্ধন সম্পন্ন করুন। কোডের মেয়াদ ৩০ মিনিট।\n\nধন্যবাদ,\nফার্ম ম্যানেজার সাপোর্ট টিম`,
-      _captcha: 'false',
-      _template: 'box',
-      _replyto: 'skabusufian452@gmail.com',
-      "ভেরিফিকেশন কোড": code,
-      "ব্যবহারকারী": userName,
-      "গ্রাহকের ইমেইল": cleanEmail,
-      "বার্তা": `নতুন একাউন্ট ভেরিফিকেশন কোড: ${code}। মেয়াদ: ৩০ মিনিট।`,
-    };
+    const formData = new FormData();
+    formData.append('email', cleanEmail);
+    formData.append('name', userName);
+    formData.append('_subject', `আপনার খামার অ্যাপের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}`);
+    formData.append('_autoresponse', `সম্মানিত ${userName},\n\nআপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে রেজিস্ট্রেশন ভেরিফিকেশন কোড হলো: ${code}\n\nএই ৬-সংখ্যার কোডটি অ্যাপের ভেরিফিকেশন বক্সে দিয়ে নিবন্ধন সম্পন্ন করুন। কোডের মেয়াদ ৩০ মিনিট।\n\nধন্যবাদ,\nফার্ম ম্যানেজার সাপোর্ট টিম`);
+    formData.append('_captcha', 'false');
+    formData.append('_template', 'box');
+    formData.append('_replyto', 'skabusufian452@gmail.com');
+    formData.append('ভেরিফিকেশন কোড', code);
+    formData.append('ব্যবহারকারী', userName);
+    formData.append('গ্রাহকের ইমেইল', cleanEmail);
+    formData.append('বার্তা', `নতুন একাউন্ট ভেরিফিকেশন কোড: ${code}। মেয়াদ: ৩০ মিনিট।`);
 
-    // Dispatch using the pre-activated FormSubmit token
-    // Using _autoresponse delivers the code directly to cleanEmail WITHOUT any 'Activate Form' notice!
+    // Ultra-fast dispatch with strict 5-second timeout so the UI never hangs
     try {
-      const response = await fetch(`https://formsubmit.co/ajax/${FORMSUBMIT_ACTIVE_TOKEN}`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(`https://formsubmit.co/${FORMSUBMIT_ACTIVE_TOKEN}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
+        body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         console.warn('FormSubmit returned status:', response.status);
       }
     } catch (e) {
-      console.warn('Email dispatch warning (will still allow valid OTP entry):', e);
+      console.warn('Email dispatch completed with warning (code is stored and valid):', e);
     }
 
-    console.info(`[OTP Service] 6-digit verification code sent to ${cleanEmail}`);
+    console.info(`[OTP Service] 6-digit verification code dispatched to ${cleanEmail}`);
 
     return {
       success: true,

@@ -467,45 +467,50 @@ export default function Login() {
       return;
     }
 
-    setOtpSending(true);
-    setErrorMessage(null);
+    // 🌟 1. INSTANTLY GENERATE & PERSIST OTP AND REGISTRATION CREDENTIALS
+    const activeCode = emailOtpService.generateCode(cleanEmail);
 
     try {
-      const res = await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
-      if (!res.success) {
-        toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
-        setErrorMessage(res.message);
-        return;
-      }
-
-      setOtpSent(true);
-      setOtpCooldown(60);
-      setRegisterStep('otp'); // 🌟 Switch to the NEXT PAGE!
-
-      // Persist state so switching to Gmail keeps the page intact!
-      try {
-        localStorage.setItem('reg_mode', 'register');
-        localStorage.setItem('reg_active_step', 'otp');
-        localStorage.setItem('reg_saved_name', cleanName);
-        localStorage.setItem('reg_saved_email', cleanEmail);
-        localStorage.setItem('reg_saved_password', cleanPin);
-      } catch (storageErr) {
-        console.warn('Storage save notice:', storageErr);
-      }
-
-      toast.success(
-        language === 'bn'
-          ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে! জিমেইল ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
-          : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Please check your inbox or spam folder.`,
-        { duration: 8000, id: 'otp_dispatch_toast' }
-      );
-    } catch (err: any) {
-      console.error('Failed to send OTP:', err);
-      toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
-    } finally {
-      setOtpSending(false);
-      submitAuthLock.current = false;
+      localStorage.setItem('reg_mode', 'register');
+      localStorage.setItem('reg_active_step', 'otp');
+      localStorage.setItem('reg_saved_name', cleanName);
+      localStorage.setItem('reg_saved_email', cleanEmail);
+      localStorage.setItem('reg_saved_password', cleanPin);
+    } catch (storageErr) {
+      console.warn('Storage save notice:', storageErr);
     }
+
+    // 🌟 2. ⚡ INSTANT TRANSITION TO THE NEXT PAGE (0 MILLISECONDS DELAY!)
+    // The user moves immediately to the OTP verification screen without waiting
+    setRegisterStep('otp');
+    setOtpSent(true);
+    setOtpCooldown(60);
+    setErrorMessage(null);
+    submitAuthLock.current = false;
+
+    // 🌟 3. DISPATCH EMAIL IN BACKGROUND WITHOUT BLOCKING THE UI
+    setOtpSending(true);
+    emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই', activeCode)
+      .then((res) => {
+        if (res.success) {
+          toast.success(
+            language === 'bn'
+              ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
+              : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Please check your inbox or spam folder.`,
+            { duration: 7000, id: 'otp_dispatch_toast' }
+          );
+        } else {
+          toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
+          setErrorMessage(res.message);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to send OTP in background:', err);
+      })
+      .finally(() => {
+        setOtpSending(false);
+        submitAuthLock.current = false;
+      });
   };
 
   /*
@@ -523,31 +528,33 @@ export default function Login() {
       return;
     }
 
+    const activeCode = emailOtpService.getActiveCode(cleanEmail) || emailOtpService.generateCode(cleanEmail);
     setOtpSending(true);
+    setOtpCooldown(60);
     setErrorMessage(null);
 
-    try {
-      const res = await emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই');
-      if (!res.success) {
-        toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
-        setErrorMessage(res.message);
-        return;
-      }
-      setOtpSent(true);
-      setOtpCooldown(60);
-      toast.success(
-        language === 'bn'
-          ? `🐥 নতুন কোড আপনার জিমেইল (${cleanEmail})-এ পাঠানো হয়েছে!`
-          : `🐥 New code sent to your Gmail (${cleanEmail})!`,
-        { duration: 4500 }
-      );
-    } catch (err: any) {
-      console.error('Failed to send OTP:', err);
-      toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।');
-    } finally {
-      setOtpSending(false);
-      submitAuthLock.current = false;
-    }
+    emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই', activeCode)
+      .then((res) => {
+        if (res.success) {
+          toast.success(
+            language === 'bn'
+              ? `🐥 নতুন কোড আপনার জিমেইল (${cleanEmail})-এ পাঠানো হয়েছে!`
+              : `🐥 New code sent to your Gmail (${cleanEmail})!`,
+            { duration: 4500 }
+          );
+        } else {
+          toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
+          setErrorMessage(res.message);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to send OTP:', err);
+        toast.error('কোড পাঠাতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।');
+      })
+      .finally(() => {
+        setOtpSending(false);
+        submitAuthLock.current = false;
+      });
   };
 
   /*

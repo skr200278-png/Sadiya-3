@@ -51,6 +51,7 @@ import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 import { openWhatsAppSafe, formatWhatsAppPhone } from '../utils/whatsappHelper';
+import { admobService } from '../services/admobService';
 
 
 export interface DoctorProfile {
@@ -506,6 +507,7 @@ export default function DoctorConsultation() {
 
       toast.success(language === 'bn' ? 'ডাক্তার হিসেবে আপনার বিজ্ঞাপন ৩০ দিনের জন্য প্রকাশিত হয়েছে!' : 'Doctor profile published for 30 days!');
       setIsDoctorPostModalOpen(false);
+      admobService.showInterstitialIfEligible('action:saved_doctor_profile', true);
       // Reset form
       setDoctorForm({
         nameBn: '',
@@ -665,6 +667,7 @@ export default function DoctorConsultation() {
 
       toast.success(language === 'bn' ? 'হোয়াটসঅ্যাপে ডাক্তারের চ্যাটে পাঠানো হচ্ছে...' : 'Redirecting to Doctor on WhatsApp...');
       setIsModalOpen(false);
+      admobService.showInterstitialIfEligible('action:doctor_consult_submit', true);
       setSymptoms('');
       setDetails('');
       setAnimalCount('');
