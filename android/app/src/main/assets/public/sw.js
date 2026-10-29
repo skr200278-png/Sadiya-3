@@ -87,7 +87,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "4dfc1ec19086f698152721e14c008433"
   }, {
     "url": "index.html",
-    "revision": "8ccaee46db90ef8a57154767e16d8991"
+    "revision": "d2269c6e61128d39db21af60b1f00251"
   }, {
     "url": "website/index.html",
     "revision": "f77b07e95a6c7863647e2ff68a5ff569"
@@ -95,25 +95,25 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "privacy-policy/index.html",
     "revision": "4dfc1ec19086f698152721e14c008433"
   }, {
-    "url": "assets/web-bFWPR9VM.js",
+    "url": "assets/web-lN8XFq-P.js",
     "revision": null
   }, {
-    "url": "assets/web-Cy8kj_2t.js",
+    "url": "assets/web-Dzx6Z6It.js",
     "revision": null
   }, {
-    "url": "assets/web-Cr5j0eph.js",
+    "url": "assets/web-DLQyfF_0.js",
     "revision": null
   }, {
     "url": "assets/purify.es-CLGrRn1w.js",
     "revision": null
   }, {
-    "url": "assets/index.es-gR37nrTl.js",
+    "url": "assets/index.es-D8MOxaiW.js",
     "revision": null
   }, {
-    "url": "assets/index-CTCYKkAC.css",
+    "url": "assets/index-Dr1ygDgF.css",
     "revision": null
   }, {
-    "url": "assets/index-CKmwezaX.js",
+    "url": "assets/index-D1aEQNz3.js",
     "revision": null
   }, {
     "url": "assets/html2canvas.esm-QH1iLAAe.js",
