@@ -5,3 +5,26 @@
   bottom: 14px !important;
   z-index: 40 !important;
 }
+
+/* Smooth Scrolling Marquee for Live Farm Broadcast Notice */
+@keyframes farmMarquee {
+  0% {
+    transform: translate3d(100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.animate-farm-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: farmMarquee 26s linear infinite;
+  will-change: transform;
+}
+
+.animate-farm-marquee:hover,
+.animate-farm-marquee:active {
+  animation-play-state: paused;
+}
+

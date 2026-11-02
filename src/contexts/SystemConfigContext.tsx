@@ -62,6 +62,15 @@ export interface FeatureControls {
   subscriptionNoticeBn: string;
   subscriptionNoticeEn: string;
   playStoreComplianceMode?: boolean; // When true, hides direct bKash/Nagad and shows compliant helpline mode
+  broadcastNotice?: BroadcastNoticeConfig;
+}
+
+export interface BroadcastNoticeConfig {
+  enabled: boolean;
+  message: string;
+  category: 'general' | 'warning' | 'prayer' | 'market';
+  updatedAt?: string;
+  authorName?: string;
 }
 
 export interface SubscriptionPlan {
@@ -341,7 +350,14 @@ const DEFAULT_CONFIG: FeatureControls = {
   disclaimerTextEn: 'Warning: Never send advance money before physically receiving the goods. The app owner or authority is strictly NOT responsible for any advance money fraud, non-delivery, or unpaid credit. Please verify all parties independently before transacting.',
   subscriptionNoticeBn: '',
   subscriptionNoticeEn: '',
-  playStoreComplianceMode: true
+  playStoreComplianceMode: true,
+  broadcastNotice: {
+    enabled: true,
+    message: 'বাজার ও খামার বার্তা: এখন মুরগী পালন ঝুঁকি হলেও এই সময়ে বাচ্চা তুললে ভালো লাভে বিক্রির সম্ভাবনা রয়েছে। সবাই খামারের সঠিক যত্ন নিন।',
+    category: 'market',
+    updatedAt: new Date().toISOString(),
+    authorName: 'অ্যাডমিন'
+  }
 };
 
 interface SystemConfigContextType {
@@ -528,6 +544,16 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
           const merged: FeatureControls = {
             ...DEFAULT_CONFIG,
             ...data,
+            broadcastNotice: {
+              ...DEFAULT_CONFIG.broadcastNotice,
+              ...(data.broadcastNotice || {}),
+              message: (data.broadcastNotice?.message && data.broadcastNotice.message.trim()) 
+                ? data.broadcastNotice.message 
+                : DEFAULT_CONFIG.broadcastNotice?.message || '',
+              enabled: data.broadcastNotice?.enabled !== undefined 
+                ? data.broadcastNotice.enabled 
+                : (DEFAULT_CONFIG.broadcastNotice?.enabled ?? true),
+            },
             paymentNumbers: {
               ...DEFAULT_CONFIG.paymentNumbers,
               ...(data.paymentNumbers || {})
@@ -683,6 +709,10 @@ export function SystemConfigProvider({ children }: { children: ReactNode }) {
       const updated = { 
         ...config, 
         ...newConfig,
+        broadcastNotice: {
+          ...(config.broadcastNotice || DEFAULT_CONFIG.broadcastNotice || { enabled: false, message: '', category: 'general' }),
+          ...(newConfig.broadcastNotice || {})
+        },
         paymentNumbers: {
           ...config.paymentNumbers,
           ...(newConfig.paymentNumbers || {})

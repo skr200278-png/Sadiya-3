@@ -7,7 +7,7 @@ import { demoStore } from '../utils/demoStore';
 import MarketRatesCard from '../components/MarketRatesCard';
 import SponsorCard from '../components/SponsorCard';
 import QuickDailyLogModal from '../components/QuickDailyLogModal';
-import SmartFarmInsightsCard, { InsightMetricData } from '../components/SmartFarmInsightsCard';
+import type { InsightMetricData } from '../components/SmartFarmInsightsCard';
 import { 
   SCHEDULE_BROILER, 
   SCHEDULE_SONALI, 
@@ -30,6 +30,8 @@ import {
   Droplets,
   Layers, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   ClipboardCheck, 
   X,
   Calendar,
@@ -87,6 +89,8 @@ export default function Dashboard() {
   const [isSopModalOpen, setIsSopModalOpen] = useState<boolean>(false);
   const [isFeedQualityOpen, setIsFeedQualityOpen] = useState<boolean>(false);
   const [quickLogTab, setQuickLogTab] = useState<'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales'>('all');
+  const [quickActionTab, setQuickActionTab] = useState<'daily' | 'trade' | 'services'>('daily');
+  const [showBatchDetails, setShowBatchDetails] = useState<boolean>(false);
   const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
 
   const openQuickLog = (tab: 'all' | 'feed' | 'water' | 'mortality' | 'weight' | 'expense' | 'sales' = 'all') => {
@@ -936,253 +940,217 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 3. Central Active Batch Spotlight Card (কেনার তারিখ, দর, সংখ্যা, বয়স, জীবিত ও মৃত্যু) */}
+      {/* 3. Central Active Batch Spotlight Card (Compact Hero Card with Collapsible Details) */}
       {activeBatch ? (
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-emerald-200/80 relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-xs border border-emerald-200/80 relative overflow-hidden space-y-2">
           {/* Header of Active Batch */}
-          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-emerald-100">
+          <div className="flex items-center justify-between pb-1.5 border-b border-emerald-100/80 gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
                 <Package size={15} />
               </div>
               <div className="min-w-0">
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">
-                  {language === 'bn' ? 'নির্বাচিত ব্যাচের লাইভ হিসাব' : 'Selected Active Batch'}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-850 truncate leading-tight">
+                    {activeBatch.batchName}
+                  </h3>
+                  <span className="text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    {calculateAge(activeBatch.startDate)} {language === 'bn' ? 'দিন' : 'd'}
+                  </span>
+                </div>
+                <p className="text-[8.5px] font-bold text-slate-400 truncate">
+                  {formatDateDisplay(activeBatch.startDate)} • {totalChicksCount.toLocaleString()} {language === 'bn' ? 'টি' : ''} {activeStyle.unitItem}
                 </p>
-                <h3 className="text-xs sm:text-sm font-extrabold text-slate-850 truncate leading-tight">
-                  {activeBatch.batchName}
-                </h3>
               </div>
             </div>
-            <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 shrink-0">
-              {language === 'bn' ? 'চলমান ✓' : 'Active'}
-            </span>
-          </div>
 
-          {/* Clean Grid of Key Batch Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2.5">
-            {/* 1. Start / Buying Date */}
-            <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
-              <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
-                <Calendar size={10} className="text-blue-500" />
-                {language === 'bn' ? 'শুরুর / ক্রয়ের তারিখ' : 'Buy Date'}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
+                {language === 'bn' ? 'চলমান ✓' : 'Active'}
               </span>
-              <p className="text-xs font-black text-slate-800 font-sans">
-                {formatDateDisplay(activeBatch.startDate)}
-              </p>
-            </div>
-
-            {/* 2. Chick Rate / Buying Cost */}
-            <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
-              <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
-                <DollarSign size={10} className="text-emerald-600" />
-                {activeStyle.buyLabel}
-              </span>
-              <p className="text-xs font-black text-emerald-700 font-sans">
-                {costPerChick > 0 ? `৳ ${costPerChick.toLocaleString()} ${activeStyle.rateSuffix}` : (language === 'bn' ? 'দর যুক্ত নেই' : 'N/A')}
-              </p>
-            </div>
-
-            {/* 3. Total Starting Animals */}
-            <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
-              <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
-                <Users size={10} className="text-indigo-500" />
-                {activeStyle.countLabel}
-              </span>
-              <p className="text-xs font-black text-indigo-700 font-sans">
-                {totalChicksCount.toLocaleString()} {language === 'bn' ? 'টি' : ''}
-              </p>
-            </div>
-
-            {/* 4. Current Age */}
-            <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/70 flex flex-col justify-center">
-              <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mb-0.5">
-                <Clock size={10} className="text-amber-500" />
-                {activeStyle.ageLabel}
-              </span>
-              <p className="text-xs font-black text-amber-700 font-sans">
-                {calculateAge(activeBatch.startDate)} {language === 'bn' ? 'দিন' : 'days'}
-              </p>
+              <button
+                type="button"
+                onClick={() => setShowBatchDetails(!showBatchDetails)}
+                className="text-[10px] font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200/80 flex items-center gap-0.5 cursor-pointer transition-colors"
+                title={showBatchDetails ? 'সংক্ষেপ' : 'বিস্তারিত'}
+              >
+                <span>{showBatchDetails ? (language === 'bn' ? 'সংক্ষেপ' : 'Less') : (language === 'bn' ? 'বিস্তারিত' : 'More')}</span>
+                {showBatchDetails ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              </button>
             </div>
           </div>
 
-          {/* Secondary Highlight: Alive Animals & Mortality Rate */}
-          <div className="grid grid-cols-2 gap-2 mb-2.5">
-            {/* Alive Animals */}
-            <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-200 flex items-center justify-between">
+          {/* Clean 4-Column Metric Strip (Mobile 2x2, Desktop 4x1) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {/* 1. Alive Animals */}
+            <div className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/80 flex items-center justify-between">
               <div>
-                <span className="text-[9px] font-bold text-emerald-800 block">
+                <span className="text-[8.5px] font-bold text-emerald-800 block">
                   {activeStyle.aliveLabel}
                 </span>
-                <p className="text-sm font-black text-emerald-700 font-sans leading-none mt-1">
-                  {aliveBirdsCount.toLocaleString()} <span className="text-[9px] text-emerald-600 font-bold">{language === 'bn' ? 'টি' : 'pcs'}</span>
+                <p className="text-xs sm:text-sm font-black text-emerald-700 font-sans leading-none mt-0.5">
+                  {aliveBirdsCount.toLocaleString()} <span className="text-[8.5px] text-emerald-600 font-bold">{language === 'bn' ? 'টি' : 'pcs'}</span>
                 </p>
               </div>
-              <span className="text-[9px] font-black text-emerald-700 bg-white px-1.5 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-[8.5px] font-black text-emerald-700 bg-white px-1.5 py-0.2 rounded-md border border-emerald-200">
                 {totalChicksCount > 0 ? `${Math.round((aliveBirdsCount / totalChicksCount) * 100)}%` : '100%'}
               </span>
             </div>
 
-            {/* Total Mortality & Status */}
-            <div className="bg-red-50/50 p-2 rounded-xl border border-red-200 flex items-center justify-between">
+            {/* 2. Total Mortality */}
+            <div className="bg-red-50/60 p-2 rounded-xl border border-red-200/80 flex items-center justify-between">
               <div>
-                <span className="text-[9px] font-bold text-red-700 block">
+                <span className="text-[8.5px] font-bold text-red-700 block">
                   {activeStyle.mortLabel}
                 </span>
-                <p className="text-sm font-black text-red-600 font-sans leading-none mt-1">
-                  {totalMortality.toLocaleString()} <span className="text-[9px] text-red-400 font-bold">/ {totalChicksCount.toLocaleString()}</span>
+                <p className="text-xs sm:text-sm font-black text-red-600 font-sans leading-none mt-0.5">
+                  {totalMortality.toLocaleString()} <span className="text-[8.5px] text-red-400 font-bold">/ {totalChicksCount.toLocaleString()}</span>
                 </p>
               </div>
-              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${mortStat.color}`}>
-                {language === 'bn' ? mortStat.labelBn : mortStat.labelEn} ({mortalityRate}%)
+              <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-md ${mortStat.color}`}>
+                {mortalityRate}%
               </span>
             </div>
-          </div>
 
-          {/* Live Batch Financial Health Bar */}
-          {batchMetrics && (
-            <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 mb-2.5 flex items-center justify-between">
+            {/* 3. Buying Rate */}
+            <div className="bg-slate-50/90 p-2 rounded-xl border border-slate-200/80 flex items-center justify-between">
               <div>
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {language === 'bn' ? 'বর্তমান আয়-ব্যয় ব্যালেন্স' : 'Current P/L Balance'}
+                <span className="text-[8.5px] font-bold text-slate-500 block">
+                  {activeStyle.buyLabel}
                 </span>
-                <p className={`text-xs sm:text-sm font-black mt-0.5 ${batchMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                  {batchMetrics.netProfit >= 0 ? '+' : '-'} ৳ {Math.abs(batchMetrics.netProfit).toLocaleString()}
-                  <span className="text-[10px] font-bold text-slate-400 ml-1">
-                    ({language === 'bn' ? 'বিক্রি' : 'Sales'}: ৳ {batchMetrics.totalSalesRevenue.toLocaleString()} | {language === 'bn' ? 'খরচ' : 'Cost'}: ৳ {batchMetrics.totalCost.toLocaleString()})
-                  </span>
+                <p className="text-xs sm:text-sm font-black text-slate-800 font-sans leading-none mt-0.5">
+                  {costPerChick > 0 ? `৳ ${costPerChick.toLocaleString()}` : (language === 'bn' ? 'দর যুক্ত নেই' : 'N/A')}
                 </p>
               </div>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                batchMetrics.netProfit >= 0 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
-              }`}>
-                {batchMetrics.netProfit >= 0 ? (language === 'bn' ? 'মুনাফায় আছে' : 'Profitable') : (language === 'bn' ? 'বিনিয়োগ চলমান' : 'Invested')}
+              <span className="text-[8px] font-bold text-slate-400">
+                {activeStyle.rateSuffix}
               </span>
             </div>
-          )}
 
-          {/* Active Batch Vaccine Reminder Alert */}
-          {activeBatchVaccine && (
-            <div className={`rounded-xl p-2.5 border mb-2.5 transition-all ${
-              activeBatchVaccine.isDone
-                ? 'bg-slate-50 border-slate-200 text-slate-600'
-                : activeBatchVaccine.isDueToday
-                ? 'bg-gradient-to-r from-red-50 to-amber-50/70 border-red-200 text-red-950 shadow-2xs'
-                : 'bg-emerald-50/60 border-emerald-200/80 text-emerald-950'
+            {/* 4. Live Balance */}
+            <div className={`p-2 rounded-xl border flex items-center justify-between ${
+              batchMetrics && batchMetrics.netProfit >= 0 ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/60 border-rose-200'
             }`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold ${
-                    activeBatchVaccine.isDone
-                      ? 'bg-slate-200 text-slate-500'
-                      : activeBatchVaccine.isDueToday
-                      ? 'bg-red-500 text-white'
-                      : 'bg-emerald-600 text-white'
-                  }`}>
-                    <Syringe size={14} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md uppercase tracking-wider ${
-                        activeBatchVaccine.isDone
-                          ? 'bg-slate-200 text-slate-700'
-                          : activeBatchVaccine.isDueToday 
-                          ? 'bg-red-100 text-red-800 border border-red-300 animate-pulse' 
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {activeBatchVaccine.isDone
-                          ? (language === 'bn' ? '✓ সম্পন্ন হয়েছে' : '✓ Completed')
-                          : activeBatchVaccine.isDueToday 
-                          ? (language === 'bn' ? '🚨 আজকের ভ্যাকসিন' : '🚨 Vaccine Due Today')
-                          : (language === 'bn' ? `📅 আসন্ন ভ্যাকসিন (আর ${activeBatchVaccine.daysUntil} দিন বাকি)` : `📅 Upcoming in ${activeBatchVaccine.daysUntil} days`)}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-bold">
-                        (দিন {activeBatchVaccine.item.targetDayMin}-{activeBatchVaccine.item.targetDayMax})
-                      </span>
-                    </div>
-                    <h5 className={`text-xs font-black mt-0.5 leading-snug ${activeBatchVaccine.isDone ? 'line-through text-slate-500' : 'text-slate-850'}`}>
-                      {activeBatchVaccine.item.name}
-                    </h5>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                      💧 {activeBatchVaccine.item.route}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="shrink-0 flex flex-col items-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleVaccineDone(activeBatchVaccine.item)}
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors cursor-pointer flex items-center gap-1 ${
-                      activeBatchVaccine.isDone
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                    }`}
-                  >
-                    <CheckCircle2 size={11} className={activeBatchVaccine.isDone ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span>{activeBatchVaccine.isDone ? (language === 'bn' ? 'সম্পন্ন' : 'Done') : (language === 'bn' ? 'টিকা দিন' : 'Mark Done')}</span>
-                  </button>
-                  <Link 
-                    to="/medicine"
-                    className="text-[9px] font-bold text-slate-400 hover:text-emerald-700 flex items-center gap-0.5"
-                  >
-                    <span>{language === 'bn' ? 'সব শিডিউল' : 'All'}</span>
-                    <ChevronRight size={10} />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Daily SOP & Feed Schedule Feature Launcher */}
-          <div className="bg-gradient-to-r from-teal-50/90 via-emerald-50/80 to-amber-50/80 p-2.5 rounded-xl border border-teal-200/90 mb-2.5 flex items-center justify-between gap-2 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <ClipboardList size={16} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-black text-teal-950 uppercase tracking-wide">
-                    {language === 'bn' ? 'দৈনিক খাদ্য ও এসওপি শিডিউল' : 'Daily SOP & Feed Schedule'}
-                  </span>
-                  <span className="text-[9px] font-bold text-teal-800 bg-white/90 px-1.5 py-0.2 rounded border border-teal-200">
-                    {aliveBirdsCount.toLocaleString()} {language === 'bn' ? (selectedType === 'cattle' ? 'পশু' : selectedType === 'fish' ? 'মাছ' : 'পাখি') : 'heads'}
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-600 font-bold truncate">
-                  {language === 'bn' 
-                    ? `বয়স ${calculateAge(activeBatch.startDate)} দিন • জীবিত সংখ্যার সঠিক হিসাব অনুযায়ী খাদ্য ও কাজের তালিকা` 
-                    : `Age ${calculateAge(activeBatch.startDate)}d • Exact diet & management schedule`}
+              <div>
+                <span className="text-[8.5px] font-bold text-slate-500 block">
+                  {language === 'bn' ? 'বর্তমান ব্যালেন্স' : 'Net Balance'}
+                </span>
+                <p className={`text-xs sm:text-sm font-black font-sans leading-none mt-0.5 ${
+                  batchMetrics && batchMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                }`}>
+                  {batchMetrics ? `${batchMetrics.netProfit >= 0 ? '+' : '-'} ৳ ${Math.abs(batchMetrics.netProfit).toLocaleString()}` : '--'}
                 </p>
               </div>
+              <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-md ${
+                batchMetrics && batchMetrics.netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-700'
+              }`}>
+                {batchMetrics && batchMetrics.netProfit >= 0 ? (language === 'bn' ? 'মুনাফা' : 'Profit') : (language === 'bn' ? 'বিনিয়োগ' : 'Invest')}
+              </span>
+            </div>
+          </div>
+
+          {/* Today's Vaccine Alert & SOP Notification Bar (Slim, Modern & Actionable) */}
+          <div className="flex items-center justify-between gap-1.5 p-2 bg-gradient-to-r from-teal-50 via-emerald-50 to-amber-50 rounded-xl border border-teal-200/80 text-[10.5px]">
+            <div className="flex items-center gap-1.5 min-w-0 truncate">
+              {activeBatchVaccine && !activeBatchVaccine.isDone ? (
+                <>
+                  <span className="text-xs shrink-0 animate-pulse">🚨</span>
+                  <div className="min-w-0 truncate">
+                    <span className="font-black text-red-900">
+                      {activeBatchVaccine.isDueToday ? (language === 'bn' ? 'আজকের টিকা: ' : 'Today\'s Vaccine: ') : (language === 'bn' ? `আসন্ন টিকা (${activeBatchVaccine.daysUntil} দিন): ` : `Upcoming (${activeBatchVaccine.daysUntil}d): `)}
+                    </span>
+                    <span className="font-bold text-slate-800 truncate">
+                      {activeBatchVaccine.item.name}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs shrink-0">📋</span>
+                  <div className="min-w-0 truncate">
+                    <span className="font-black text-teal-950">
+                      {language === 'bn' ? 'দৈনিক এসওপি শিডিউল: ' : 'Daily SOP: '}
+                    </span>
+                    <span className="font-bold text-slate-700 truncate">
+                      {language === 'bn' ? `বয়স ${calculateAge(activeBatch.startDate)} দিন • খাদ্য ও তদারকি গাইড` : `Age ${calculateAge(activeBatch.startDate)}d Schedule`}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsSopModalOpen(true)}
-              className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-black rounded-xl shadow-xs shrink-0 flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.02]"
-            >
-              <span>{language === 'bn' ? 'এসওপি দেখুন' : 'View SOP'}</span>
-              <ChevronRight size={13} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {activeBatchVaccine && !activeBatchVaccine.isDone ? (
+                <button
+                  type="button"
+                  onClick={() => toggleVaccineDone(activeBatchVaccine.item)}
+                  className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-[9.5px] font-black cursor-pointer shadow-2xs transition-all active:scale-95 flex items-center gap-0.5"
+                >
+                  <CheckCircle2 size={10} />
+                  <span>{language === 'bn' ? 'টিকা দিন' : 'Mark Done'}</span>
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setIsSopModalOpen(true)}
+                className="px-2 py-0.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-[9.5px] font-black cursor-pointer transition-all active:scale-95 flex items-center gap-0.5"
+              >
+                <span>{language === 'bn' ? 'এসওপি' : 'SOP'}</span>
+                <ChevronRight size={10} />
+              </button>
+            </div>
           </div>
 
-          {/* Active Batch Slim Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-150/70 text-[11px] font-bold text-slate-500">
-            <Link to="/batches" className="hover:text-emerald-700 flex items-center gap-1 transition-colors">
-              <Package size={12} />
-              <span>{language === 'bn' ? 'সকল ব্যাচ' : 'All Batches'}</span>
-            </Link>
-            <Link 
-              to={`/feed${activeBatch?.id ? `?batchId=${activeBatch.id}` : ''}`} 
-              className="text-amber-700 hover:text-amber-800 flex items-center gap-1 font-black transition-colors"
-            >
-              <span>{language === 'bn' ? 'খাবার স্টক' : 'Feed Stock'}</span>
-              <ChevronRight size={12} />
-            </Link>
-          </div>
+          {/* Collapsible Section for Complete Batch Financials & Stock */}
+          {showBatchDetails && (
+            <div className="pt-2 border-t border-slate-150 space-y-2 animate-in fade-in">
+              {/* Financial Breakdown */}
+              {batchMetrics && (
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-[10.5px] flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-slate-600 font-bold">
+                    {language === 'bn' ? 'আয়-ব্যয় হিসাব:' : 'Financials:'}
+                  </span>
+                  <div className="flex items-center gap-2 font-black">
+                    <span className="text-emerald-700">
+                      {language === 'bn' ? 'বিক্রি' : 'Sales'}: ৳ {batchMetrics.totalSalesRevenue.toLocaleString()}
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-rose-600">
+                      {language === 'bn' ? 'খরচ' : 'Cost'}: ৳ {batchMetrics.totalCost.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Feed Stock & Forecast Info */}
+              {batchMetrics && (
+                <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-200/80 text-[10.5px] flex items-center justify-between gap-1">
+                  <span className="font-bold text-amber-950 truncate">
+                    🌾 {batchMetrics.feedForecastNote || (language === 'bn' ? 'ফিড স্টক হিসাব' : 'Feed Forecast')}
+                  </span>
+                  <span className="text-[9.5px] font-black bg-amber-200/80 text-amber-950 px-1.5 py-0.2 rounded font-sans shrink-0">
+                    {batchMetrics.feedStockRemainingBags} {language === 'bn' ? 'ব্যাগ বাকি' : 'bags left'}
+                  </span>
+                </div>
+              )}
+
+              {/* Quick links footer */}
+              <div className="flex items-center justify-between pt-1 text-[11px] font-bold text-slate-500">
+                <Link to="/batches" className="hover:text-emerald-700 flex items-center gap-1 transition-colors">
+                  <Package size={12} />
+                  <span>{language === 'bn' ? 'সকল ব্যাচ তালিকা' : 'All Batches'}</span>
+                </Link>
+                <Link 
+                  to={`/feed${activeBatch?.id ? `?batchId=${activeBatch.id}` : ''}`} 
+                  className="text-amber-700 hover:text-amber-800 flex items-center gap-1 font-black transition-colors"
+                >
+                  <span>{language === 'bn' ? 'খাবার স্টক বিস্তারিত' : 'Feed Stock Details'}</span>
+                  <ChevronRight size={12} />
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Empty Batch State */
@@ -1203,380 +1171,501 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3. Quick Actions Launcher with 12 Grid Buttons (3 per row) */}
-      <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100">
-        <div className="flex items-center justify-between mb-2.5">
+      {/* 4. Quick Actions Hub (Modern 3-Tab Selector - Saves massive vertical space!) */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-xs border border-slate-100 space-y-2.5">
+        <div className="flex items-center justify-between gap-1 flex-wrap">
           <h4 className="font-extrabold text-slate-850 text-xs flex items-center gap-1.5">
-            <Layers size={15} className="text-emerald-600" />
-            {t('dashboard.quickActions')}
+            <Layers size={14} className="text-emerald-600" />
+            <span>{t('dashboard.quickActions')}</span>
           </h4>
-          <span className="text-[9px] font-bold text-slate-400">
-            {language === 'bn' ? 'জরুরি শর্টকাট' : 'Quick Shortcuts'}
-          </span>
+
+          {/* 3 Interactive Tab Selector Buttons */}
+          <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5 border border-slate-200/60 shadow-2xs text-[10.5px] font-black">
+            <button
+              type="button"
+              onClick={() => setQuickActionTab('daily')}
+              className={`px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                quickActionTab === 'daily'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>📝</span>
+              <span>{language === 'bn' ? 'দৈনিক এন্ট্রি' : 'Daily'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setQuickActionTab('trade')}
+              className={`px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                quickActionTab === 'trade'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>💰</span>
+              <span>{language === 'bn' ? 'বাণিজ্য ও দর' : 'Trade'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setQuickActionTab('services')}
+              className={`px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                quickActionTab === 'services'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🩺</span>
+              <span>{language === 'bn' ? 'টুলস ও সেবা' : 'Tools'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* 5 Rows x 3 Columns = 15 Action Buttons */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* Row 1, Item 1: Vaccine Schedule / টিকা শিডিউল (No duplicate profit/loss) */}
-          <Link 
-            to="/medicine?tab=schedule"
-            className="bg-indigo-50/80 p-2 rounded-xl border border-indigo-200/90 flex flex-col items-center justify-center gap-1 hover:border-indigo-400 hover:bg-indigo-100/80 transition-all duration-150 group cursor-pointer relative shadow-2xs"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <Syringe size={16} strokeWidth={2.4} className="text-white" />
-            </div>
-            <span className="text-[10px] font-black text-indigo-950 tracking-tight text-center truncate w-full">
-              {language === 'bn' ? 'টিকা শিডিউল' : 'Vaccine'}
-            </span>
-            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-purple-600 text-white rounded-full uppercase border border-white tracking-wider">
-              {language === 'bn' ? 'রুটিন' : 'PLAN'}
-            </span>
-          </Link>
+        {/* Tab 1: Daily Entry (6 Essential Daily Actions in 2 Rows of 3) */}
+        {quickActionTab === 'daily' && (
+          <div className="grid grid-cols-3 gap-2 animate-in fade-in">
+            {/* Feed */}
+            <Link to="/feed" className="bg-slate-50 hover:bg-amber-50/40 p-2 rounded-xl border border-slate-150 hover:border-amber-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <Wheat size={16} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.feed')}</span>
+            </Link>
 
-          {/* Row 1, Item 2: Feed */}
-          <Link to="/feed" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-amber-300 hover:bg-amber-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <Wheat size={15} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.feed')}</span>
-          </Link>
+            {/* Water Log */}
+            <button 
+              type="button"
+              onClick={() => openQuickLog('water')}
+              className="bg-cyan-50/80 hover:bg-cyan-100/80 p-2 rounded-xl border border-cyan-200/90 hover:border-cyan-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <Droplets size={16} className="text-white fill-white/20" />
+              </div>
+              <span className="text-[10px] font-black text-cyan-950 tracking-tight text-center truncate w-full">
+                {language === 'bn' ? 'পানির হিসাব' : 'Water Log'}
+              </span>
+            </button>
 
-          {/* Row 1, Item 3: Water Intake (পানির হিসাব - Dedicated Button) */}
-          <button 
-            type="button"
-            onClick={() => openQuickLog('water')}
-            className="bg-cyan-50/90 p-2 rounded-xl border border-cyan-200/90 flex flex-col items-center justify-center gap-1 hover:border-cyan-400 hover:bg-cyan-100/80 transition-all duration-150 group cursor-pointer relative"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <Droplets size={16} className="text-white fill-white/20" />
-            </div>
-            <span className="text-[10px] font-black text-cyan-900 tracking-tight text-center truncate w-full">
-              {language === 'bn' ? 'পানির হিসাব' : 'Water Log'}
-            </span>
-          </button>
+            {/* Medicine */}
+            <Link to="/medicine" className="bg-slate-50 hover:bg-blue-50/40 p-2 rounded-xl border border-slate-150 hover:border-blue-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <Pill size={16} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.medicine')}</span>
+            </Link>
 
-          {/* Row 2, Item 1: Medicine */}
-          <Link to="/medicine" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-blue-300 hover:bg-blue-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <Pill size={15} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.medicine')}</span>
-          </Link>
+            {/* Mortality */}
+            <Link to="/mortality" className="bg-slate-50 hover:bg-red-50/40 p-2 rounded-xl border border-slate-150 hover:border-red-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <AlertTriangle size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{language === 'bn' ? 'মৃত্যু' : t('dashboard.mortality')}</span>
+            </Link>
 
-          {/* Row 2, Item 2: Mortality */}
-          <Link to="/mortality" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-red-300 hover:bg-red-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-               <AlertTriangle size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{language === 'bn' ? 'মৃত্যু' : t('dashboard.mortality')}</span>
-          </Link>
+            {/* Expenses */}
+            <Link to="/expenses" className="bg-slate-50 hover:bg-purple-50/40 p-2 rounded-xl border border-slate-150 hover:border-purple-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <DollarSign size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.expenses')}</span>
+            </Link>
 
-          {/* Row 2, Item 3: Expenses */}
-          <Link to="/expenses" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-purple-300 hover:bg-purple-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-               <DollarSign size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.expenses')}</span>
-          </Link>
+            {/* Chores / Care (Tadaroki) */}
+            <button 
+              type="button"
+              onClick={() => setIsChoresModalOpen(true)}
+              className="bg-emerald-50/60 hover:bg-emerald-100/70 p-2 rounded-xl border border-emerald-200/90 hover:border-emerald-400 flex flex-col items-center justify-center gap-1 transition-all group relative cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative shadow-2xs">
+                <ClipboardCheck size={16} strokeWidth={2.3} />
+                {chores.length > 0 && (
+                  <span className={`absolute -top-1 -right-1 text-[8px] font-black px-1 py-0.2 rounded-full border border-white font-sans ${
+                    totalCompletedChores === chores.length 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-amber-500 text-white'
+                  }`}>
+                    {totalCompletedChores}/{chores.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-black text-emerald-900 tracking-tight block truncate">
+                {language === 'bn' ? 'তদারকি' : 'Care'}
+              </span>
+            </button>
+          </div>
+        )}
 
-          {/* Row 3, Item 1: Sales */}
-          <Link to="/sales" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-teal-300 hover:bg-teal-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <TrendingUp size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.sales')}</span>
-          </Link>
+        {/* Tab 2: Trade & Market (বাণিজ্য ও বাজার) */}
+        {quickActionTab === 'trade' && (
+          <div className="grid grid-cols-3 gap-2 animate-in fade-in">
+            {/* Sales */}
+            <Link to="/sales" className="bg-slate-50 hover:bg-teal-50/40 p-2 rounded-xl border border-slate-150 hover:border-teal-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <TrendingUp size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.sales')}</span>
+            </Link>
 
-          {/* Row 3, Item 2: Dues */}
-          <Link to="/dues" className="bg-slate-50/80 p-2 rounded-xl border border-slate-150 flex flex-col items-center justify-center gap-1 hover:border-pink-300 hover:bg-pink-50/20 transition-all duration-150 group">
-            <div className="w-8 h-8 bg-pink-100 text-pink-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <FileText size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.dues')}</span>
-          </Link>
+            {/* Dues */}
+            <Link to="/dues" className="bg-slate-50 hover:bg-pink-50/40 p-2 rounded-xl border border-slate-150 hover:border-pink-300 flex flex-col items-center justify-center gap-1 transition-all group">
+              <div className="w-8 h-8 bg-pink-100 text-pink-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <FileText size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight text-center truncate w-full">{t('dashboard.dues')}</span>
+            </Link>
 
-          {/* Row 3, Item 3: Daily Care / Chores (Tadaroki) */}
-          <button 
-            type="button"
-            onClick={() => setIsChoresModalOpen(true)}
-            className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-200/80 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-50/90 transition-all duration-150 group relative cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative">
-              <ClipboardCheck size={16} strokeWidth={2.3} />
-              {chores.length > 0 && (
-                <span className={`absolute -top-1 -right-1 text-[8px] font-black px-1 py-0.2 rounded-full border border-white font-sans ${
-                  totalCompletedChores === chores.length 
-                    ? 'bg-emerald-600 text-white' 
-                    : 'bg-amber-500 text-white'
-                }`}>
-                  {totalCompletedChores}/{chores.length}
+            {/* Live Market Rates */}
+            <button 
+              type="button"
+              onClick={() => setIsMarketRatesModalOpen(true)}
+              className="bg-amber-50/70 hover:bg-amber-100/80 p-2 rounded-xl border border-amber-200/90 hover:border-amber-400 flex flex-col items-center justify-center gap-1 transition-all group relative cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative shadow-2xs">
+                <Store size={16} strokeWidth={2.3} />
+                <span className="absolute -top-1 -right-1 text-[7px] font-black px-1 py-0.2 bg-red-600 text-white rounded-full uppercase border border-white tracking-wider animate-pulse">
+                  LIVE
                 </span>
-              )}
-            </div>
-            <span className="text-[10px] font-extrabold text-emerald-800 tracking-tight block truncate">
-              {language === 'bn' ? 'তদারকি' : 'Care'}
-            </span>
-          </button>
-
-          {/* Row 4, Item 1: Farm SOP & Feed Schedule / এসওপি চার্ট ও কাজের তালিকা */}
-          <button 
-            type="button"
-            onClick={() => setIsSopModalOpen(true)}
-            className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/90 flex flex-col items-center justify-center gap-1 hover:border-emerald-400 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer relative shadow-2xs"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-700 to-emerald-700 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <ClipboardList size={16} strokeWidth={2.4} />
-            </div>
-            <span className="text-[10px] font-black text-emerald-950 tracking-tight block truncate">
-              {language === 'bn' ? 'এসওপি চার্ট' : 'SOP Chart'}
-            </span>
-            <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-amber-400 text-slate-950 rounded-full uppercase border border-white tracking-wider">
-              {language === 'bn' ? '১ দিন থেকে' : 'Day 1+'}
-            </span>
-          </button>
-
-          {/* Row 4, Item 2: Live Market Rates with LIVE Badge */}
-          <button 
-            type="button"
-            onClick={() => setIsMarketRatesModalOpen(true)}
-            className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/90 flex flex-col items-center justify-center gap-1 hover:border-amber-400 hover:bg-amber-100/70 transition-all duration-150 group relative cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative shadow-2xs">
-              <Store size={16} strokeWidth={2.3} />
-              <span className="absolute -top-1 -right-1.5 text-[7px] font-black px-1 py-0.2 bg-red-600 text-white rounded-full uppercase border border-white tracking-wider animate-pulse">
-                LIVE
+              </div>
+              <span className="text-[10px] font-black text-amber-900 tracking-tight block truncate">
+                {language === 'bn' ? 'লাইভ বাজার দর' : 'Live Market'}
               </span>
-            </div>
-            <span className="text-[10px] font-extrabold text-amber-850 tracking-tight block truncate">
-              {language === 'bn' ? 'বাজার দর' : 'Market'}
-            </span>
-          </button>
+            </button>
 
-          {/* Row 4, Item 3: Batch Compare */}
-          <Link 
-            to="/batches?filter=compare"
-            className="bg-blue-50/60 p-2 rounded-xl border border-blue-200/90 flex flex-col items-center justify-center gap-1 hover:border-blue-400 hover:bg-blue-100/70 transition-all duration-150 group cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <GitCompare size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-black text-blue-900 tracking-tight block truncate">
-              {language === 'bn' ? 'ব্যাচ তুলনা' : 'Compare'}
-            </span>
-          </Link>
-
-          {/* Row 5, Item 1: Sponsored Partners with PRO Badge */}
-          <button 
-            type="button"
-            onClick={() => setIsSponsorsModalOpen(true)}
-            className="bg-purple-50/60 p-2 rounded-xl border border-purple-200/90 flex flex-col items-center justify-center gap-1 hover:border-purple-400 hover:bg-purple-100/70 transition-all duration-150 group relative cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 via-indigo-600 to-amber-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative shadow-2xs">
-              <Sparkles size={16} strokeWidth={2.3} />
-              <span className="absolute -top-1 -right-1.5 text-[7px] font-black px-1 py-0.2 bg-amber-400 text-slate-950 rounded-full uppercase border border-white tracking-wider animate-pulse">
-                PRO
+            {/* Chicks Market */}
+            <Link 
+              to="/chicks"
+              className="bg-orange-50/70 hover:bg-orange-100/80 p-2 rounded-xl border border-orange-200/90 hover:border-orange-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <span className="text-sm leading-none">🐣</span>
+              </div>
+              <span className="text-[10px] font-black text-orange-950 tracking-tight block truncate">
+                {language === 'bn' ? 'বাচ্চা ক্রয়' : 'Chick Booking'}
               </span>
-            </div>
-            <span className="text-[10px] font-extrabold text-purple-950 tracking-tight block truncate">
-              {language === 'bn' ? 'স্পনসর' : 'Sponsors'}
-            </span>
-          </button>
+            </Link>
 
-          {/* Row 5, Item 2: Chicks Market & Hatchery */}
-          <Link 
-            to="/chicks"
-            className="bg-orange-50/60 p-2 rounded-xl border border-orange-200/90 flex flex-col items-center justify-center gap-1 hover:border-orange-400 hover:bg-orange-100/70 transition-all duration-150 group cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-              <Bird size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-black text-orange-950 tracking-tight block truncate">
-              {language === 'bn' ? 'বাচ্চা দর' : 'Chicks'}
-            </span>
-          </Link>
+            {/* Batch Compare */}
+            <Link 
+              to="/batches?filter=compare"
+              className="bg-blue-50/70 hover:bg-blue-100/80 p-2 rounded-xl border border-blue-200/90 hover:border-blue-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <GitCompare size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-blue-900 tracking-tight block truncate">
+                {language === 'bn' ? 'ব্যাচ তুলনা' : 'Compare'}
+              </span>
+            </Link>
 
-          {/* Row 5, Item 3: All Batches */}
-          <Link 
-            to="/batches"
-            className="bg-slate-50/80 p-2 rounded-xl border border-slate-200/90 flex flex-col items-center justify-center gap-1 hover:border-slate-400 hover:bg-slate-100/70 transition-all duration-150 group cursor-pointer"
-          >
-            <div className="w-8 h-8 bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
-              <Package size={15} strokeWidth={2.5} />
-            </div>
-            <span className="text-[10px] font-extrabold text-slate-700 tracking-tight block truncate">
-              {language === 'bn' ? 'সব ব্যাচ' : 'Batches'}
-            </span>
-          </Link>
+            {/* All Batches */}
+            <Link 
+              to="/batches"
+              className="bg-slate-50 hover:bg-slate-100 p-2 rounded-xl border border-slate-200/90 hover:border-slate-300 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <Package size={16} strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px] font-black text-slate-700 tracking-tight block truncate">
+                {language === 'bn' ? 'সব ব্যাচ' : 'Batches'}
+              </span>
+            </Link>
+          </div>
+        )}
 
-          {/* Dedicated FCR Feature Button / ড্যাশবোর্ড -> FCR */}
-          <Link
-            to="/fcr"
-            className="col-span-3 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 p-2.5 rounded-xl border border-emerald-300/80 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-100/70 transition-all duration-150 group cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5 text-left min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+        {/* Tab 3: Tools & Services (টুলস ও সেবা) */}
+        {quickActionTab === 'services' && (
+          <div className="grid grid-cols-3 gap-2 animate-in fade-in">
+            {/* Vaccine Schedule */}
+            <Link 
+              to="/medicine?tab=schedule"
+              className="bg-indigo-50/80 hover:bg-indigo-100/90 p-2 rounded-xl border border-indigo-200/90 hover:border-indigo-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer shadow-2xs relative"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <Syringe size={16} strokeWidth={2.4} className="text-white" />
+              </div>
+              <span className="text-[10px] font-black text-indigo-950 tracking-tight text-center truncate w-full">
+                {language === 'bn' ? 'টিকা শিডিউল' : 'Vaccine'}
+              </span>
+              <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-purple-600 text-white rounded-full uppercase border border-white tracking-wider">
+                {language === 'bn' ? 'রুটিন' : 'PLAN'}
+              </span>
+            </Link>
+
+            {/* SOP Chart */}
+            <button 
+              type="button"
+              onClick={() => setIsSopModalOpen(true)}
+              className="bg-emerald-50/70 hover:bg-emerald-100/80 p-2 rounded-xl border border-emerald-200/90 hover:border-emerald-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer shadow-2xs relative"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-teal-700 to-emerald-700 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <ClipboardList size={16} strokeWidth={2.4} />
+              </div>
+              <span className="text-[10px] font-black text-emerald-950 tracking-tight block truncate">
+                {language === 'bn' ? 'এসওপি চার্ট' : 'SOP Chart'}
+              </span>
+            </button>
+
+            {/* Smart Disease Advisor */}
+            <Link
+              to="/disease-advisor"
+              className="bg-emerald-50/80 hover:bg-emerald-100/90 p-2 rounded-xl border border-emerald-300 hover:border-emerald-500 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer shadow-2xs relative"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 via-teal-600 to-slate-900 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                <span className="text-base leading-none">🩺</span>
+              </div>
+              <span className="text-[10px] font-black text-emerald-950 tracking-tight text-center truncate w-full">
+                {language === 'bn' ? 'রোগ ও ঔষধ' : 'Disease Rx'}
+              </span>
+              <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-amber-500 text-white rounded-full uppercase border border-white tracking-wider animate-pulse">
+                NEW
+              </span>
+            </Link>
+
+            {/* Doctor Consultation */}
+            <Link
+              to="/doctor"
+              className="bg-teal-50/70 hover:bg-teal-100/80 p-2 rounded-xl border border-teal-200/90 hover:border-teal-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer shadow-2xs relative"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center rounded-xl font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                <Stethoscope size={16} />
+              </div>
+              <span className="text-[10px] font-black text-teal-950 tracking-tight block truncate">
+                {language === 'bn' ? 'ডাক্তার কল' : 'Vet Care'}
+              </span>
+              <span className="absolute -top-1 -right-1 text-[7px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded-full uppercase border border-white tracking-wider">
+                24/7
+              </span>
+            </Link>
+
+            {/* FCR Calculator */}
+            <Link
+              to="/fcr"
+              className="bg-emerald-50/60 hover:bg-emerald-100/70 p-2 rounded-xl border border-emerald-200/90 hover:border-emerald-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center rounded-xl font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                 <Calculator size={16} strokeWidth={2.3} />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-slate-900 leading-tight">
-                    {language === 'bn' ? 'FCR হিসাব ও রূপান্তর হার' : 'FCR Calculation'}
-                  </span>
-                  <span className="bg-emerald-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
-                    FCR FEATURE
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-500 font-bold truncate">
-                  {language === 'bn' ? 'Category → Breed → Batch ভিত্তিক নির্ভুল খাঁটি FCR নির্ণয়' : 'Category → Breed → Batch isolated Feed Conversion Ratio'}
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-emerald-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
+              <span className="text-[10px] font-black text-emerald-950 tracking-tight block truncate">
+                {language === 'bn' ? 'FCR হিসাব' : 'FCR Calc'}
+              </span>
+            </Link>
 
-          {/* Feed Quality & Nutrition Guide Button / ফিডের গুণাগুণ ও পুষ্টিমান */}
-          <button
-            type="button"
-            onClick={() => setIsFeedQualityOpen(true)}
-            className="col-span-3 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-yellow-500/15 p-2.5 rounded-xl border border-amber-300/80 flex items-center justify-between hover:border-amber-500 hover:bg-amber-100/70 transition-all duration-150 group cursor-pointer text-left"
-          >
-            <div className="flex items-center gap-2.5 text-left min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+            {/* Feed Quality Guide */}
+            <button
+              type="button"
+              onClick={() => setIsFeedQualityOpen(true)}
+              className="bg-amber-50/60 hover:bg-amber-100/70 p-2 rounded-xl border border-amber-200/90 hover:border-amber-400 flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center rounded-xl font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                 <Wheat size={16} strokeWidth={2.3} />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-slate-900 leading-tight">
-                    {language === 'bn' ? 'ফিডের গুণাগুণ ও পুষ্টিমান গাইড' : 'Feed Quality & Nutrition Guide'}
-                  </span>
-                  <span className="bg-orange-500 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
-                    NEW
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-500 font-bold truncate">
-                  {language === 'bn' ? 'কোন বয়সে কোন ফিড উপকারী? ভালো ফিড চেনার ৫টি উপায় ও পুষ্টি চার্ট' : 'Which feed is best by bird age? 5-step quality checklist & CP standards'}
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-amber-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
-          </button>
+              <span className="text-[10px] font-black text-amber-950 tracking-tight block truncate">
+                {language === 'bn' ? 'ফিড পুষ্টি' : 'Feed Guide'}
+              </span>
+            </button>
 
-          {/* Row 5 (Single Full-Width Item on the bottom row): Report & Farm Analytics / রিপোর্ট ও বিশ্লেষণ */}
-          <Link
-            to="/reports"
-            className="col-span-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/80 to-blue-50/90 p-2.5 rounded-xl border border-indigo-200/80 flex items-center justify-between hover:border-indigo-400 hover:bg-indigo-100/70 transition-all duration-150 group cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5 text-left min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                <BarChart3 size={16} strokeWidth={2.3} />
+            {/* Sponsors */}
+            <button 
+              type="button"
+              onClick={() => setIsSponsorsModalOpen(true)}
+              className="bg-purple-50/60 hover:bg-purple-100/70 p-2 rounded-xl border border-purple-200/90 hover:border-purple-400 flex flex-col items-center justify-center gap-1 transition-all group relative cursor-pointer"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 via-indigo-600 to-amber-500 text-white rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 relative shadow-2xs">
+                <Sparkles size={16} strokeWidth={2.3} />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-indigo-950 leading-tight">
-                    {language === 'bn' ? 'রিপোর্ট ও খামার বিশ্লেষণ' : 'Reports & Farm Analytics'}
-                  </span>
-                  <span className="bg-indigo-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
-                    REPORT
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-500 font-bold truncate">
-                  {language === 'bn' ? 'লাভ-ক্ষতি, খরচের হিসাব ও এক্সেল/পিডিএফ ব্যাকআপ' : 'Profit/Loss, expenses breakdown & PDF/Excel backup'}
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-indigo-600 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-        </div>
-
-        {/* Dedicated Veterinary Doctor Consultation Link */}
-        <Link
-          to="/doctor"
-          className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-blue-500/15 hover:from-teal-500/25 hover:to-blue-500/25 border border-teal-200/80 transition-all group"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-              <Stethoscope size={16} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-slate-850 truncate leading-tight">
-                  {language === 'bn' ? 'ডাক্তারি পরামর্শ ও জরুরি চিকিৎসা' : 'Doctor Consultation & Vet Care'}
-                </span>
-                <span className="bg-emerald-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full uppercase shrink-0 animate-pulse">
-                  24/7 VET
-                </span>
-              </div>
-              <p className="text-[9px] text-slate-500 font-bold truncate">
-                {language === 'bn' ? 'অভিজ্ঞ ভেটেরিনারি সার্জনদের কল, প্রেসক্রিপশন ও হটলাইন (১৬১২৩)' : 'Call registered vets, get prescriptions & helpline 16123'}
-              </p>
-            </div>
+              <span className="text-[10px] font-black text-purple-950 tracking-tight block truncate">
+                {language === 'bn' ? 'স্পনসর' : 'Sponsors'}
+              </span>
+            </button>
           </div>
-          <ArrowRight size={14} className="text-teal-700 shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+        )}
 
-        {/* 2-Column Balanced Hub: Marketplace & Agri-Vet Store Directory */}
-        <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-          {/* Marketplace / Buyer Network Link */}
-          <Link
-            to="/marketplace"
-            className="flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 hover:from-amber-500/20 hover:to-red-500/20 border border-amber-200/60 transition-all group min-w-0"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                <Users size={14} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-black text-slate-850 truncate leading-tight">
-                    {language === 'bn' ? 'পাইকার ও বিক্রি' : 'Buyer Network'}
-                  </span>
-                  <span className="bg-red-600 text-white text-[6.5px] font-black px-1 py-0.2 rounded-full uppercase shrink-0">
-                    NEW
-                  </span>
-                </div>
-                <p className="text-[8.5px] text-slate-500 font-bold truncate">
-                  {language === 'bn' ? 'পাইকার নম্বর ও বিজ্ঞাপন' : 'Find buyers & post ads'}
-                </p>
-              </div>
-            </div>
-            <ArrowRight size={12} className="text-amber-700 shrink-0 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
+        {/* 2-Column Balanced Hub: 6 Smart Service Tiles (Saves ~400px compared to giant vertical banners!) */}
+        <div className="pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              {language === 'bn' ? 'খামার সেবা ও বাজার টুলস' : 'Farm Tools & Hub'}
+            </span>
+          </div>
 
-          {/* Store / Feed & Medicine Directory Link */}
-          <Link
-            to="/store"
-            className="flex items-center justify-between p-2 rounded-xl bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 hover:from-emerald-500/20 hover:to-cyan-500/20 border border-emerald-200/60 transition-all group min-w-0"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                <Store size={14} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-black text-slate-850 truncate leading-tight">
-                    {language === 'bn' ? 'ফিড ও ঔষধ দোকান' : 'Store Directory'}
-                  </span>
-                  <span className="bg-emerald-600 text-white text-[6.5px] font-black px-1 py-0.2 rounded-full uppercase shrink-0">
-                    STORE
-                  </span>
+          <div className="grid grid-cols-2 gap-2">
+            {/* 1. FCR Tool */}
+            <Link
+              to="/fcr"
+              className="p-2 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Calculator size={14} />
                 </div>
-                <p className="text-[8.5px] text-slate-500 font-bold truncate">
-                  {language === 'bn' ? '৬৪ জেলার দোকান নম্বর' : '64 districts stores'}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'FCR হিসাব' : 'FCR Engine'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? 'খাঁটি FCR নির্ণয়' : 'Isolated FCR'}
+                  </p>
+                </div>
               </div>
-            </div>
-            <ArrowRight size={12} className="text-emerald-700 shrink-0 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
+              <ChevronRight size={12} className="text-emerald-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 2. Feed Quality Guide */}
+            <button
+              type="button"
+              onClick={() => setIsFeedQualityOpen(true)}
+              className="p-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0 cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Wheat size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'ফিড পুষ্টি গাইড' : 'Feed Guide'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? 'ভালো ফিড চেনার উপায়' : 'Nutrition chart'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+
+            {/* 3. Reports & Analytics (Unified) */}
+            <Link
+              to="/reports"
+              className="p-2 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 hover:from-indigo-500/20 hover:to-purple-500/20 border border-indigo-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-indigo-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <BarChart3 size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'রিপোর্ট ও খামার বিশ্লেষণ' : 'Reports & Analytics'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? 'লাভ-ক্ষতি, ইনসাইটস ও ব্যাকআপ' : 'P&L, insights & export'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-indigo-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 4. Veterinary Doctor Consultation */}
+            <Link
+              to="/doctor"
+              className="p-2 rounded-xl bg-gradient-to-r from-teal-500/10 to-blue-500/10 hover:from-teal-500/20 hover:to-blue-500/20 border border-teal-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Stethoscope size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'ডাক্তারি পরামর্শ' : 'Vet Helpline'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? '১৬১২৩ ও সার্জন কল' : 'Doctor & hotline'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-teal-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 5. Marketplace / Buyer Network */}
+            <Link
+              to="/marketplace"
+              className="p-2 rounded-xl bg-gradient-to-r from-orange-500/10 to-red-500/10 hover:from-orange-500/20 hover:to-red-500/20 border border-orange-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Users size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'পাইকার ও বিক্রি' : 'Wholesale Market'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? 'পাইকার ও বিজ্ঞাপন' : 'Buyers directory'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 6. Store Directory */}
+            <Link
+              to="/store"
+              className="p-2 rounded-xl bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 hover:from-emerald-500/20 hover:to-cyan-500/20 border border-emerald-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Store size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'দোকান ডিরেক্টরি' : 'Agri-Vet Stores'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? '৬৪ জেলার দোকান' : 'Feed & Medicine'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-emerald-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 7. Smart Disease Diagnosis & Medicine Rx (NEW) */}
+            <Link
+              to="/disease-advisor"
+              className="p-2 rounded-xl bg-gradient-to-r from-emerald-600/15 via-teal-600/15 to-slate-900/10 hover:from-emerald-600/25 hover:to-teal-600/25 border border-emerald-300 transition-all group flex items-center justify-between gap-1.5 min-w-0 relative shadow-2xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-slate-900 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Pill size={14} className="text-emerald-300" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1">
+                    <p className="text-[11px] font-black text-slate-900 truncate leading-tight">
+                      {language === 'bn' ? 'রোগ ও ঔষধ গাইড' : 'Disease Rx Guide'}
+                    </p>
+                    <span className="px-1 py-0.2 bg-emerald-600 text-white rounded text-[7px] font-black uppercase">
+                      NEW
+                    </span>
+                  </div>
+                  <p className="text-[8.5px] text-emerald-800 font-bold truncate">
+                    {language === 'bn' ? 'রোগ লিখে সঠিক ঔষধ' : 'Instant Rx advisor'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-emerald-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 8. Chick Market / Hatchery */}
+            <Link
+              to="/chicks"
+              className="p-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-orange-200/80 transition-all group flex items-center justify-between gap-1.5 min-w-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <span className="text-xs leading-none">🐣</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-850 truncate leading-tight">
+                    {language === 'bn' ? 'বাচ্চা ও হ্যাচারি' : 'Chick Market'}
+                  </p>
+                  <p className="text-[8.5px] text-slate-500 font-bold truncate">
+                    {language === 'bn' ? 'দর ও বাচ্চা ক্রয়' : 'Chick booking'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={12} className="text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
         </div>
       </div>
-
-      {/* Smart Farm Real Insights & Forecast Card (Collapsible, placed right after Quick Actions) */}
-      {batchMetrics && activeBatch && (
-        <SmartFarmInsightsCard 
-          data={batchMetrics} 
-          onOpenQuickLog={() => setIsQuickLogOpen(true)} 
-        />
-      )}
 
       {/* 4. Recent Activity Logs (Ultra-compact) */}
       <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100">

@@ -242,10 +242,58 @@ class EmailOtpService {
     formData.append('গ্রাহকের ইমেইল', cleanEmail);
     formData.append('বার্তা', `নতুন একাউন্ট ভেরিফিকেশন কোড: ${code}। মেয়াদ: ৩০ মিনিট।`);
 
-    // Ultra-fast dispatch with strict 5-second timeout so the UI never hangs
+    // 1. Submit via hidden background iframe form (FormSubmit autoresponse requires real form post)
+    if (typeof document !== 'undefined') {
+      try {
+        let iframe = document.getElementById('otp_mail_frame') as HTMLIFrameElement;
+        if (!iframe) {
+          iframe = document.createElement('iframe');
+          iframe.id = 'otp_mail_frame';
+          iframe.name = 'otp_mail_frame';
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+        }
+
+        const form = document.createElement('form');
+        form.action = `https://formsubmit.co/${FORMSUBMIT_ACTIVE_TOKEN}`;
+        form.method = 'POST';
+        form.target = 'otp_mail_frame';
+        form.style.display = 'none';
+
+        const fields: Record<string, string> = {
+          email: cleanEmail,
+          name: userName,
+          _subject: `আপনার খামার অ্যাপের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}`,
+          _autoresponse: `সম্মানিত ${userName},\n\nআপনার ফার্ম ম্যানেজার (Farm Manager) অ্যাপে রেজিস্ট্রেশন ভেরিফিকেশন কোড হলো: ${code}\n\nএই ৬-সংখ্যার কোডটি অ্যাপের ভেরিফিকেশন বক্সে দিয়ে নিবন্ধন সম্পন্ন করুন। কোডের মেয়াদ ৩০ মিনিট।\n\nধন্যবাদ,\nফার্ম ম্যানেজার সাপোর্ট টিম`,
+          _replyto: 'skabusufian452@gmail.com',
+          _template: 'box',
+          'verification_code': code,
+        };
+
+        for (const [k, v] of Object.entries(fields)) {
+          const inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = k;
+          inp.value = v;
+          form.appendChild(inp);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        setTimeout(() => {
+          try {
+            form.remove();
+          } catch {}
+        }, 1500);
+      } catch (domErr) {
+        console.warn('Hidden form dispatch notice:', domErr);
+      }
+    }
+
+    // 2. Parallel AJAX dispatch with strict 3-second timeout so the UI never waits
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const response = await fetch(`https://formsubmit.co/${FORMSUBMIT_ACTIVE_TOKEN}`, {
         method: 'POST',

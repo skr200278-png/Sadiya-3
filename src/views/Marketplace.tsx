@@ -14,7 +14,7 @@ import {
 import { db, auth, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { demoStore, DemoMarketPost, DemoMarketBuyer } from '../utils/demoStore';
+import { demoStore, DemoMarketPost, DemoMarketBuyer, MarketCategory } from '../utils/demoStore';
 import { 
   BANGLADESH_DIVISIONS, 
   ALL_64_DISTRICTS, 
@@ -56,7 +56,11 @@ import {
   Crown,
   Lock,
   Globe,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  Pencil,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
@@ -64,6 +68,152 @@ import MarketplaceDisclaimerBanner from '../components/MarketplaceDisclaimerBann
 import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 import { admobService } from '../services/admobService';
 import { openWhatsAppSafe } from '../utils/whatsappHelper';
+
+// Category Configuration: পাখি, পশু, মাছ
+export const CATEGORY_CONFIG: Record<MarketCategory, {
+  nameBn: string;
+  nameEn: string;
+  icon: string;
+  shortLabelBn: string;
+  taglineBn: string;
+  taglineEn: string;
+  countLabelBn: string;
+  countLabelEn: string;
+  countPlaceholder: string;
+  weightLabelBn: string;
+  weightLabelEn: string;
+  weightPlaceholder: string;
+  priceLabelBn: string;
+  priceLabelEn: string;
+  pricePlaceholder: string;
+  priceUnits: { id: string; labelBn: string; labelEn: string }[];
+  breeds: { id: string; labelBn: string; labelEn: string; icon: string }[];
+}> = {
+  poultry: {
+    nameBn: 'পাখি (হাঁস-মুরগি)',
+    nameEn: 'Poultry & Birds',
+    icon: '🐦',
+    shortLabelBn: 'পাখি',
+    taglineBn: 'ব্রয়লার, সোনালী, লেয়ার, দেশি মুরগি, হাঁস, কবুতর ও কোয়েল',
+    taglineEn: 'Broiler, Sonali, Layer, Deshi, Duck, Pigeon & Quail',
+    countLabelBn: 'পাখির মোট সংখ্যা (পিস/টি)',
+    countLabelEn: 'Bird Count (pcs)',
+    countPlaceholder: '1500',
+    weightLabelBn: 'গড় ওজন (কেজি)',
+    weightLabelEn: 'Avg Weight (kg)',
+    weightPlaceholder: '1.85',
+    priceLabelBn: 'কাঙ্ক্ষিত দর',
+    priceLabelEn: 'Expected Rate',
+    pricePlaceholder: '185',
+    priceUnits: [
+      { id: 'kg', labelBn: '৳ প্রতি কেজি', labelEn: '৳/kg' },
+      { id: 'piece', labelBn: '৳ প্রতি পিস', labelEn: '৳/pc' }
+    ],
+    breeds: [
+      { id: 'broiler', labelBn: 'ব্রয়লার মুরগি', labelEn: 'Broiler', icon: '🐔' },
+      { id: 'sonali', labelBn: 'সোনালী মুরগি', labelEn: 'Sonali', icon: '🐓' },
+      { id: 'layer', labelBn: 'লেয়ার মুরগি', labelEn: 'Layer', icon: '🥚' },
+      { id: 'deshi', labelBn: 'দেশি মুরগি', labelEn: 'Deshi', icon: '🍗' },
+      { id: 'duck', labelBn: 'হাঁস', labelEn: 'Duck', icon: '🦆' },
+      { id: 'quail_pigeon', labelBn: 'কোয়েল / কবুতর', labelEn: 'Quail/Pigeon', icon: '🕊️' },
+      { id: 'other', labelBn: 'অন্যান্য পাখি', labelEn: 'Other Bird', icon: '🦜' }
+    ]
+  },
+  cattle: {
+    nameBn: 'পশু (গরু-ছাগল)',
+    nameEn: 'Livestock & Cattle',
+    icon: '🐄',
+    shortLabelBn: 'পশু',
+    taglineBn: 'ষাঁড়, দুধেল গাভী, বাছুর, মহিষ, ছাগল ও ভেড়া',
+    taglineEn: 'Bull, Dairy Cow, Calf, Buffalo, Goat & Sheep',
+    countLabelBn: 'পশুর সংখ্যা (টি)',
+    countLabelEn: 'Head Count (pcs)',
+    countPlaceholder: '2',
+    weightLabelBn: 'আনুমানিক লাইভ ওজন (কেজি)',
+    weightLabelEn: 'Avg Live Weight (kg)',
+    weightPlaceholder: '220',
+    priceLabelBn: 'কাঙ্ক্ষিত দর',
+    priceLabelEn: 'Expected Rate',
+    pricePlaceholder: '140000',
+    priceUnits: [
+      { id: 'piece', labelBn: '৳ প্রতি পিস / টি', labelEn: '৳/head' },
+      { id: 'kg', labelBn: '৳ প্রতি লাইভ কেজি', labelEn: '৳/kg live' }
+    ],
+    breeds: [
+      { id: 'bull', labelBn: 'ষাঁড় / বলদ', labelEn: 'Bull / Ox', icon: '🐂' },
+      { id: 'dairy_cow', labelBn: 'দুধেল গাভী', labelEn: 'Dairy Cow', icon: '🐄' },
+      { id: 'calf', labelBn: 'বাছুর', labelEn: 'Calf', icon: '🐮' },
+      { id: 'buffalo', labelBn: 'মহিষ', labelEn: 'Buffalo', icon: '🐃' },
+      { id: 'goat', labelBn: 'ছাগল / খাসি', labelEn: 'Goat', icon: '🐐' },
+      { id: 'sheep', labelBn: 'ভেড়া / দুম্বা', labelEn: 'Sheep', icon: '🐑' },
+      { id: 'other', labelBn: 'অন্যান্য পশু', labelEn: 'Other Cattle', icon: '🐾' }
+    ]
+  },
+  fish: {
+    nameBn: 'মাছ (চাষের মাছ/পোনা)',
+    nameEn: 'Fisheries & Aquaculture',
+    icon: '🐟',
+    shortLabelBn: 'মাছ',
+    taglineBn: 'রুই, কাতলা, তেলাপিয়া, পাঙ্গাশ, শিং ও পোনা মাছ',
+    taglineEn: 'Carp, Tilapia, Pangasius, Catfish & Fingerlings',
+    countLabelBn: 'মাছের সংখ্যা বা পরিমাণ (টি/কেজি/মণ)',
+    countLabelEn: 'Quantity / Count',
+    countPlaceholder: '500',
+    weightLabelBn: 'গড় আকার বা সাইজ (কেজি বা গ্রাম)',
+    weightLabelEn: 'Avg Size (kg/g)',
+    weightPlaceholder: '1.2',
+    priceLabelBn: 'কাঙ্ক্ষিত দর',
+    priceLabelEn: 'Expected Rate',
+    pricePlaceholder: '240',
+    priceUnits: [
+      { id: 'kg', labelBn: '৳ প্রতি কেজি', labelEn: '৳/kg' },
+      { id: 'maund', labelBn: '৳ প্রতি মণ (৪০ কেজি)', labelEn: '৳/maund' },
+      { id: 'piece', labelBn: '৳ প্রতি পিস / হাজার পোনা', labelEn: '৳/thousand' }
+    ],
+    breeds: [
+      { id: 'carp_rohu', labelBn: 'রুই / কাতলা / কার্প', labelEn: 'Carp / Rohu', icon: '🐟' },
+      { id: 'tilapia', labelBn: 'তেলাপিয়া মাছ', labelEn: 'Tilapia', icon: '🐠' },
+      { id: 'pangasius', labelBn: 'পাঙ্গাশ মাছ', labelEn: 'Pangasius', icon: '🐡' },
+      { id: 'catfish_magur', labelBn: 'শিং / মাগুর / পাবদা', labelEn: 'Catfish', icon: '🦐' },
+      { id: 'koi_shol', labelBn: 'কৈ / শোল মাছ', labelEn: 'Koi / Shol', icon: '🐟' },
+      { id: 'fingerling', labelBn: 'পোনা মাছ (ধানী/আঙুল)', labelEn: 'Fingerlings', icon: '🌱' },
+      { id: 'other', labelBn: 'অন্যান্য মাছ', labelEn: 'Other Fish', icon: '🎣' }
+    ]
+  }
+};
+
+// Helper: Resolve category for any post
+export const resolvePostCategory = (post: { category?: string; poultryType?: string }): MarketCategory => {
+  if (post.category === 'poultry' || post.category === 'cattle' || post.category === 'fish') {
+    return post.category;
+  }
+  const type = (post.poultryType || '').toLowerCase();
+  if (['bull', 'dairy_cow', 'calf', 'buffalo', 'goat', 'sheep', 'cattle', 'cow'].includes(type) || 
+      type.includes('গরু') || type.includes('ছাগল') || type.includes('ষাঁড়') || type.includes('গাভী') || type.includes('পশু')) {
+    return 'cattle';
+  }
+  if (['carp_rohu', 'tilapia', 'pangasius', 'catfish_magur', 'koi_shol', 'fingerling', 'fish'].includes(type) || 
+      type.includes('মাছ') || type.includes('পোনা') || type.includes('তেলাপিয়া') || type.includes('কার্প')) {
+    return 'fish';
+  }
+  return 'poultry';
+};
+
+// Helper: Get breed/type label and icon
+export const getBreedOrTypeName = (type: string, category: MarketCategory = 'poultry', lang: 'bn' | 'en' = 'bn'): { name: string; icon: string } => {
+  const norm = (type || '').toLowerCase();
+  for (const catKey of ['poultry', 'cattle', 'fish'] as MarketCategory[]) {
+    const found = CATEGORY_CONFIG[catKey].breeds.find(b => b.id.toLowerCase() === norm);
+    if (found) {
+      return { name: lang === 'bn' ? found.labelBn : found.labelEn, icon: found.icon };
+    }
+  }
+  if (norm.includes('broiler')) return { name: lang === 'bn' ? 'ব্রয়লার মুরগি' : 'Broiler', icon: '🐔' };
+  if (norm.includes('sonali')) return { name: lang === 'bn' ? 'সোনালী মুরগি' : 'Sonali', icon: '🐓' };
+  if (norm.includes('layer')) return { name: lang === 'bn' ? 'লেয়ার মুরগি' : 'Layer', icon: '🥚' };
+  if (norm.includes('deshi')) return { name: lang === 'bn' ? 'দেশি মুরগি' : 'Deshi', icon: '🍗' };
+  return { name: lang === 'bn' ? (type || 'অন্যান্য') : (type || 'Other'), icon: '🏷️' };
+};
 
 export default function Marketplace() {
   const { currentUser, isDemoUser } = useAuth();
@@ -82,6 +232,7 @@ export default function Marketplace() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filter & Search
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'all' | MarketCategory>('all');
   const [selectedCountry, setSelectedCountry] = useState<string>(() => {
     const detected = detectUserCountry();
     return detected.code || 'BD';
@@ -94,7 +245,13 @@ export default function Marketplace() {
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Modals & Delete Dialogs
+  const [showQuotaDetails, setShowQuotaDetails] = useState<boolean>(false);
+  const [showLocationFilters, setShowLocationFilters] = useState<boolean>(false);
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [showQuotaLimitModal, setShowQuotaLimitModal] = useState<boolean>(false);
+  const [quotaConflictCategory, setQuotaConflictCategory] = useState<MarketCategory>('poultry');
+  const [quotaConflictType, setQuotaConflictType] = useState<'sell' | 'buy'>('sell');
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState<boolean>(false);
   const [postToDelete, setPostToDelete] = useState<DemoMarketPost | null>(null);
   const [buyerToDelete, setBuyerToDelete] = useState<DemoMarketBuyer | null>(null);
@@ -103,6 +260,16 @@ export default function Marketplace() {
   const [isSubmittingBuyer, setIsSubmittingBuyer] = useState<boolean>(false);
   const submitPostLock = React.useRef<boolean>(false);
   const submitBuyerLock = React.useRef<boolean>(false);
+
+  // User's own stored post IDs (persisted locally so user always has immediate ownership)
+  const [myCreatedPostIds, setMyCreatedPostIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('my_market_post_ids');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Helper for generating clean WhatsApp link
   const formatWhatsAppUrl = (whatsappNum?: string, phoneNum?: string, message: string = '') => {
@@ -126,8 +293,9 @@ export default function Marketplace() {
     return `tel:${num}`;
   };
 
-  // Sell/Buy Post Form State
+  // Sell/Buy Post Form State with 3 Categories (পাখি, পশু, মাছ)
   const [postForm, setPostForm] = useState({
+    category: 'poultry' as MarketCategory,
     postType: 'sell' as 'sell' | 'buy',
     farmerName: '',
     farmName: '',
@@ -138,14 +306,51 @@ export default function Marketplace() {
     district: 'গাজীপুর',
     upazila: '',
     locationDetails: '',
-    poultryType: 'broiler' as 'broiler' | 'sonali' | 'deshi' | 'layer' | 'other' | string,
+    poultryType: 'broiler' as string, // Sub-breed according to category
     birdCount: '' as string | number,
     avgWeightKg: '' as string | number,
     expectedPricePerKg: '' as string | number,
+    priceUnit: 'kg' as string, // 'kg' | 'piece' | 'maund'
     isEmergency: false,
     emergencyReason: '',
     notes: ''
   });
+
+  // Helper to determine if current user owns a post
+  const isPostOwner = (post: DemoMarketPost): boolean => {
+    if (isDemoUser) return true;
+    if (currentUser && post.userId === currentUser.uid) return true;
+    if (currentUser?.email && (post as any).userEmail === currentUser.email) return true;
+    if (post.phone && postForm.phone && post.phone.trim() === postForm.phone.trim()) return true;
+    if (myCreatedPostIds.includes(post.id)) return true;
+    if (post.userId === 'demo_user' || post.userId?.startsWith('demo_') || post.id?.startsWith('market_post_')) return true;
+    return false;
+  };
+
+  // User's own active posts
+  const myPosts = posts.filter(isPostOwner);
+
+  // Get user's post in a specific category and type (if any)
+  const getQuotaPost = (cat: MarketCategory, type: 'sell' | 'buy'): DemoMarketPost | undefined => {
+    return myPosts.find(p => resolvePostCategory(p) === cat && (p.postType || 'sell') === type);
+  };
+
+  // Quota enforcement: max 1 sell post and max 1 buy post per category (total max 6)
+  const hasReachedCategoryQuota = (cat: MarketCategory, type: 'sell' | 'buy', excludePostId?: string | null): boolean => {
+    if (isAdmin) return false;
+    return myPosts.some(p => 
+      p.id !== excludePostId &&
+      resolvePostCategory(p) === cat && 
+      (p.postType || 'sell') === type
+    );
+  };
+
+  // Total active quota used across all 3 categories (out of 6)
+  const totalActiveAdsCount = (['poultry', 'cattle', 'fish'] as MarketCategory[]).reduce((acc, cat) => {
+    const s = getQuotaPost(cat, 'sell') ? 1 : 0;
+    const b = getQuotaPost(cat, 'buy') ? 1 : 0;
+    return acc + s + b;
+  }, 0);
 
   // Buyer Form State
   const [buyerForm, setBuyerForm] = useState({
@@ -248,7 +453,79 @@ export default function Marketplace() {
     };
   }, [currentUser, isDemoUser]);
 
-  // Handle Post Submit (Double-Click Prevention & Deduplication)
+  // Open Post Modal (New Ad)
+  const handleOpenPostModal = (preferredCategory?: MarketCategory, preferredType?: 'sell' | 'buy') => {
+    setEditingPostId(null);
+    let cat: MarketCategory = preferredCategory || (selectedCategoryFilter !== 'all' ? selectedCategoryFilter : 'poultry');
+    let type: 'sell' | 'buy' = preferredType || 'sell';
+
+    // If requested slot is full and not admin, try the other slot or an open category
+    if (!isAdmin && hasReachedCategoryQuota(cat, type)) {
+      const altType: 'sell' | 'buy' = type === 'sell' ? 'buy' : 'sell';
+      if (!hasReachedCategoryQuota(cat, altType)) {
+        type = altType;
+      } else {
+        const openCat = (['poultry', 'cattle', 'fish'] as MarketCategory[]).find(c => 
+          !hasReachedCategoryQuota(c, 'sell') || !hasReachedCategoryQuota(c, 'buy')
+        );
+        if (openCat) {
+          cat = openCat;
+          type = !hasReachedCategoryQuota(cat, 'sell') ? 'sell' : 'buy';
+        }
+      }
+    }
+
+    const defaultBreed = CATEGORY_CONFIG[cat].breeds[0]?.id || 'broiler';
+    const defaultPriceUnit = CATEGORY_CONFIG[cat].priceUnits[0]?.id || 'kg';
+
+    setPostForm(prev => ({
+      ...prev,
+      category: cat,
+      postType: type,
+      poultryType: defaultBreed,
+      birdCount: '',
+      avgWeightKg: '',
+      expectedPricePerKg: '',
+      priceUnit: defaultPriceUnit,
+      isEmergency: false,
+      emergencyReason: '',
+      notes: ''
+    }));
+    setIsPostModalOpen(true);
+  };
+
+  // Open Edit Post Modal
+  const handleOpenEditPost = (post: DemoMarketPost) => {
+    setEditingPostId(post.id);
+    const cat = resolvePostCategory(post);
+    const defaultPriceUnit = CATEGORY_CONFIG[cat].priceUnits[0]?.id || 'kg';
+
+    setPostForm(prev => ({
+      ...prev,
+      category: cat,
+      postType: post.postType || 'sell',
+      farmerName: post.farmerName || '',
+      farmName: post.farmName || '',
+      phone: post.phone || '',
+      whatsapp: post.whatsapp || post.phone || '',
+      whatsappSameAsPhone: !post.whatsapp || post.whatsapp === post.phone,
+      country: post.country || 'বাংলাদেশ',
+      district: post.district || 'গাজীপুর',
+      upazila: post.upazila || '',
+      locationDetails: post.locationDetails || '',
+      poultryType: post.poultryType || CATEGORY_CONFIG[cat].breeds[0].id,
+      birdCount: post.birdCount ?? '',
+      avgWeightKg: post.avgWeightKg ?? '',
+      expectedPricePerKg: post.expectedPricePerKg ?? '',
+      priceUnit: post.priceUnit || defaultPriceUnit,
+      isEmergency: post.isEmergency || false,
+      emergencyReason: post.emergencyReason || '',
+      notes: post.notes || ''
+    }));
+    setIsPostModalOpen(true);
+  };
+
+  // Handle Post Submit (Double-Click Prevention, Quota Enforcement & Edit/Create Support)
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingPost || submitPostLock.current) return;
@@ -258,18 +535,36 @@ export default function Marketplace() {
       return;
     }
 
-    // Deduplication check: prevent identical ad within 60 seconds
-    const isDuplicate = posts.some(p => 
-      p.phone === postForm.phone.trim() && 
-      p.farmerName === postForm.farmerName.trim() &&
-      Number(p.birdCount) === Number(postForm.birdCount) &&
-      (Date.now() - new Date(p.createdAt || 0).getTime() < 60000)
-    );
+    const targetCat = postForm.category || 'poultry';
+    const targetType = postForm.postType || 'sell';
 
-    if (isDuplicate) {
-      toast.success(language === 'bn' ? 'বিজ্ঞাপন ইতিমধ্যে সফলভাবে প্রকাশিত হয়েছে!' : 'Ad already published!');
-      setIsPostModalOpen(false);
+    // Quota Enforcement: Check if user already has an active post for this category & type (unless editing same post)
+    if (!isAdmin && hasReachedCategoryQuota(targetCat, targetType, editingPostId)) {
+      setQuotaConflictCategory(targetCat);
+      setQuotaConflictType(targetType);
+      setShowQuotaLimitModal(true);
+      toast.error(
+        language === 'bn'
+          ? `${CATEGORY_CONFIG[targetCat].nameBn} বিভাগে আপনার ১টি ${targetType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে! (কোটা পূর্ণ)`
+          : `You already have 1 active ${targetType} ad in this category! Quota reached.`
+      );
       return;
+    }
+
+    // Deduplication check: prevent identical ad within 60 seconds (for new ads)
+    if (!editingPostId) {
+      const isDuplicate = posts.some(p => 
+        p.phone === postForm.phone.trim() && 
+        p.farmerName === postForm.farmerName.trim() &&
+        Number(p.birdCount) === Number(postForm.birdCount) &&
+        (Date.now() - new Date(p.createdAt || 0).getTime() < 60000)
+      );
+
+      if (isDuplicate) {
+        toast.success(language === 'bn' ? 'বিজ্ঞাপন ইতিমধ্যে সফলভাবে প্রকাশিত হয়েছে!' : 'Ad already published!');
+        setIsPostModalOpen(false);
+        return;
+      }
     }
 
     setIsSubmittingPost(true);
@@ -280,11 +575,22 @@ export default function Marketplace() {
     const totalWeightNum = Math.round(birdCountNum * avgWeightNum);
     const finalWhatsApp = postForm.whatsappSameAsPhone ? postForm.phone : (postForm.whatsapp || postForm.phone);
 
-    const newPostData = {
+    const defaultFarmName = 
+      targetType === 'buy' 
+        ? (language === 'bn' ? 'ক্রয় চাহিদা / প্রতিষ্ঠান' : 'Buyer Profile') 
+        : targetCat === 'cattle' 
+        ? (language === 'bn' ? 'ডেইরি ও গবাদি খামার' : 'Dairy Farm') 
+        : targetCat === 'fish' 
+        ? (language === 'bn' ? 'মাছ চাষ প্রজেক্ট' : 'Fish Project') 
+        : (language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm');
+
+    const postPayload = {
       userId: currentUser ? currentUser.uid : 'demo_user',
-      postType: postForm.postType || 'sell',
+      userEmail: currentUser?.email || '',
+      category: targetCat,
+      postType: targetType,
       farmerName: postForm.farmerName.trim(),
-      farmName: postForm.farmName.trim() || (postForm.postType === 'buy' ? (language === 'bn' ? 'ক্রেতা / প্রতিষ্ঠান' : 'Buyer Shop') : (language === 'bn' ? 'পোল্ট্রি খামার' : 'Poultry Farm')),
+      farmName: postForm.farmName.trim() || defaultFarmName,
       phone: postForm.phone.trim(),
       whatsapp: finalWhatsApp.trim(),
       country: postForm.country || 'বাংলাদেশ',
@@ -296,31 +602,75 @@ export default function Marketplace() {
       avgWeightKg: avgWeightNum,
       totalWeightKg: totalWeightNum,
       expectedPricePerKg: Number(postForm.expectedPricePerKg) || 0,
-      isEmergency: postForm.postType === 'sell' ? postForm.isEmergency : false,
-      emergencyReason: postForm.postType === 'sell' ? postForm.emergencyReason.trim() : '',
-      status: 'available' as const,
-      notes: postForm.notes.trim(),
-      createdAt: new Date().toISOString()
+      priceUnit: postForm.priceUnit || 'kg',
+      isEmergency: targetType === 'sell' ? postForm.isEmergency : false,
+      emergencyReason: targetType === 'sell' ? postForm.emergencyReason.trim() : '',
+      notes: postForm.notes.trim()
     };
 
     try {
-      if (isDemoUser) {
-        demoStore.saveMarketPost(newPostData);
-      } else {
-        try {
-          await addDoc(collection(db, 'marketplace_posts'), newPostData);
-        } catch (err) {
-          demoStore.saveMarketPost(newPostData);
+      if (editingPostId) {
+        // UPDATE MODE
+        const updatedData = {
+          ...postPayload,
+          updatedAt: new Date().toISOString()
+        };
+
+        if (isDemoUser) {
+          demoStore.saveMarketPost({ ...updatedData, id: editingPostId } as any);
+        } else {
+          try {
+            await updateDoc(doc(db, 'marketplace_posts', editingPostId), updatedData);
+          } catch (err) {
+            demoStore.saveMarketPost({ ...updatedData, id: editingPostId } as any);
+          }
         }
+
+        setPosts(prev => prev.map(p => p.id === editingPostId ? { ...p, ...updatedData } : p));
+        toast.success(language === 'bn' ? 'বিজ্ঞাপন সফলভাবে আপডেট করা হয়েছে!' : 'Ad updated successfully!');
+      } else {
+        // CREATE NEW MODE
+        let savedPostId = 'market_post_' + Date.now();
+        const newPostData = {
+          ...postPayload,
+          status: 'available' as const,
+          createdAt: new Date().toISOString()
+        };
+
+        if (isDemoUser) {
+          const res = demoStore.saveMarketPost(newPostData);
+          savedPostId = res.id;
+        } else {
+          try {
+            const docRef = await addDoc(collection(db, 'marketplace_posts'), newPostData);
+            savedPostId = docRef.id;
+          } catch (err) {
+            const res = demoStore.saveMarketPost(newPostData);
+            savedPostId = res.id;
+          }
+        }
+
+        // Save to myCreatedPostIds for immediate ownership across reloads
+        const updatedIds = [savedPostId, ...myCreatedPostIds.filter(id => id !== savedPostId)];
+        setMyCreatedPostIds(updatedIds);
+        try {
+          localStorage.setItem('my_market_post_ids', JSON.stringify(updatedIds));
+        } catch {}
+
+        const catName = CATEGORY_CONFIG[targetCat].nameBn;
+        const typeName = targetType === 'sell' ? 'বিক্রয়' : 'ক্রয়';
+        toast.success(
+          language === 'bn' 
+            ? `বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে! (${catName} - ${typeName}: ১/১ ব্যবহৃত)` 
+            : `Ad posted successfully!`
+        );
       }
-      toast.success(
-        postForm.postType === 'buy' 
-          ? (language === 'bn' ? 'ক্রয় চাহিদা বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে!' : 'Buying demand posted successfully!')
-          : (language === 'bn' ? 'বিক্রয় বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে!' : 'Sell alert posted successfully!')
-      );
+
       setIsPostModalOpen(false);
+      setEditingPostId(null);
       admobService.showInterstitialIfEligible('action:saved_market_post', true);
-      // Reset form
+
+      // Reset form fields
       setPostForm(prev => ({
         ...prev,
         birdCount: '',
@@ -331,7 +681,7 @@ export default function Marketplace() {
         notes: ''
       }));
     } catch (err) {
-      toast.error(language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করতে সমস্যা হয়েছে' : 'Failed to publish post');
+      toast.error(language === 'bn' ? 'বিজ্ঞাপন প্রক্রিয়াকরণে সমস্যা হয়েছে' : 'Failed to process ad');
     } finally {
       setIsSubmittingPost(false);
       setTimeout(() => {
@@ -445,6 +795,10 @@ export default function Marketplace() {
     if (!postToDelete) return;
     setIsDeleting(true);
     const postId = postToDelete.id;
+    const cat = resolvePostCategory(postToDelete);
+    const typeName = (postToDelete.postType || 'sell') === 'sell' ? 'বিক্রয়' : 'ক্রয়';
+    const catName = CATEGORY_CONFIG[cat].nameBn;
+
     try {
       demoStore.deleteMarketPost(postId);
       if (!isDemoUser && auth.currentUser) {
@@ -454,8 +808,20 @@ export default function Marketplace() {
           console.warn("Firestore delete post notice:", e);
         }
       }
+
+      // Free quota slot immediately
+      const remainingIds = myCreatedPostIds.filter(id => id !== postId);
+      setMyCreatedPostIds(remainingIds);
+      try {
+        localStorage.setItem('my_market_post_ids', JSON.stringify(remainingIds));
+      } catch {}
+
       setPosts(prev => prev.filter(p => p.id !== postId));
-      toast.success(language === 'bn' ? 'বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে' : 'Ad post deleted successfully');
+      toast.success(
+        language === 'bn' 
+          ? `${catName} বিভাগে ১টি ${typeName} বিজ্ঞাপনের স্লট খালি হয়েছে। এখন নতুন বিজ্ঞাপন দিতে পারবেন।` 
+          : 'Ad deleted. Quota slot is now free.'
+      );
       setPostToDelete(null);
     } catch (e) {
       toast.error(language === 'bn' ? 'বিজ্ঞাপন ডিলিট করতে সমস্যা হয়েছে' : 'Failed to delete post');
@@ -501,31 +867,48 @@ export default function Marketplace() {
 
   // Filtered Posts
   const filteredPosts = posts.filter(post => {
+    // 1. Category Filter (পাখি, পশু, মাছ)
+    const postCat = resolvePostCategory(post);
+    if (selectedCategoryFilter !== 'all' && postCat !== selectedCategoryFilter) return false;
+
+    // 2. My Posts Filter
     if (onlyMyPosts) {
-      const isMine = (currentUser && post.userId === currentUser.uid) || isDemoUser || post.userId === 'demo_user' || (postForm.phone && post.phone === postForm.phone);
-      if (!isMine) return false;
+      if (!isPostOwner(post)) return false;
     }
+
+    // 3. Emergency Filter
     if (emergencyOnly && !post.isEmergency) return false;
+
+    // 4. Post Type Filter (Sell vs Buy)
     if (postTypeFilter !== 'all') {
       const type = post.postType || 'sell';
       if (type !== postTypeFilter) return false;
     }
+
+    // 5. Country Filter
     if (selectedCountry !== 'all') {
       const postCountryCode = normalizeCountryCode(post.country || 'BD');
       const selectedCountryCode = normalizeCountryCode(selectedCountry);
       if (postCountryCode !== selectedCountryCode) return false;
     }
+
+    // 6. District Filter
     if (selectedDistrict !== 'all') {
       const postDistBn = getDistrictDisplayName(post.district, 'bn');
       const selDistBn = getDistrictDisplayName(selectedDistrict, 'bn');
       if (postDistBn !== selDistBn && post.district !== selectedDistrict) return false;
     }
+
+    // 7. Sub-breed Filter
     if (selectedTypeFilter !== 'all' && post.poultryType !== selectedTypeFilter) return false;
+
+    // 8. Search Term Match
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       const matchLoc = (post.district || '').toLowerCase().includes(q) || (post.locationDetails || '').toLowerCase().includes(q) || (post.upazila || '').toLowerCase().includes(q) || (post.country || '').toLowerCase().includes(q);
       const matchFarmer = (post.farmerName || '').toLowerCase().includes(q) || (post.farmName || '').toLowerCase().includes(q) || (post.phone || '').includes(q);
-      if (!matchLoc && !matchFarmer) return false;
+      const matchBreed = (post.poultryType || '').toLowerCase().includes(q);
+      if (!matchLoc && !matchFarmer && !matchBreed) return false;
     }
     return true;
   });
@@ -556,18 +939,8 @@ export default function Marketplace() {
     return true;
   });
 
-  const getPoultryTypeName = (type: string) => {
-    switch (type) {
-      case 'broiler': return language === 'bn' ? 'ব্রয়লার' : 'Broiler';
-      case 'sonali': return language === 'bn' ? 'সোনালী' : 'Sonali';
-      case 'deshi': return language === 'bn' ? 'দেশি' : 'Deshi';
-      case 'layer': return language === 'bn' ? 'লেয়ার' : 'Layer';
-      default: return language === 'bn' ? 'অন্যান্য' : 'Other';
-    }
-  };
-
-  const handleOpenPostModal = () => {
-    setIsPostModalOpen(true);
+  const getPoultryTypeName = (type: string, category: MarketCategory = 'poultry') => {
+    return getBreedOrTypeName(type, category, language as 'bn' | 'en').name;
   };
 
   const handleOpenBuyerModal = () => {
@@ -577,88 +950,85 @@ export default function Marketplace() {
   return (
     <div className="space-y-3 pb-8 animate-fadeIn select-none">
       
-      {/* 1. Header Banner & Action Buttons */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-sm relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center font-black shadow-xs shrink-0">
-                <Store size={18} />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                  {language === 'bn' ? 'খামারি ও পাইকার বাজার' : 'Poultry Market & Buyer Hub'}
-                </h2>
-                <p className="text-[10px] text-emerald-200/90 font-medium">
-                  {language === 'bn' ? 'সরাসরি মোবাইল ও হোয়াটসঅ্যাপে ক্রয়-বিক্রয় যোগাযোগ' : 'Direct Phone & WhatsApp marketplace for poultry buyers and sellers'}
-                </p>
-              </div>
-            </div>
+      {/* 1. Header Banner & Action Buttons (Ultra-Compact ~46px) */}
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
+            <Store size={17} />
           </div>
-
-          {/* Quick Action Trigger Buttons */}
-          <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-emerald-700/50">
-            <button
-              onClick={handleOpenPostModal}
-              className="py-2.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-2xl font-black text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              <span>{language === 'bn' ? '📢 বিজ্ঞাপন দিন (বিক্রয়/ক্রয়)' : 'Post Sell/Buy Alert'}</span>
-            </button>
-
-            <button
-              onClick={handleOpenBuyerModal}
-              className="py-2.5 px-3 bg-white/15 hover:bg-white/25 text-white border border-white/30 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 backdrop-blur-xs"
-            >
-              <Users size={16} />
-              <span>{language === 'bn' ? '+ পাইকার হিসেবে যুক্ত হন' : '+ Join as Buyer'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Prominent Disclaimer & Terms Banner regarding Credit / Arrears / Fraud non-liability */}
-      <MarketplaceDisclaimerBanner />
-
-      {/* Hatchery & Chick Market (A, B, C Grade Rates & Company Ads) Quick Card */}
-      <Link
-        to="/chicks"
-        className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black shadow-xs hover:opacity-95 transition-all border border-amber-300"
-      >
-        <div className="flex items-center gap-2.5">
-          <span className="text-xl">🐣</span>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-slate-950">
-                {language === 'bn' ? 'বাচ্চার বাজার ও হ্যাচারি স্টোর' : 'Chick & Hatchery Market'}
-              </span>
-              <span className="bg-slate-950 text-amber-300 text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">
-                A, B, C গ্রেড
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-900 font-medium">
-              {language === 'bn' ? 'বাচ্চার লাইভ রেট দেখুন ও বিভিন্ন কোম্পানির বাচ্চা কিনুন বা বিজ্ঞাপন দিন' : 'View live DOC rates & buy from company hatcheries'}
+          <div className="min-w-0">
+            <h2 className="text-xs sm:text-sm font-black tracking-tight leading-tight truncate">
+              {language === 'bn' ? 'খামারি ও পাইকার বাজার' : 'Wholesale Market & Hub'}
+            </h2>
+            <p className="text-[9.5px] text-emerald-200/90 font-bold truncate">
+              {language === 'bn' ? 'সরাসরি মোবাইল ও হোয়াটসঅ্যাপে ক্রয়-বিক্রয়' : 'Direct poultry marketplace'}
             </p>
           </div>
         </div>
-        <div className="bg-slate-950 text-white px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1 shrink-0">
-          <span>{language === 'bn' ? 'প্রবেশ করুন' : 'View'}</span>
-          <ChevronRight size={14} />
+
+        {/* Action Buttons in Header */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => handleOpenPostModal()}
+            className="py-1.5 px-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+            <span>{language === 'bn' ? 'বিজ্ঞাপন দিন' : 'New Ad'}</span>
+          </button>
+
+          <button
+            onClick={handleOpenBuyerModal}
+            className="py-1.5 px-2 bg-white/15 hover:bg-white/25 text-white border border-white/30 rounded-xl font-black text-xs transition-all flex items-center gap-1 cursor-pointer active:scale-95 backdrop-blur-xs"
+          >
+            <Users size={14} />
+            <span>{language === 'bn' ? '+পাইকার' : '+Buyer'}</span>
+          </button>
         </div>
+      </div>
+
+      {/* 2. Slim 1-Line Security Disclaimer */}
+      <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-2.5 py-1 text-[10.5px] text-amber-900 font-bold flex items-center justify-between gap-1 shadow-2xs">
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="text-xs shrink-0">⚠️</span>
+          <span className="truncate">
+            {language === 'bn' 
+              ? 'সতর্কতা: পণ্য না বুঝে কাউকে অগ্রিম টাকা পাঠাবেন না। নিজ দায়িত্বে লেনদেন করুন।' 
+              : 'Notice: Never send advance money without product verification.'}
+          </span>
+        </div>
+        <span className="text-[9px] bg-amber-200/80 text-amber-950 px-1.5 py-0.2 rounded font-black shrink-0">
+          {language === 'bn' ? 'ক্যাশ অন ডেলিভারি' : 'COD'}
+        </span>
+      </div>
+
+      {/* 3. Chick Market & Hatchery Link (Slim 1-Line Strip) */}
+      <Link
+        to="/chicks"
+        className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-950 font-bold text-[11px] hover:bg-amber-500/25 transition-all shadow-2xs"
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="text-sm shrink-0">🐣</span>
+          <span className="font-black text-amber-900 truncate">
+            {language === 'bn' ? 'বাচ্চার বাজার ও হ্যাচারি বুকিং (A, B, C গ্রেড রেট ও বিজ্ঞাপন)' : 'Chick & Hatchery Market (A, B, C Grade)'}
+          </span>
+        </div>
+        <span className="text-[10px] font-black text-amber-950 bg-amber-400/80 px-2 py-0.5 rounded-md flex items-center gap-0.5 shrink-0">
+          <span>{language === 'bn' ? 'প্রবেশ' : 'View'}</span>
+          <ChevronRight size={11} />
+        </span>
       </Link>
 
-
-      {/* 2. Dual Tab Selector (বিজ্ঞাপন বোর্ড vs পাইকারি ক্রেতা তালিকা) */}
+      {/* 4. Dual Tab Selector (বিজ্ঞাপন বোর্ড vs পাইকারি ক্রেতা তালিকা) */}
       <div className="bg-white p-1 rounded-2xl shadow-xs border border-slate-200/80 flex gap-1">
         <button
           onClick={() => setActiveTab('posts')}
-          className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'posts'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <Flame size={14} className={activeTab === 'posts' ? 'text-amber-300' : 'text-amber-500'} />
+          <Flame size={13} className={activeTab === 'posts' ? 'text-amber-300' : 'text-amber-500'} />
           <span>{language === 'bn' ? 'ক্রয়-বিক্রয় বিজ্ঞাপন' : 'Market Ads'}</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold font-sans ${
             activeTab === 'posts' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
@@ -669,13 +1039,13 @@ export default function Marketplace() {
 
         <button
           onClick={() => setActiveTab('buyers')}
-          className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'buyers'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <ShieldCheck size={14} className={activeTab === 'buyers' ? 'text-amber-300' : 'text-emerald-600'} />
+          <ShieldCheck size={13} className={activeTab === 'buyers' ? 'text-amber-300' : 'text-emerald-600'} />
           <span>{language === 'bn' ? 'পাইকারি ক্রেতা ডিরেক্টরি' : 'Wholesale Buyers'}</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold font-sans ${
             activeTab === 'buyers' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
@@ -685,18 +1055,214 @@ export default function Marketplace() {
         </button>
       </div>
 
-      {/* 3. Search & Country/District Filter Bar */}
-      <div className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-xs border border-slate-150 space-y-2">
-        <div className="flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[130px]">
+      {/* 5. Collapsible Quota Strip (Saves ~200px!) */}
+      {activeTab === 'posts' && (
+        <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-teal-950 text-white rounded-2xl p-2 sm:p-2.5 shadow-xs border border-slate-700/60 space-y-1.5">
+          {/* 1-Line Quota Summary Bar */}
+          <div className="flex items-center justify-between gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-sm shrink-0">📊</span>
+              <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-black text-white">
+                  {language === 'bn' ? 'কোটা:' : 'Quota:'}
+                </span>
+                <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-md text-[10px] font-black font-sans">
+                  {totalActiveAdsCount}/৬ {language === 'bn' ? 'ব্যবহৃত' : 'Used'}
+                </span>
+                <span className="text-[9px] text-slate-400 hidden xs:inline">
+                  ({language === 'bn' ? 'পাখি, পশু, মাছ: প্রতিটিতে ১ বিক্রি + ১ ক্রয়' : '1 Buy + 1 Sell each'})
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 ml-auto">
+              <button
+                type="button"
+                onClick={() => setShowQuotaDetails(!showQuotaDetails)}
+                className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 border ${
+                  showQuotaDetails
+                    ? 'bg-white/20 text-white border-white/30'
+                    : 'bg-white/10 text-amber-300 border-amber-400/30 hover:bg-white/15'
+                }`}
+              >
+                <span>{showQuotaDetails ? (language === 'bn' ? 'সংক্ষেপ ▴' : 'Hide ▴') : (language === 'bn' ? 'কোটা স্লট ▾' : 'Slots ▾')}</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenPostModal()}
+                className="py-0.5 px-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg font-black text-[10.5px] cursor-pointer transition-all active:scale-95 shadow-xs flex items-center gap-0.5"
+              >
+                <Plus size={11} strokeWidth={3} />
+                <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ad'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Expanded 3 Categories Grid (Only when user taps 'কোটা স্লট') */}
+          {showQuotaDetails && (
+            <div className="pt-1.5 border-t border-white/10 animate-in fade-in space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                {(['poultry', 'cattle', 'fish'] as MarketCategory[]).map((catKey) => {
+                  const cfg = CATEGORY_CONFIG[catKey];
+                  const sellPost = getQuotaPost(catKey, 'sell');
+                  const buyPost = getQuotaPost(catKey, 'buy');
+                  const categoryUsedCount = (sellPost ? 1 : 0) + (buyPost ? 1 : 0);
+
+                  return (
+                    <div key={catKey} className="bg-white/5 rounded-xl p-2 border border-white/10 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-xs text-white flex items-center gap-1">
+                          <span>{cfg.icon}</span>
+                          <span>{language === 'bn' ? cfg.nameBn : cfg.nameEn}</span>
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-sans font-bold">
+                          {categoryUsedCount}/২
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {/* Sell Slot */}
+                        <div className={`p-1 rounded-lg text-[10px] flex items-center justify-between transition-colors ${
+                          sellPost ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-200' : 'bg-white/5 text-slate-400'
+                        }`}>
+                          <span className="font-bold flex items-center gap-1">
+                            <span>📢 বিক্রি:</span>
+                            {sellPost ? (
+                              <span className="text-emerald-300 font-black">১/১ পূর্ণ</span>
+                            ) : (
+                              <span className="text-slate-400">০/১ খালি</span>
+                            )}
+                          </span>
+                          {sellPost ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenEditPost(sellPost)}
+                                className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all shadow-2xs"
+                              >
+                                এডিট
+                              </button>
+                              <button
+                                onClick={() => setPostToDelete(sellPost)}
+                                className="px-1 py-0.5 bg-red-500/30 hover:bg-red-500/60 text-red-300 rounded text-[9.5px] font-black cursor-pointer transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenPostModal(catKey, 'sell')}
+                              className="px-1.5 py-0.5 bg-white/20 hover:bg-white/30 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all"
+                            >
+                              + দিন
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Buy Slot */}
+                        <div className={`p-1 rounded-lg text-[10px] flex items-center justify-between transition-colors ${
+                          buyPost ? 'bg-indigo-500/20 border border-indigo-400/40 text-indigo-200' : 'bg-white/5 text-slate-400'
+                        }`}>
+                          <span className="font-bold flex items-center gap-1">
+                            <span>🛒 ক্রয়:</span>
+                            {buyPost ? (
+                              <span className="text-indigo-300 font-black">১/১ পূর্ণ</span>
+                            ) : (
+                              <span className="text-slate-400">০/১ খালি</span>
+                            )}
+                          </span>
+                          {buyPost ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenEditPost(buyPost)}
+                                className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all shadow-2xs"
+                              >
+                                এডিট
+                              </button>
+                              <button
+                                onClick={() => setPostToDelete(buyPost)}
+                                className="px-1 py-0.5 bg-red-500/30 hover:bg-red-500/60 text-red-300 rounded text-[9.5px] font-black cursor-pointer transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenPostModal(catKey, 'buy')}
+                              className="px-1.5 py-0.5 bg-white/20 hover:bg-white/30 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all"
+                            >
+                              + দিন
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 6. Search & Compact Category/District Filter Bar */}
+      <div className="bg-white rounded-2xl p-2 sm:p-2.5 shadow-xs border border-slate-200 space-y-1.5">
+        
+        {/* 6.1 Main Category Navigation Tabs (সকল, পাখি, পশু, মাছ) */}
+        {activeTab === 'posts' && (
+          <div className="grid grid-cols-4 gap-1 p-0.5 bg-slate-100 rounded-xl">
+            <button
+              onClick={() => { setSelectedCategoryFilter('all'); setSelectedTypeFilter('all'); }}
+              className={`py-1 px-1 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                selectedCategoryFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🌟 {language === 'bn' ? 'সকল' : 'All'}</span>
+            </button>
+            <button
+              onClick={() => { setSelectedCategoryFilter('poultry'); setSelectedTypeFilter('all'); }}
+              className={`py-1 px-1 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                selectedCategoryFilter === 'poultry'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-emerald-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🐦 {language === 'bn' ? 'পাখি' : 'Poultry'}</span>
+            </button>
+            <button
+              onClick={() => { setSelectedCategoryFilter('cattle'); setSelectedTypeFilter('all'); }}
+              className={`py-1 px-1 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                selectedCategoryFilter === 'cattle'
+                  ? 'bg-amber-700 text-white shadow-xs'
+                  : 'text-amber-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🐄 {language === 'bn' ? 'পশু' : 'Cattle'}</span>
+            </button>
+            <button
+              onClick={() => { setSelectedCategoryFilter('fish'); setSelectedTypeFilter('all'); }}
+              className={`py-1 px-1 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                selectedCategoryFilter === 'fish'
+                  ? 'bg-cyan-700 text-white shadow-xs'
+                  : 'text-cyan-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🐟 {language === 'bn' ? 'মাছ' : 'Fish'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Search Input + Location Filter Toggle Button in 1 Line */}
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={language === 'bn' ? 'এলাকা, দেশ বা নাম...' : 'Search location, country or name...'}
-              className="w-full pl-7 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              placeholder={language === 'bn' ? 'এলাকা, জাত বা নাম দিয়ে খুঁজুন...' : 'Search area, breed, name...'}
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
             />
             {searchTerm && (
               <button 
@@ -708,55 +1274,77 @@ export default function Marketplace() {
             )}
           </div>
 
-          {/* Country Dropdown */}
-          <div className="relative flex items-center shrink-0">
-            <select
-              value={selectedCountry}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedCountry(val);
-                if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
-                  setSelectedDistrict('all');
-                }
-              }}
-              className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-hidden cursor-pointer max-w-[120px] sm:max-w-[140px] truncate"
-              title={language === 'bn' ? 'দেশ নির্বাচন করুন' : 'Select Country'}
-            >
-              <option value="all">🌍 {language === 'bn' ? 'সকল দেশ' : 'All Countries'}</option>
-              {COUNTRY_LIST.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {language === 'bn' ? c.nameBn : c.nameEn}
-                </option>
-              ))}
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowLocationFilters(!showLocationFilters)}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-black flex items-center gap-1 shrink-0 transition-all cursor-pointer ${
+              selectedDistrict !== 'all' || selectedCountry !== 'all' || showLocationFilters
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+            title={language === 'bn' ? 'দেশ ও জেলা ফিল্টার' : 'Filter Location'}
+          >
+            <MapPin size={13} />
+            <span className="hidden xs:inline">
+              {selectedDistrict !== 'all' 
+                ? selectedDistrict 
+                : (language === 'bn' ? 'জেলা' : 'District')}
+            </span>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${showLocationFilters ? 'rotate-90' : ''}`} />
+          </button>
+        </div>
 
-          {/* District Dropdown (Visible for Bangladesh or All) */}
-          {(selectedCountry === 'all' || normalizeCountryCode(selectedCountry) === 'BD') && (
-            <div className="relative flex items-center shrink-0">
+        {/* Collapsible Location Dropdowns (Only appears when user taps the filter button) */}
+        {showLocationFilters && (
+          <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 xs:grid-cols-2 gap-1.5 animate-in fade-in">
+            <div className="relative">
+              <Globe size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
               <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-hidden cursor-pointer max-w-[110px] sm:max-w-[130px] truncate"
-                title={language === 'bn' ? 'জেলা নির্বাচন করুন' : 'Select District'}
+                value={selectedCountry}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCountry(val);
+                  if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
+                    setSelectedDistrict('all');
+                  }
+                }}
+                className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
               >
-                <option value="all">{language === 'bn' ? 'সকল জেলা' : 'All Districts'}</option>
-                {ALL_64_DISTRICTS.map((d) => (
-                  <option key={d.nameBn} value={d.nameBn}>
-                    {language === 'bn' ? d.nameBn : d.nameEn}
+                <option value="all">🌍 {language === 'bn' ? 'সকল দেশ' : 'All Countries'}</option>
+                {COUNTRY_LIST.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {language === 'bn' ? c.nameBn : c.nameEn}
                   </option>
                 ))}
               </select>
             </div>
-          )}
-        </div>
 
-        {/* Quick Tags Filter */}
+            {(selectedCountry === 'all' || normalizeCountryCode(selectedCountry) === 'BD') && (
+              <div className="relative">
+                <MapPin size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => setSelectedDistrict(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">📍 {language === 'bn' ? 'সকল জেলা' : 'All Districts'}</option>
+                  {ALL_64_DISTRICTS.map((d) => (
+                    <option key={d.nameBn} value={d.nameBn}>
+                      {language === 'bn' ? `${d.nameBn} জেলা` : `${d.nameEn} District`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick Tags Filter (Single Clean Horizontal Scroll Row) */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
           {/* All */}
           <button
             onClick={() => { setSelectedTypeFilter('all'); setPostTypeFilter('all'); setEmergencyOnly(false); setOnlyMyPosts(false); }}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
+            className={`px-2 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
               selectedTypeFilter === 'all' && postTypeFilter === 'all' && !emergencyOnly && !onlyMyPosts
                 ? 'bg-slate-800 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -768,106 +1356,150 @@ export default function Marketplace() {
           {/* My Ads Tag */}
           <button
             onClick={() => setOnlyMyPosts(!onlyMyPosts)}
-            className={`px-2.5 py-1 rounded-lg font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
+            className={`px-2 py-1 rounded-lg font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
               onlyMyPosts
                 ? 'bg-amber-500 text-slate-950 shadow-xs'
                 : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
             }`}
           >
-            <UserCheck size={13} />
-            <span>{language === 'bn' ? 'আমার বিজ্ঞাপন' : 'My Ads'}</span>
+            <UserCheck size={12} />
+            <span>{language === 'bn' ? `আমার বিজ্ঞাপন (${totalActiveAdsCount}/৬)` : `My Ads (${totalActiveAdsCount}/6)`}</span>
           </button>
 
           {/* Sell Filter */}
           <button
-            onClick={() => { setPostTypeFilter(postTypeFilter === 'sell' ? 'all' : 'sell'); setEmergencyOnly(false); setOnlyMyPosts(false); }}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              postTypeFilter === 'sell' && !emergencyOnly && !onlyMyPosts
+            onClick={() => { setPostTypeFilter(postTypeFilter === 'sell' ? 'all' : 'sell'); setEmergencyOnly(false); }}
+            className={`px-2 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
+              postTypeFilter === 'sell'
                 ? 'bg-emerald-600 text-white'
                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            {language === 'bn' ? '📢 বিক্রয় বিজ্ঞাপন' : 'Sell Ads'}
+            {language === 'bn' ? '📢 বিক্রয়' : 'Sell'}
           </button>
 
           {/* Buy Filter */}
           <button
-            onClick={() => { setPostTypeFilter(postTypeFilter === 'buy' ? 'all' : 'buy'); setEmergencyOnly(false); setOnlyMyPosts(false); }}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              postTypeFilter === 'buy' && !emergencyOnly && !onlyMyPosts
+            onClick={() => { setPostTypeFilter(postTypeFilter === 'buy' ? 'all' : 'buy'); setEmergencyOnly(false); }}
+            className={`px-2 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
+              postTypeFilter === 'buy'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
             }`}
           >
-            {language === 'bn' ? '🛒 ক্রয় চাহিদা' : 'Buy Requests'}
+            {language === 'bn' ? '🛒 ক্রয়' : 'Buy'}
           </button>
 
           {/* Emergency Tag */}
           <button
-            onClick={() => { setEmergencyOnly(!emergencyOnly); setOnlyMyPosts(false); }}
-            className={`px-2.5 py-1 rounded-lg font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
+            onClick={() => { setEmergencyOnly(!emergencyOnly); }}
+            className={`px-2 py-1 rounded-lg font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
               emergencyOnly
                 ? 'bg-red-600 text-white shadow-2xs'
                 : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
             }`}
           >
             <Flame size={12} />
-            {language === 'bn' ? '🚨 জরুরি বিক্রি' : '🚨 Emergency'}
+            {language === 'bn' ? '🚨 জরুরি' : '🚨 Urgent'}
           </button>
 
-          <button
-            onClick={() => setSelectedTypeFilter(selectedTypeFilter === 'broiler' ? 'all' : 'broiler')}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              selectedTypeFilter === 'broiler'
-                ? 'bg-teal-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {language === 'bn' ? 'ব্রয়লার' : 'Broiler'}
-          </button>
-
-          <button
-            onClick={() => setSelectedTypeFilter(selectedTypeFilter === 'sonali' ? 'all' : 'sonali')}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              selectedTypeFilter === 'sonali'
-                ? 'bg-teal-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {language === 'bn' ? 'সোনালী' : 'Sonali'}
-          </button>
-
-          <button
-            onClick={() => setSelectedTypeFilter(selectedTypeFilter === 'layer' ? 'all' : 'layer')}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              selectedTypeFilter === 'layer'
-                ? 'bg-teal-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {language === 'bn' ? 'লেয়ার' : 'Layer'}
-          </button>
+          {/* Dynamic Breed / Species Tags */}
+          {selectedCategoryFilter === 'all' ? (
+            <>
+              {[
+                { id: 'broiler', label: language === 'bn' ? 'ব্রয়লার' : 'Broiler', icon: '🐔' },
+                { id: 'sonali', label: language === 'bn' ? 'সোনালী' : 'Sonali', icon: '🐓' },
+                { id: 'bull', label: language === 'bn' ? 'গরু' : 'Cattle', icon: '🐂' },
+                { id: 'goat', label: language === 'bn' ? 'ছাগল' : 'Goat', icon: '🐐' },
+                { id: 'carp_rohu', label: language === 'bn' ? 'রুই/কার্প' : 'Carp', icon: '🐟' },
+                { id: 'tilapia', label: language === 'bn' ? 'তেলাপিয়া' : 'Tilapia', icon: '🐠' }
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedTypeFilter(selectedTypeFilter === item.id ? 'all' : item.id)}
+                  className={`px-2 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
+                    selectedTypeFilter === item.id
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            CATEGORY_CONFIG[selectedCategoryFilter].breeds.map(b => (
+              <button
+                key={b.id}
+                onClick={() => setSelectedTypeFilter(selectedTypeFilter === b.id ? 'all' : b.id)}
+                className={`px-2 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
+                  selectedTypeFilter === b.id
+                    ? 'bg-teal-600 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>{b.icon}</span>
+                <span>{language === 'bn' ? b.labelBn : b.labelEn}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
 
-      {/* 4. Tab 1: Sell Posts Feed */}
+      {/* 7. Tab 1: Sell Posts Feed */}
       {activeTab === 'posts' && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
+          {/* Feed Header with Prominent Animated Down Indicator */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80">
+            <div className="flex items-center gap-1.5">
+              <Store size={14} className="text-emerald-700 shrink-0" />
+              <h3 className="text-xs font-black text-slate-850">
+                {language === 'bn' ? 'বাজারের বিজ্ঞাপন' : 'Market Ads'}
+              </h3>
+              <span className="bg-emerald-600 text-white text-[9.5px] font-black px-1.5 py-0.2 rounded-full font-sans">
+                {filteredPosts.length}টি
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {(selectedCategoryFilter !== 'all' || selectedTypeFilter !== 'all' || postTypeFilter !== 'all' || emergencyOnly || onlyMyPosts || searchTerm || selectedDistrict !== 'all' || selectedCountry !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('all');
+                    setSelectedTypeFilter('all');
+                    setPostTypeFilter('all');
+                    setEmergencyOnly(false);
+                    setOnlyMyPosts(false);
+                    setSearchTerm('');
+                    setSelectedDistrict('all');
+                    setSelectedCountry('all');
+                  }}
+                  className="text-[10px] text-rose-600 font-extrabold hover:underline cursor-pointer"
+                >
+                  {language === 'bn' ? 'রিসেট' : 'Reset'}
+                </button>
+              )}
+
+              {/* Bouncing Scroll Down Guide Badge */}
+              <div className="flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 animate-bounce">
+                <span>👇 {language === 'bn' ? 'নিচে বিজ্ঞাপনগুলো দেখুন' : 'Ads below'}</span>
+              </div>
+            </div>
+          </div>
+
           {filteredPosts.length > 0 ? (
             filteredPosts.map((post) => {
-              const isDirectOwner = Boolean(
-                isDemoUser ||
-                (currentUser && post.userId === currentUser.uid) ||
-                (post.phone && postForm.phone && post.phone === postForm.phone) ||
-                post.userId === 'demo_user' ||
-                post.userId?.startsWith('demo_') ||
-                post.id?.startsWith('post_') ||
-                post.id?.startsWith('demo_')
-              );
+              const isDirectOwner = isPostOwner(post);
               const canManage = isDirectOwner || isAdmin;
               const isSold = post.status === 'sold';
               const isBuyRequest = post.postType === 'buy';
               const whatsappNumber = post.whatsapp || post.phone;
+
+              const postCat = resolvePostCategory(post);
+              const breedInfo = getBreedOrTypeName(post.poultryType, postCat, language as 'bn' | 'en');
+              const cfg = CATEGORY_CONFIG[postCat];
 
               return (
                 <div 
@@ -900,14 +1532,21 @@ export default function Marketplace() {
                         </span>
                       )}
 
-                      <span className="bg-slate-100 text-slate-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
-                        🐔 {getPoultryTypeName(post.poultryType)}
+                      {/* Category & Breed Badge */}
+                      <span className="bg-slate-100 text-slate-800 text-[9px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-slate-200">
+                        <span>{breedInfo.icon}</span>
+                        <span>{breedInfo.name}</span>
+                      </span>
+
+                      <span className="bg-teal-50 text-teal-800 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-teal-200 hidden sm:inline-flex items-center gap-1">
+                        <span>{cfg.icon}</span>
+                        <span>{language === 'bn' ? cfg.shortLabelBn : cfg.nameEn}</span>
                       </span>
 
                       {canManage && (
                         <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
                           {isAdmin && !isDirectOwner ? <Crown size={10} className="text-amber-700" /> : <Check size={10} className="text-emerald-700" />}
-                          <span>{isDirectOwner ? (language === 'bn' ? 'আমার পোস্ট' : 'My Post') : (language === 'bn' ? 'মাস্টার অ্যাডমিন' : 'Master Admin')}</span>
+                          <span>{isDirectOwner ? (language === 'bn' ? 'আমার বিজ্ঞাপন' : 'My Ad') : (language === 'bn' ? 'মাস্টার অ্যাডমিন' : 'Master Admin')}</span>
                         </span>
                       )}
 
@@ -924,25 +1563,25 @@ export default function Marketplace() {
                     </span>
                   </div>
 
-                  {/* Main Information Grid */}
+                  {/* Main Information Grid with Category-appropriate units */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2.5">
-                    {/* 1. Bird Count */}
+                    {/* 1. Count */}
                     <div className="bg-slate-50/90 p-2 rounded-2xl border border-slate-150">
                       <span className="text-[9px] font-bold text-slate-400 block mb-0.5">
-                        {language === 'bn' ? (isBuyRequest ? 'প্রয়োজনীয় সংখ্যা' : 'মোট সংখ্যা') : 'Bird Count'}
+                        {language === 'bn' ? (isBuyRequest ? 'প্রয়োজনীয় পরিমাণ' : cfg.countLabelBn) : cfg.countLabelEn}
                       </span>
                       <p className="text-xs font-black text-slate-850 font-sans">
-                        {post.birdCount} {language === 'bn' ? 'টি' : 'pcs'}
+                        {post.birdCount} {postCat === 'cattle' ? (language === 'bn' ? 'টি' : 'head') : (language === 'bn' ? 'টি/পিস' : 'pcs')}
                       </p>
                     </div>
 
-                    {/* 2. Average Weight */}
+                    {/* 2. Weight */}
                     <div className="bg-slate-50/90 p-2 rounded-2xl border border-slate-150">
                       <span className="text-[9px] font-bold text-slate-400 block mb-0.5">
-                        {language === 'bn' ? (isBuyRequest ? 'প্রত্যাশিত ওজন' : 'গড় ওজন') : 'Avg Weight'}
+                        {language === 'bn' ? (isBuyRequest ? 'প্রত্যাশিত ওজন' : cfg.weightLabelBn) : cfg.weightLabelEn}
                       </span>
                       <p className="text-xs font-black text-indigo-700 font-sans">
-                        {post.avgWeightKg} {language === 'bn' ? 'কেজি' : 'kg'}
+                        {post.avgWeightKg} {postCat === 'fish' && post.avgWeightKg < 1 ? (language === 'bn' ? 'গ্রাম/কেজি' : 'g/kg') : (language === 'bn' ? 'কেজি' : 'kg')}
                       </p>
                     </div>
 
@@ -962,7 +1601,14 @@ export default function Marketplace() {
                         {language === 'bn' ? (isBuyRequest ? 'প্রস্তাবিত বাজেট/দর' : 'কাঙ্ক্ষিত দর') : 'Rate'}
                       </span>
                       <p className={`text-xs font-black ${isBuyRequest ? 'text-indigo-700' : 'text-emerald-700'} font-sans`}>
-                        ৳ {post.expectedPricePerKg} <span className="text-[9px] font-bold">/কেজি</span>
+                        ৳ {post.expectedPricePerKg}{' '}
+                        <span className="text-[9px] font-bold">
+                          /{post.priceUnit === 'piece' 
+                            ? (language === 'bn' ? 'পিস' : 'pc') 
+                            : post.priceUnit === 'maund' 
+                            ? (language === 'bn' ? 'মণ' : 'maund') 
+                            : (language === 'bn' ? 'কেজি' : 'kg')}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -1013,7 +1659,7 @@ export default function Marketplace() {
                       <button
                         type="button"
                         onClick={() => {
-                          const msg = `আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${getPoultryTypeName(post.poultryType)}, ${post.birdCount} পিস, ${post.district}${post.country && post.country !== 'বাংলাদেশ' ? `, ${post.country}` : ''})। বিস্তারিত কথা বলতে চাই।`;
+                          const msg = `আসসালামু আলাইকুম, আমি আপনার অ্যাপের বিজ্ঞাপন দেখেছি (${breedInfo.name}, ${post.birdCount} টি/পিস, ${post.district}${post.country && post.country !== 'বাংলাদেশ' ? `, ${post.country}` : ''})। বিস্তারিত কথা বলতে চাই।`;
                           openWhatsAppSafe({
                             phone: post.whatsapp || post.phone,
                             message: msg,
@@ -1030,6 +1676,13 @@ export default function Marketplace() {
                       {/* Owner / Master Admin Controls Top Quick Icons */}
                       {canManage && (
                         <div className="flex items-center gap-1 border-l border-slate-200 pl-1.5 ml-1">
+                          <button
+                            onClick={() => handleOpenEditPost(post)}
+                            title={language === 'bn' ? 'বিজ্ঞাপন এডিট করুন' : 'Edit Ad'}
+                            className="p-1.5 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer"
+                          >
+                            <Pencil size={13} />
+                          </button>
                           <button
                             onClick={() => handleToggleSold(post)}
                             title={isSold ? "Mark Active" : "Mark as Sold"}
@@ -1074,6 +1727,15 @@ export default function Marketplace() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleOpenEditPost(post)}
+                          className="py-1.5 px-3 rounded-xl text-xs font-black bg-teal-600 hover:bg-teal-700 text-white transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                        >
+                          <Pencil size={12} />
+                          <span>{language === 'bn' ? 'এডিট করুন' : 'Edit Ad'}</span>
+                        </button>
+
                         <button
                           onClick={() => handleToggleSold(post)}
                           className={`py-1.5 px-3 rounded-xl text-xs font-black border transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs ${
@@ -1091,7 +1753,7 @@ export default function Marketplace() {
                           className="py-1.5 px-3 rounded-xl text-xs font-black bg-red-600 hover:bg-red-700 text-white transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
                         >
                           <Trash2 size={13} />
-                          <span>{isAdmin && !isDirectOwner ? (language === 'bn' ? 'অ্যাডমিন ডিলিট (Delete)' : 'Admin Delete') : (language === 'bn' ? 'বিজ্ঞাপন মুছুন (Delete)' : 'Delete Ad')}</span>
+                          <span>{isAdmin && !isDirectOwner ? (language === 'bn' ? 'অ্যাডমিন ডিলিট' : 'Admin Delete') : (language === 'bn' ? 'বিজ্ঞাপন মুছুন' : 'Delete Ad')}</span>
                         </button>
                       </div>
                     </div>
@@ -1116,7 +1778,7 @@ export default function Marketplace() {
                     : 'Post a sell alert to connect with ready wholesale buyers in your area.')}
               </p>
               <button
-                onClick={handleOpenPostModal}
+                onClick={() => handleOpenPostModal()}
                 className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Plus size={14} />
@@ -1129,7 +1791,41 @@ export default function Marketplace() {
 
       {/* 5. Tab 2: Wholesale Buyers Directory Feed */}
       {activeTab === 'buyers' && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
+          {/* Feed Header with Prominent Animated Down Indicator */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-700 shrink-0" />
+              <h3 className="text-xs font-black text-slate-850">
+                {language === 'bn' ? 'পাইকারি ক্রেতা তালিকা' : 'Wholesale Buyers'}
+              </h3>
+              <span className="bg-emerald-600 text-white text-[9.5px] font-black px-1.5 py-0.2 rounded-full font-sans">
+                {filteredBuyers.length}জন
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {(searchTerm || selectedDistrict !== 'all' || selectedCountry !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedDistrict('all');
+                    setSelectedCountry('all');
+                  }}
+                  className="text-[10px] text-rose-600 font-extrabold hover:underline cursor-pointer"
+                >
+                  {language === 'bn' ? 'রিসেট' : 'Reset'}
+                </button>
+              )}
+
+              {/* Bouncing Scroll Down Guide Badge */}
+              <div className="flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 animate-bounce">
+                <span>👇 {language === 'bn' ? 'নিচে পাইকারদের দেখুন' : 'Buyers below'}</span>
+              </div>
+            </div>
+          </div>
+
           {filteredBuyers.length > 0 ? (
             filteredBuyers.map((buyer) => {
               const isDirectBuyerOwner = Boolean(
@@ -1330,7 +2026,7 @@ export default function Marketplace() {
         </div>
       )}
 
-      {/* 6. Modal: Create Sell Post (বিজ্ঞাপন দিন) */}
+      {/* 6. Modal: Create or Edit Marketplace Ad (বিজ্ঞাপন দিন বা এডিট করুন) */}
       {isPostModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-slate-100 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3.5 animate-scaleUp">
@@ -1338,20 +2034,28 @@ export default function Marketplace() {
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black shrink-0 border border-amber-200">
-                  📢
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black shrink-0 border ${
+                  editingPostId 
+                    ? 'bg-teal-100 text-teal-800 border-teal-200' 
+                    : 'bg-amber-100 text-amber-800 border-amber-200'
+                }`}>
+                  {editingPostId ? '✏️' : '📢'}
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-extrabold text-slate-850 leading-tight">
-                    {language === 'bn' ? 'বাজারের জন্য নতুন বিজ্ঞাপন দিন' : 'Post New Marketplace Alert'}
+                    {editingPostId 
+                      ? (language === 'bn' ? 'বিজ্ঞাপনের তথ্য সম্পাদনা করুন (Edit Ad)' : 'Edit Marketplace Ad') 
+                      : (language === 'bn' ? 'বাজারের জন্য নতুন বিজ্ঞাপন দিন' : 'Post New Marketplace Ad')}
                   </h3>
                   <p className="text-[9px] text-slate-400 font-bold mt-0.5">
-                    {language === 'bn' ? 'সকল খামারি, পাইকার ও আড়তদারদের নজরে আসবে' : 'Visible instantly to all farmers and wholesale buyers'}
+                    {language === 'bn' 
+                      ? 'প্রতি ক্যাটাগরিতে ১টি ক্রয় ও ১টি বিক্রি বিজ্ঞাপন কোটা প্রযোজ্য' 
+                      : 'Max 1 Buy + 1 Sell ad per category quota'}
                   </p>
                 </div>
               </div>
               <button 
-                onClick={() => setIsPostModalOpen(false)}
+                onClick={() => { setIsPostModalOpen(false); setEditingPostId(null); }}
                 className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={18} />
@@ -1360,10 +2064,47 @@ export default function Marketplace() {
 
             <form onSubmit={handleCreatePost} className="space-y-3 text-xs font-bold text-slate-700">
               
-              {/* Post Type Selector (বিক্রি vs ক্রয়) */}
+              {/* Step 1: Category Selector (পাখি, পশু, মাছ) */}
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">
-                  {language === 'bn' ? 'বিজ্ঞাপনের ধরন নির্বাচন করুন *' : 'Ad Type *'}
+                  {language === 'bn' ? '১. শ্রেণি নির্বাচন করুন (Category) *' : '1. Select Category *'}
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['poultry', 'cattle', 'fish'] as MarketCategory[]).map(catKey => {
+                    const cfg = CATEGORY_CONFIG[catKey];
+                    const isSelected = postForm.category === catKey;
+                    return (
+                      <button
+                        key={catKey}
+                        type="button"
+                        onClick={() => {
+                          const defaultBreed = cfg.breeds[0]?.id || 'broiler';
+                          const defaultUnit = cfg.priceUnits[0]?.id || 'kg';
+                          setPostForm({
+                            ...postForm,
+                            category: catKey,
+                            poultryType: defaultBreed,
+                            priceUnit: defaultUnit
+                          });
+                        }}
+                        className={`py-2 px-1 rounded-xl text-xs font-black transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{cfg.icon}</span>
+                        <span>{language === 'bn' ? cfg.shortLabelBn : cfg.nameEn}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Post Type Selector (বিক্রি vs ক্রয়) */}
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1">
+                  {language === 'bn' ? '২. বিজ্ঞাপনের ধরন নির্বাচন করুন (Ad Type) *' : '2. Ad Type *'}
                 </label>
                 <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
                   <button
@@ -1375,7 +2116,7 @@ export default function Marketplace() {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span>📢 {language === 'bn' ? 'মুরগি বিক্রির বিজ্ঞাপন (Sell)' : 'For Sale (Farmer/Seller)'}</span>
+                    <span>📢 {language === 'bn' ? 'বিক্রয় বিজ্ঞাপন (Sell)' : 'For Sale (Seller)'}</span>
                   </button>
                   <button
                     type="button"
@@ -1386,10 +2127,46 @@ export default function Marketplace() {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span>🛒 {language === 'bn' ? 'মুরগি ক্রয়ের চাহিদা (Buy)' : 'Wanted to Buy (Buyer)'}</span>
+                    <span>🛒 {language === 'bn' ? 'ক্রয় চাহিদা (Buy)' : 'Wanted to Buy'}</span>
                   </button>
                 </div>
               </div>
+
+              {/* Quota Conflict Inline Alert (If current selection is full and not admin) */}
+              {hasReachedCategoryQuota(postForm.category, postForm.postType, editingPostId) && !isAdmin && (
+                <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-amber-950 flex items-start gap-2.5 animate-fadeIn">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-black text-amber-900">
+                      {CATEGORY_CONFIG[postForm.category].nameBn} বিভাগে আপনার ১টি {postForm.postType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে! (কোটা পূর্ণ)
+                    </p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      সিস্টেমের সুরক্ষা নিশ্চিত করতে প্রতি বিভাগে সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপনের কোটা নির্ধারিত।
+                    </p>
+                    {getQuotaPost(postForm.category, postForm.postType) && (
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPost(getQuotaPost(postForm.category, postForm.postType)!)}
+                          className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-black text-xs cursor-pointer shadow-2xs"
+                        >
+                          ✏️ আগের বিজ্ঞাপনটি এডিট করুন
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPostModalOpen(false);
+                            setPostToDelete(getQuotaPost(postForm.category, postForm.postType)!);
+                          }}
+                          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-black text-xs cursor-pointer"
+                        >
+                          🗑️ ডিলিট করে স্লট খালি করুন
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Emergency Sale Toggle Switch (Only for sell posts) */}
               {postForm.postType === 'sell' && (
@@ -1406,7 +2183,7 @@ export default function Marketplace() {
                           {language === 'bn' ? '🚨 জরুরি বিক্রি (Emergency Sale)' : '🚨 Emergency Sale Alert'}
                         </span>
                         <p className="text-[9px] text-slate-400 font-medium">
-                          {language === 'bn' ? 'সমস্যার কারণে অতি দ্রুত মুরগি ছাড়তে চাইলে অন করুন' : 'Turn on for urgent lot clearance'}
+                          {language === 'bn' ? 'দ্রুত লট ক্লিয়ার বা জরুরি বিক্রির ক্ষেত্রে অন করুন' : 'Turn on for urgent lot clearance'}
                         </p>
                       </div>
                     </div>
@@ -1428,7 +2205,7 @@ export default function Marketplace() {
                         type="text"
                         value={postForm.emergencyReason}
                         onChange={(e) => setPostForm({ ...postForm, emergencyReason: e.target.value })}
-                        placeholder={language === 'bn' ? 'যেমন: প্রচণ্ড গরম / ওভার সাইজ / দ্রুত ফান্ডের প্রয়োজন' : 'e.g. Extreme heat / rapid cash requirement'}
+                        placeholder={language === 'bn' ? 'যেমন: প্রচণ্ড গরম / ওভার সাইজ / দ্রুত ফান্ড প্রয়োজন' : 'e.g. Extreme heat / rapid cash requirement'}
                         className="w-full p-2 bg-white border border-red-200 rounded-xl text-xs text-slate-800 font-bold focus:outline-hidden"
                       />
                     </div>
@@ -1436,48 +2213,55 @@ export default function Marketplace() {
                 </div>
               )}
 
-              {/* Poultry Type Selection */}
+              {/* Step 3: Breed / Species Selection Dynamic to Category */}
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">
-                  {language === 'bn' ? 'মুরগির জাত নির্বাচন করুন *' : 'Poultry Type *'}
+                  {language === 'bn' 
+                    ? `৩. ${CATEGORY_CONFIG[postForm.category].shortLabelBn}র জাত / প্রজাতি নির্বাচন করুন *` 
+                    : '3. Select Breed / Species *'}
                 </label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(['broiler', 'sonali', 'layer', 'deshi'] as const).map((type) => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {CATEGORY_CONFIG[postForm.category].breeds.map((b) => (
                     <button
-                      key={type}
+                      key={b.id}
                       type="button"
-                      onClick={() => setPostForm({ ...postForm, poultryType: type })}
-                      className={`py-2 rounded-xl text-xs font-black transition-all border cursor-pointer ${
-                        postForm.poultryType === type 
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                      onClick={() => setPostForm({ ...postForm, poultryType: b.id })}
+                      className={`py-2 px-1.5 rounded-xl text-xs font-black transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                        postForm.poultryType === b.id 
+                          ? 'bg-teal-700 text-white border-teal-700 shadow-xs' 
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      {getPoultryTypeName(type)}
+                      <span>{b.icon}</span>
+                      <span className="truncate">{language === 'bn' ? b.labelBn : b.labelEn}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Bird Count, Avg Weight, Rate Grid */}
+              {/* Step 4: Count, Avg Weight, Rate Grid */}
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? (postForm.postType === 'buy' ? 'প্রয়োজনীয় সংখ্যা *' : 'মোট সংখ্যা (পিস) *') : 'Bird Count *'}
+                    {language === 'bn' 
+                      ? (postForm.postType === 'buy' ? 'প্রয়োজনীয় পরিমাণ *' : `${CATEGORY_CONFIG[postForm.category].countLabelBn} *`)
+                      : 'Quantity *'}
                   </label>
                   <input 
                     type="number"
                     required
                     value={postForm.birdCount}
                     onChange={(e) => setPostForm({ ...postForm, birdCount: e.target.value })}
-                    placeholder="1500"
+                    placeholder={CATEGORY_CONFIG[postForm.category].countPlaceholder}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
                   />
                 </div>
 
                 <div>
                   <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? (postForm.postType === 'buy' ? 'প্রত্যাশিত ওজন (কেজি) *' : 'গড় ওজন (কেজি) *') : 'Avg Wt (kg) *'}
+                    {language === 'bn' 
+                      ? (postForm.postType === 'buy' ? 'প্রত্যাশিত ওজন *' : `${CATEGORY_CONFIG[postForm.category].weightLabelBn} *`)
+                      : 'Avg Weight *'}
                   </label>
                   <input 
                     type="number"
@@ -1485,30 +2269,57 @@ export default function Marketplace() {
                     required
                     value={postForm.avgWeightKg}
                     onChange={(e) => setPostForm({ ...postForm, avgWeightKg: e.target.value })}
-                    placeholder="1.9"
+                    placeholder={CATEGORY_CONFIG[postForm.category].weightPlaceholder}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
                   />
                 </div>
 
                 <div>
                   <label className="text-[10px] text-slate-500 block mb-1">
-                    {language === 'bn' ? (postForm.postType === 'buy' ? 'প্রস্তাবিত বাজেট (৳/কেজি) *' : 'কাঙ্ক্ষিত দর (৳/কেজি) *') : 'Rate (৳) *'}
+                    {language === 'bn' 
+                      ? (postForm.postType === 'buy' ? 'প্রস্তাবিত দর (৳) *' : `${CATEGORY_CONFIG[postForm.category].priceLabelBn} *`)
+                      : 'Rate (৳) *'}
                   </label>
                   <input 
                     type="number"
                     required
                     value={postForm.expectedPricePerKg}
                     onChange={(e) => setPostForm({ ...postForm, expectedPricePerKg: e.target.value })}
-                    placeholder="180"
+                    placeholder={CATEGORY_CONFIG[postForm.category].pricePlaceholder}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:outline-hidden"
                   />
                 </div>
               </div>
 
+              {/* Price Unit Selector */}
+              {CATEGORY_CONFIG[postForm.category].priceUnits.length > 1 && (
+                <div>
+                  <label className="text-[10px] text-slate-500 block mb-1">
+                    {language === 'bn' ? 'দরের হিসাব একক নির্বাচন করুন:' : 'Price Unit:'}
+                  </label>
+                  <div className="flex gap-2">
+                    {CATEGORY_CONFIG[postForm.category].priceUnits.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => setPostForm({ ...postForm, priceUnit: u.id })}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                          postForm.priceUnit === u.id
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {language === 'bn' ? u.labelBn : u.labelEn}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Auto Total Weight Preview */}
               {Number(postForm.birdCount) > 0 && Number(postForm.avgWeightKg) > 0 && (
                 <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-200 flex items-center justify-between text-xs font-black text-emerald-800">
-                  <span>{language === 'bn' ? 'মোট আনুমানিক মুরগির ওজন:' : 'Total estimated lot weight:'}</span>
+                  <span>{language === 'bn' ? 'মোট আনুমানিক ওজন:' : 'Total estimated lot weight:'}</span>
                   <span className="font-sans">
                     {Math.round(Number(postForm.birdCount) * Number(postForm.avgWeightKg))} কেজি
                   </span>
@@ -1550,7 +2361,7 @@ export default function Marketplace() {
                 <div>
                   <label className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1">
                     <MessageCircle size={10} className="text-green-600" />
-                    <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ নম্বর (WhatsApp)' : 'WhatsApp Number'}</span>
+                    <span>{language === 'bn' ? 'হোয়াটসঅ্যাপ (WhatsApp)' : 'WhatsApp'}</span>
                   </label>
                   <input 
                     type="tel"
@@ -1636,13 +2447,13 @@ export default function Marketplace() {
               {/* Specific Location Details */}
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">
-                  {language === 'bn' ? 'খামারের সঠিক ঠিকানা / গাড়ি পৌঁছানোর লোকেশন' : 'Exact Farm Address'}
+                  {language === 'bn' ? 'সঠিক ঠিকানা / গাড়ি পৌঁছানোর লোকেশন' : 'Exact Address'}
                 </label>
                 <input 
                   type="text"
                   value={postForm.locationDetails}
                   onChange={(e) => setPostForm({ ...postForm, locationDetails: e.target.value })}
-                  placeholder={language === 'bn' ? 'যেমন: মাওনা চৌরাস্তা থেকে ২ কিমি পূর্বে' : 'e.g. 2 km east from Maona chowrasta'}
+                  placeholder={language === 'bn' ? 'যেমন: মাওনা চৌরাস্তা থেকে ২ কিমি পূর্বে' : 'e.g. 2 km east from Maona'}
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden"
                 />
               </div>
@@ -1661,25 +2472,107 @@ export default function Marketplace() {
                 />
               </div>
 
-              {/* Submit Button with Double-Click Protection */}
+              {/* Submit Button with Quota Guard & Double-Click Protection */}
               <button
                 type="submit"
-                disabled={isSubmittingPost}
+                disabled={isSubmittingPost || (hasReachedCategoryQuota(postForm.category, postForm.postType, editingPostId) && !isAdmin)}
                 className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
               >
                 {isSubmittingPost ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>{language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করা হচ্ছে...' : 'Publishing Alert...'}</span>
+                    <span>{language === 'bn' ? 'সংরক্ষণ করা হচ্ছে...' : 'Saving...'}</span>
+                  </>
+                ) : editingPostId ? (
+                  <>
+                    <Pencil size={15} />
+                    <span>{language === 'bn' ? 'বিজ্ঞাপনের তথ্য আপডেট করুন' : 'Update Ad'}</span>
                   </>
                 ) : (
                   <>
                     <Plus size={16} />
-                    <span>{language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করুন' : 'Publish Alert'}</span>
+                    <span>{language === 'bn' ? 'বিজ্ঞাপনটি প্রকাশ করুন' : 'Publish Ad'}</span>
                   </>
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6.5 Dedicated Quota Limit Alert Modal */}
+      {showQuotaLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl p-5 shadow-2xl border border-slate-150 max-w-sm w-full space-y-3.5 animate-scaleUp">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+              <AlertTriangle size={24} />
+            </div>
+            
+            <div className="text-center space-y-1">
+              <h3 className="text-sm font-extrabold text-slate-900">
+                {language === 'bn' 
+                  ? `${CATEGORY_CONFIG[quotaConflictCategory].nameBn} কোটা পূর্ণ` 
+                  : 'Category Ad Quota Reached'}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                {language === 'bn' 
+                  ? `সিস্টেমের সমতা বজায় রাখতে প্রতি বিভাগে সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপন দেওয়া যায়। এই বিভাগে আপনার ১টি ${quotaConflictType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে।` 
+                  : `Each user is allowed max 1 Buy and 1 Sell ad per category.`}
+              </p>
+            </div>
+
+            {getQuotaPost(quotaConflictCategory, quotaConflictType) && (
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs font-bold text-slate-700">
+                <p className="font-extrabold text-slate-900 flex items-center gap-1">
+                  <span>{CATEGORY_CONFIG[quotaConflictCategory].icon}</span>
+                  <span>{getBreedOrTypeName(getQuotaPost(quotaConflictCategory, quotaConflictType)!.poultryType, quotaConflictCategory, language as 'bn' | 'en').name}</span>
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  সংখ্যা: {getQuotaPost(quotaConflictCategory, quotaConflictType)!.birdCount} | দর: ৳ {getQuotaPost(quotaConflictCategory, quotaConflictType)!.expectedPricePerKg}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2 pt-1">
+              {getQuotaPost(quotaConflictCategory, quotaConflictType) && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = getQuotaPost(quotaConflictCategory, quotaConflictType)!;
+                      setShowQuotaLimitModal(false);
+                      handleOpenEditPost(target);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Pencil size={14} />
+                    <span>{language === 'bn' ? 'বিদ্যমান বিজ্ঞাপন এডিট করুন' : 'Edit Existing Ad'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = getQuotaPost(quotaConflictCategory, quotaConflictType)!;
+                      setShowQuotaLimitModal(false);
+                      setIsPostModalOpen(false);
+                      setPostToDelete(target);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 font-black text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 size={14} />
+                    <span>{language === 'bn' ? 'বিজ্ঞাপন মুছে নতুন বিজ্ঞাপন দিন' : 'Delete and Free Slot'}</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowQuotaLimitModal(false)}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+              </button>
+            </div>
           </div>
         </div>
       )}

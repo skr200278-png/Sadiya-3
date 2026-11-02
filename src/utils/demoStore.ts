@@ -137,10 +137,13 @@ export interface DemoUserProfile {
   currencySymbol?: string;
 }
 
+export type MarketCategory = 'poultry' | 'cattle' | 'fish';
+
 export interface DemoMarketPost {
   id: string;
   userId: string;
   postType?: 'sell' | 'buy'; // 'sell' = বিক্রয় বিজ্ঞাপন, 'buy' = ক্রয় চাহিদা বিজ্ঞাপন
+  category?: MarketCategory; // 'poultry' = পাখি/হাঁস-মুরগি, 'cattle' = পশু (গরু/ছাগল), 'fish' = মাছ
   farmerName: string;
   farmName: string;
   phone: string;
@@ -149,16 +152,18 @@ export interface DemoMarketPost {
   district: string;
   upazila?: string;
   locationDetails: string;
-  poultryType: 'broiler' | 'sonali' | 'deshi' | 'layer' | 'other' | string;
-  birdCount: number;
-  avgWeightKg: number;
+  poultryType: string; // Breed/Subtype e.g. broiler, sonali, bull, dairy_cow, goat, tilapia, carp, etc.
+  birdCount: number; // Quantity / Head count
+  avgWeightKg: number; // Avg weight in kg
   totalWeightKg: number;
-  expectedPricePerKg: number;
+  expectedPricePerKg: number; // Expected rate
+  priceUnit?: 'kg' | 'piece' | 'maund' | string;
   isEmergency: boolean;
   emergencyReason?: string;
   status: 'available' | 'sold' | 'booked';
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface DemoMarketBuyer {
@@ -221,6 +226,8 @@ export interface DemoChickRate {
 export interface DemoChickListing {
   id: string;
   userId: string;
+  userEmail?: string;
+  userPhone?: string;
   companyName: string;
   contactPerson: string;
   phone: string;
@@ -228,9 +235,16 @@ export interface DemoChickListing {
   country?: string;
   category: 'poultry' | 'birds' | 'fish' | 'cattle';
   subCategory: string;
-  grade: 'A' | 'B' | 'C';
-  pricePerUnit: number;
+  breedKey?: string;
+  grade?: 'A' | 'B' | 'C';
+  pricePerUnit?: number;
   unitLabel: string;
+  gradeA_price?: number;
+  gradeA_stock?: number;
+  gradeB_price?: number;
+  gradeB_stock?: number;
+  gradeC_price?: number;
+  gradeC_stock?: number;
   minimumOrder: number;
   availableStock?: number;
   deliveryDate?: string;
@@ -242,6 +256,7 @@ export interface DemoChickListing {
   isFeatured?: boolean;
   status: 'available' | 'booked';
   createdAt: string;
+  updatedAt?: string;
 }
 
 const STORAGE_PREFIX = 'demo_farm_';

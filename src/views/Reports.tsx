@@ -29,6 +29,7 @@ import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import { demoStore } from '../utils/demoStore';
 import { getRecordDueStatus } from '../utils/duesSync';
+import SmartFarmInsightsCard, { InsightMetricData } from '../components/SmartFarmInsightsCard';
 
 interface SaleItem {
   id: string;
@@ -106,8 +107,8 @@ export default function Reports() {
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  // Active view tab ('all' | 'income' | 'expense')
-  const [activeTab, setActiveTab] = useState<'all' | 'income' | 'expense'>('all');
+  // Active mobile view tab ('insights' | 'income' | 'expense' | 'dues')
+  const [activeTab, setActiveTab] = useState<'insights' | 'income' | 'expense' | 'dues'>('insights');
 
   // Show detailed itemized logs toggles
   const [showItemizedSales, setShowItemizedSales] = useState(false);
@@ -248,6 +249,55 @@ export default function Reports() {
 
   const profitMarginPercent = totalSales > 0 ? ((finalNetProfit / totalSales) * 100).toFixed(1) : '0';
   const roiPercent = grandTotalCost > 0 ? ((finalNetProfit / grandTotalCost) * 100).toFixed(1) : '0';
+
+  // Smart Farm Health & Stock Forecast Insights
+  const batchInsightsData: InsightMetricData | null = useMemo(() => {
+    if (!selectedBatch) return null;
+    const totalChicksNum = Number(selectedBatch.totalChicks) || 0;
+    const mortRate = totalChicksNum > 0 ? (totalMortality / totalChicksNum) * 100 : 0;
+    const alive = Math.max(0, totalChicksNum - totalMortality);
+
+    const fPurchased = feedList
+      .filter((f: any) => f.recordType !== 'actual_consumed')
+      .reduce((sum, item) => sum + (Number(item.quantityBags) || 0), 0);
+    const fUsed = feedList
+      .filter((f: any) => f.recordType === 'actual_consumed')
+      .reduce((sum, item) => sum + (Number(item.quantityBags) || 0), 0);
+    const fRemaining = Math.max(0, fPurchased - fUsed);
+
+    let batchAge = 1;
+    if (selectedBatch.startDate) {
+      const start = new Date(selectedBatch.startDate);
+      const now = new Date();
+      const diff = Math.abs(now.getTime() - start.getTime());
+      batchAge = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }
+
+    const avgDailyBags = batchAge > 0 ? (fUsed / batchAge) : 0;
+    const daysLeft = avgDailyBags > 0 ? Math.floor(fRemaining / avgDailyBags) : (fRemaining > 0 ? 10 : 0);
+
+    return {
+      totalChicks: totalChicksNum,
+      aliveBirds: alive,
+      totalMortality,
+      mortalityRate: Number(mortRate.toFixed(1)),
+      feedBagsPurchased: fPurchased,
+      feedBagsUsed: fUsed,
+      feedStockRemainingBags: fRemaining,
+      avgDailyFeedBags: Number(avgDailyBags.toFixed(2)),
+      daysOfFeedLeft: daysLeft,
+      totalFeedCost,
+      totalMedicineCost,
+      totalChickCost: originalChicksTotalCost,
+      totalOtherExpenses: totalExpenses,
+      totalCost: grandTotalCost,
+      totalSalesRevenue: totalSales,
+      netProfit: finalNetProfit,
+      batchAgeDays: batchAge,
+      farmType: selectedBatch.farmType || 'poultry',
+      species: selectedBatch.subBreed || selectedBatch.batchName
+    };
+  }, [selectedBatch, totalMortality, feedList, totalFeedCost, totalMedicineCost, originalChicksTotalCost, totalExpenses, grandTotalCost, totalSales, finalNetProfit]);
 
   // Batch-specific Dues & Cash Flow Calculations
   const batchDuesAnalysis = useMemo(() => {
@@ -862,264 +912,283 @@ export default function Reports() {
   if (loading && !selectedBatchId) return <div className="p-8 text-center text-slate-500 font-bold">{t('common.loading')}</div>;
 
   return (
-    <div className="space-y-3.5 pb-6 select-none animate-fadeIn">
-      {/* Header Bar */}
-      <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
+    <div className="space-y-2.5 pb-6 select-none animate-fadeIn max-w-4xl mx-auto">
+      {/* 📱 Compact Mobile Header Bar */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl shadow-xs border border-slate-150 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-              <BarChart3 size={18} />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+              <BarChart3 size={16} />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-850 leading-tight">
-                {language === 'bn' ? 'আয়-ব্যয় রিপোর্ট ও বিশ্লেষণ' : t('reports.title')}
+              <h2 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                {language === 'bn' ? 'রিপোর্ট ও খামার বিশ্লেষণ' : 'Reports & Farm Analysis'}
               </h2>
-              <p className="text-[11px] font-bold text-slate-400">
-                {language === 'bn' ? 'ব্যাচভিত্তিক বিস্তারিত আয়ের উৎস ও খরচের পুঙ্খানুপুঙ্খ হিসাব' : 'Batch profit/loss, income sources and cost breakdown'}
+              <p className="text-[10px] font-bold text-slate-400">
+                {language === 'bn' ? 'লাভ-ক্ষতি, স্বাস্থ্য পূর্বাভাস ও বাকি-দেনা' : 'Profit/loss, health forecast & dues'}
               </p>
             </div>
           </div>
+
+          {/* Quick Export Action Icons on Mobile */}
+          <div className="flex items-center gap-1.5 sm:hidden">
+            <button
+              onClick={generateFullBackupCSV}
+              className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+              title={language === 'bn' ? 'সম্পূর্ণ এক্সেল ব্যাকআপ' : 'Excel Backup'}
+            >
+              <FileSpreadsheet size={15} />
+            </button>
+            {selectedBatchId && (
+              <>
+                <button
+                  onClick={generateCSV}
+                  className="px-1.5 py-1 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors"
+                  title="CSV"
+                >
+                  CSV
+                </button>
+                <button
+                  onClick={generatePDF}
+                  className="px-1.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold hover:bg-rose-100 transition-colors"
+                  title="PDF"
+                >
+                  PDF
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={generateFullBackupCSV}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 text-xs font-black transition-all shadow-2xs cursor-pointer"
-            title={language === 'bn' ? 'সম্পূর্ণ খামারের ডাটা এক্সেল ব্যাকআপ নিন' : 'Download Complete Farm Excel Backup'}
-          >
-            <FileSpreadsheet size={15} />
-            <span>{language === 'bn' ? 'এক্সেল ব্যাকআপ' : 'Excel Backup'}</span>
-          </button>
-
-          {selectedBatchId && (
-            <div className="flex gap-1.5 shrink-0">
-              <button 
-                onClick={generateCSV} 
-                className="px-2.5 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors" 
-                title={language === 'bn' ? 'ব্যাচ এক্সেল ডাউনলোড' : 'Batch Excel CSV'}
-              >
-                <FileSpreadsheet size={15} className="text-emerald-600" />
-                <span>CSV</span>
-              </button>
-              <button 
-                onClick={generatePDF} 
-                className="px-2.5 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors" 
-                title={language === 'bn' ? 'ব্যাচ পিডিএফ ডাউনলোড' : 'Batch PDF Report'}
-              >
-                <FileText size={15} className="text-rose-600" />
-                <span>PDF</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Batch Selector Card */}
-      <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Batch Selector & Desktop Export Buttons */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-extrabold text-slate-600 shrink-0">
-            {language === 'bn' ? 'ব্যাচ নির্বাচন করুন:' : t('reports.selectBatch')}:
-          </span>
-          <select 
-            value={selectedBatchId} 
-            onChange={(e) => setSelectedBatchId(e.target.value)} 
-            className="w-full sm:w-auto flex-1 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-black text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
-          >
-            {activeBatches.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.batchName} • {b.status === 'active' ? (language === 'bn' ? 'চলমান' : 'Active') : (language === 'bn' ? 'সম্পন্ন' : 'Completed')} ({b.totalChicks || 0} {language === 'bn' ? 'টি' : 'units'})
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="flex-1 sm:w-64 flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+            <span className="text-[11px] font-extrabold text-slate-500 shrink-0">
+              {language === 'bn' ? 'ব্যাচ:' : 'Batch:'}
+            </span>
+            <select
+              value={selectedBatchId}
+              onChange={(e) => setSelectedBatchId(e.target.value)}
+              className="w-full text-xs font-black text-slate-850 bg-transparent focus:outline-none cursor-pointer truncate"
+            >
+              {activeBatches.map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.batchName} ({b.totalChicks || 0} {language === 'bn' ? 'টি' : 'units'})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* View Filter Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0 self-center sm:self-auto w-full sm:w-auto justify-center">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
-              activeTab === 'all' 
-                ? 'bg-white text-slate-850 shadow-xs' 
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {language === 'bn' ? 'সকল তথ্য' : 'All Overview'}
-          </button>
-          <button
-            onClick={() => setActiveTab('income')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
-              activeTab === 'income' 
-                ? 'bg-emerald-600 text-white shadow-xs' 
-                : 'text-emerald-700 hover:text-emerald-800'
-            }`}
-          >
-            <span>🟢</span>
-            <span>{language === 'bn' ? 'আয়ের বিবরণী' : 'Income'}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('expense')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
-              activeTab === 'expense' 
-                ? 'bg-rose-600 text-white shadow-xs' 
-                : 'text-rose-700 hover:text-rose-800'
-            }`}
-          >
-            <span>🔴</span>
-            <span>{language === 'bn' ? 'খরচের বিবরণী' : 'Expenses'}</span>
-          </button>
+          <div className="hidden sm:flex items-center gap-1.5">
+            <button
+              onClick={generateFullBackupCSV}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 text-xs font-black transition-colors"
+              title={language === 'bn' ? 'সম্পূর্ণ এক্সেল ব্যাকআপ' : 'Excel Backup'}
+            >
+              <FileSpreadsheet size={14} />
+              <span>{language === 'bn' ? 'এক্সেল' : 'Excel'}</span>
+            </button>
+            {selectedBatchId && (
+              <>
+                <button
+                  onClick={generateCSV}
+                  className="px-2 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 text-xs font-bold transition-colors"
+                >
+                  CSV
+                </button>
+                <button
+                  onClick={generatePDF}
+                  className="px-2 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100 text-xs font-bold transition-colors"
+                >
+                  PDF
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {selectedBatchId && (
-        <div className="space-y-3.5">
-          
-          {/* Main Profit / Loss Showcase Card */}
-          <div className={`p-4 sm:p-5 rounded-2xl text-white shadow-xs relative overflow-hidden transition-all ${
-            finalNetProfit >= 0 
-              ? 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800' 
+        <div className="space-y-2.5">
+          {/* 📊 Compact P&L Showcase Hero Card */}
+          <div className={`p-3.5 sm:p-4 rounded-2xl text-white shadow-xs relative overflow-hidden transition-all ${
+            finalNetProfit >= 0
+              ? 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800'
               : 'bg-gradient-to-br from-rose-600 via-red-700 to-rose-900'
           }`}>
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-xs flex items-center gap-1">
-                    {finalNetProfit >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                  <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-xs flex items-center gap-1">
+                    {finalNetProfit >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
                     {finalNetProfit >= 0 ? t('reports.netProfit') : t('reports.netLoss')}
                   </span>
-                  <span className="text-[11px] font-bold text-white/80">
+                  <span className="text-[11px] font-bold text-white/80 truncate max-w-[150px]">
                     {selectedBatch?.batchName}
                   </span>
                 </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-4xl font-black tracking-tight">
-                    ৳ {Math.abs(finalNetProfit).toLocaleString()}
-                  </span>
-                  <span className="text-xs font-bold text-white/80">
-                    {finalNetProfit >= 0 ? (language === 'bn' ? '(মুনাফা)' : '(Profit)') : (language === 'bn' ? '(লোকসান)' : '(Loss)')}
-                  </span>
+
+                <div className="flex items-center gap-2 bg-black/20 px-2.5 py-1 rounded-xl backdrop-blur-xs text-[11px]">
+                  <div>
+                    <span className="text-white/70 text-[9px] block leading-tight">{t('reports.profitMargin')}</span>
+                    <span className="font-black text-white">{profitMarginPercent}%</span>
+                  </div>
+                  <div className="w-px h-5 bg-white/20" />
+                  <div>
+                    <span className="text-white/70 text-[9px] block leading-tight">{t('reports.roi')}</span>
+                    <span className="font-black text-white">{roiPercent}%</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Quick Metrics Badges */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 bg-black/15 p-2.5 rounded-xl backdrop-blur-xs">
-                <div className="text-left">
-                  <p className="text-[10px] font-bold text-white/70">{t('reports.profitMargin')}</p>
-                  <p className="text-sm font-black text-white">{profitMarginPercent}%</p>
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-bold text-white/70">{t('reports.roi')}</p>
-                  <p className="text-sm font-black text-white">{roiPercent}%</p>
-                </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                  ৳ {Math.abs(finalNetProfit).toLocaleString()}
+                </span>
+                <span className="text-xs font-bold text-white/85">
+                  {finalNetProfit >= 0 ? (language === 'bn' ? '(নিট লাভ)' : '(Profit)') : (language === 'bn' ? '(নিট লোকসান)' : '(Loss)')}
+                </span>
+              </div>
+
+              {/* 4 Quick Stat Pills (Directly Touch-to-Switch) */}
+              <div className="grid grid-cols-4 gap-1.5 mt-3 pt-2.5 border-t border-white/15 text-[10px]">
+                <button
+                  onClick={() => setActiveTab('income')}
+                  className={`p-1.5 rounded-xl text-left transition-all cursor-pointer ${
+                    activeTab === 'income' ? 'bg-white text-emerald-800 shadow-xs' : 'bg-white/10 hover:bg-white/15 text-white'
+                  }`}
+                >
+                  <p className="opacity-80 font-bold truncate">🟢 {language === 'bn' ? 'বিক্রয়' : 'Sales'}</p>
+                  <p className="font-black text-xs truncate mt-0.5">৳{totalSales.toLocaleString()}</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('expense')}
+                  className={`p-1.5 rounded-xl text-left transition-all cursor-pointer ${
+                    activeTab === 'expense' ? 'bg-white text-rose-800 shadow-xs' : 'bg-white/10 hover:bg-white/15 text-white'
+                  }`}
+                >
+                  <p className="opacity-80 font-bold truncate">🔴 {language === 'bn' ? 'খরচ' : 'Cost'}</p>
+                  <p className="font-black text-xs truncate mt-0.5">৳{grandTotalCost.toLocaleString()}</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('dues')}
+                  className={`p-1.5 rounded-xl text-left transition-all cursor-pointer ${
+                    activeTab === 'dues' ? 'bg-white text-blue-900 shadow-xs' : 'bg-white/10 hover:bg-white/15 text-white'
+                  }`}
+                >
+                  <p className="opacity-80 font-bold truncate">🔵 {language === 'bn' ? 'পাবো' : 'Due'}</p>
+                  <p className="font-black text-xs truncate mt-0.5">৳{batchDuesAnalysis.totalBatchReceivable.toLocaleString()}</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('insights')}
+                  className={`p-1.5 rounded-xl text-left transition-all cursor-pointer ${
+                    activeTab === 'insights' ? 'bg-white text-purple-900 shadow-xs' : 'bg-white/10 hover:bg-white/15 text-white'
+                  }`}
+                >
+                  <p className="opacity-80 font-bold truncate">💡 {language === 'bn' ? 'ইনসাইটস' : 'Insights'}</p>
+                  <p className="font-black text-xs truncate mt-0.5">{language === 'bn' ? 'পূর্বাভাস' : 'Forecast'}</p>
+                </button>
               </div>
             </div>
 
-            {/* Subtle background decoration */}
-            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
+            {/* Subtle light effect */}
+            <div className="absolute -right-6 -bottom-6 w-28 h-28 bg-white/5 rounded-full blur-xl pointer-events-none" />
           </div>
 
-          {/* Quick Summary Cards (Income, Cost, Receivables & Payables) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            <div 
+          {/* 🎛️ 4-Segmented Mobile View Tabs */}
+          <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 truncate ${
+                activeTab === 'insights'
+                  ? 'bg-white text-purple-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>💡</span>
+              <span className="truncate">{language === 'bn' ? 'ইনসাইটস' : 'Insights'}</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('income')}
-              className={`bg-white p-3 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-emerald-300 ${
-                activeTab === 'income' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 truncate ${
+                activeTab === 'income'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-extrabold text-slate-500">{t('reports.totalIncome')}</p>
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-black">
-                  {salesList.length}
-                </span>
-              </div>
-              <p className="text-base sm:text-lg font-black text-emerald-600 mt-1">
-                ৳ {totalSales.toLocaleString()}
-              </p>
-              <p className="text-[10px] font-bold text-slate-400 mt-0.5 truncate">
-                {incomeCategories.length} {language === 'bn' ? 'টি উৎস' : 'sources'}
-              </p>
-            </div>
+              <span>🟢</span>
+              <span className="truncate">{language === 'bn' ? 'আয় খাত' : 'Income'}</span>
+            </button>
 
-            <div 
+            <button
               onClick={() => setActiveTab('expense')}
-              className={`bg-white p-3 rounded-2xl shadow-xs border transition-all cursor-pointer hover:border-rose-300 ${
-                activeTab === 'expense' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-slate-100'
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 truncate ${
+                activeTab === 'expense'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-extrabold text-slate-500">{t('reports.grandTotalCost')}</p>
-                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-black">
-                  {feedList.length + medicineList.length + expensesList.length + (originalChicksTotalCost > 0 ? 1 : 0)}
-                </span>
-              </div>
-              <p className="text-base sm:text-lg font-black text-rose-600 mt-1">
-                ৳ {grandTotalCost.toLocaleString()}
-              </p>
-              <p className="text-[10px] font-bold text-slate-400 mt-0.5 truncate">
-                {language === 'bn' ? 'বাচ্চা, খাদ্য, ঔষধ' : 'Stock, feed, med'}
-              </p>
-            </div>
+              <span>🔴</span>
+              <span className="truncate">{language === 'bn' ? 'ব্যয় খাত' : 'Expense'}</span>
+            </button>
 
-            {/* Customer Due (Receivable) Card */}
-            <div 
-              onClick={() => setShowItemizedDues(true)}
-              className="bg-white p-3 rounded-2xl shadow-xs border border-blue-100 transition-all cursor-pointer hover:border-blue-300 hover:shadow-sm"
+            <button
+              onClick={() => setActiveTab('dues')}
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 truncate ${
+                activeTab === 'dues'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                  <p className="text-[11px] font-extrabold text-slate-600 truncate">{t('reports.dueReceivable')}</p>
-                </div>
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                  batchDuesAnalysis.totalBatchReceivable > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {batchDuesAnalysis.receivableItems.length}
-                </span>
-              </div>
-              <p className={`text-base sm:text-lg font-black mt-1 ${
-                batchDuesAnalysis.totalBatchReceivable > 0 ? 'text-blue-600' : 'text-slate-700'
-              }`}>
-                ৳ {batchDuesAnalysis.totalBatchReceivable.toLocaleString()}
-              </p>
-              <p className="text-[10px] font-bold text-blue-500/80 mt-0.5 truncate">
-                {language === 'bn' ? 'ক্রেতার কাছে অনাদায়ী' : 'Customer due'}
-              </p>
-            </div>
-
-            {/* Supplier Due (Payable) Card */}
-            <div 
-              onClick={() => setShowItemizedDues(true)}
-              className="bg-white p-3 rounded-2xl shadow-xs border border-amber-100 transition-all cursor-pointer hover:border-amber-300 hover:shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  <p className="text-[11px] font-extrabold text-slate-600 truncate">{t('reports.duePayable')}</p>
-                </div>
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                  batchDuesAnalysis.totalBatchPayable > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {batchDuesAnalysis.payableItems.length}
-                </span>
-              </div>
-              <p className={`text-base sm:text-lg font-black mt-1 ${
-                batchDuesAnalysis.totalBatchPayable > 0 ? 'text-amber-600' : 'text-slate-700'
-              }`}>
-                ৳ {batchDuesAnalysis.totalBatchPayable.toLocaleString()}
-              </p>
-              <p className="text-[10px] font-bold text-amber-600/80 mt-0.5 truncate">
-                {language === 'bn' ? 'সাপ্লায়ারের কাছে বাকি' : 'Supplier payable'}
-              </p>
-            </div>
+              <span>💼</span>
+              <span className="truncate">{language === 'bn' ? 'বাকি-দেনা' : 'Dues'}</span>
+            </button>
           </div>
 
-          {/* MAIN BREAKDOWN SECTION */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-            
-            {/* 🟢 1. আয়ের পুঙ্খানুপুঙ্খ বিবরণী (INCOME BREAKDOWN) */}
-            {(activeTab === 'all' || activeTab === 'income') && (
-              <div className="bg-white rounded-2xl shadow-xs border border-emerald-100/90 overflow-hidden flex flex-col">
-                <div className="bg-emerald-50/70 p-3 border-b border-emerald-100 flex items-center justify-between">
+          {/* 📱 ACTIVE TAB CONTENT (Fits right in mobile view) */}
+          <div className="animate-fadeIn">
+            {/* 💡 TAB 1: Smart Farm Insights & Health Summary */}
+            {activeTab === 'insights' && (
+              <div className="space-y-2.5">
+                {batchInsightsData && (
+                  <SmartFarmInsightsCard data={batchInsightsData} />
+                )}
+
+                {/* Health & Mortality Summary Card */}
+                <div className="bg-amber-50/90 rounded-2xl p-3 shadow-xs border border-amber-200 flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <AlertCircle size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-black text-xs text-amber-950">{t('reports.healthSummary')}</h4>
+                      <span className="text-[11px] font-black text-amber-800 bg-white px-2 py-0.5 rounded-md border border-amber-200">
+                        {totalMortality} {language === 'bn' ? 'টি মৃত্যু' : 'dead'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-bold text-amber-800 mt-0.5">
+                      {t('reports.mortalityRate')}: <strong>
+                        {selectedBatch && selectedBatch.totalChicks > 0
+                          ? `${((totalMortality / selectedBatch.totalChicks) * 100).toFixed(2)}%`
+                          : '0%'}
+                      </strong>
+                      {selectedBatch && (
+                        <span className="text-amber-700"> • (মোট {selectedBatch.totalChicks} টির মধ্যে {selectedBatch.totalChicks - totalMortality} টি জীবিত)</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 🟢 TAB 2: Income Breakdown */}
+            {activeTab === 'income' && (
+              <div className="bg-white rounded-2xl shadow-xs border border-emerald-100 overflow-hidden flex flex-col">
+                <div className="bg-emerald-50/70 p-2.5 border-b border-emerald-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🟢</span>
                     <div>
@@ -1136,22 +1205,22 @@ export default function Reports() {
                   </span>
                 </div>
 
-                <div className="p-3.5 space-y-3 flex-1">
+                <div className="p-3 space-y-2.5">
                   {incomeCategories.length === 0 ? (
                     <div className="p-6 text-center text-slate-400 font-bold text-xs space-y-1">
-                      <ShoppingBag className="mx-auto text-slate-300" size={28} />
+                      <ShoppingBag className="mx-auto text-slate-300" size={26} />
                       <p>{t('reports.noSalesYet')}</p>
                     </div>
                   ) : (
                     incomeCategories.map(cat => {
                       const sharePercent = totalSales > 0 ? ((cat.amount / totalSales) * 100).toFixed(1) : '0';
                       return (
-                        <div key={cat.key} className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
+                        <div key={cat.key} className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-base shrink-0">{cat.icon}</span>
                               <div className="truncate">
-                                <h4 className="text-xs font-black text-slate-800 truncate">
+                                <h4 className="text-xs font-black text-slate-850 truncate">
                                   {language === 'bn' ? cat.labelBn : cat.labelEn}
                                 </h4>
                                 <p className="text-[10px] font-bold text-slate-400">
@@ -1172,10 +1241,10 @@ export default function Reports() {
                           </div>
 
                           {/* Progress Share Bar */}
-                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
-                            <div 
-                              className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-                              style={{ width: `${Math.max(Number(sharePercent), 2)}%` }} 
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                            <div
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(Number(sharePercent), 2)}%` }}
                             />
                           </div>
                         </div>
@@ -1184,18 +1253,18 @@ export default function Reports() {
                   )}
 
                   {/* Total Income Summary Bar */}
-                  <div className="border-t border-slate-150 pt-2.5 flex justify-between items-center bg-emerald-50/30 p-2.5 rounded-xl mt-2">
+                  <div className="border-t border-slate-150 pt-2 flex justify-between items-center bg-emerald-50/40 p-2 rounded-xl">
                     <span className="text-xs font-black text-slate-800">
                       {language === 'bn' ? 'সর্বমোট আয় (মোট বিক্রয়)' : 'Total Sales Revenue'}
                     </span>
-                    <span className="text-sm font-black text-emerald-700">
+                    <span className="text-xs sm:text-sm font-black text-emerald-700">
                       ৳ {totalSales.toLocaleString()}
                     </span>
                   </div>
 
                   {/* Toggle Itemized Transactions List */}
                   {salesList.length > 0 && (
-                    <div className="pt-1">
+                    <div className="pt-0.5">
                       <button
                         onClick={() => setShowItemizedSales(!showItemizedSales)}
                         className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -1205,11 +1274,11 @@ export default function Reports() {
                       </button>
 
                       {showItemizedSales && (
-                        <div className="mt-2 space-y-1.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin animate-fadeIn">
+                        <div className="mt-2 space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin animate-fadeIn">
                           {salesList.map((s, idx) => (
                             <div key={s.id || idx} className="p-2 rounded-lg bg-white border border-slate-200/80 text-[11px] flex justify-between items-center">
                               <div>
-                                <p className="font-extrabold text-slate-800">
+                                <p className="font-extrabold text-slate-850">
                                   {s.buyerName ? `👤 ${s.buyerName}` : (s.productName || s.category || 'বিক্রয়')}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
@@ -1234,10 +1303,10 @@ export default function Reports() {
               </div>
             )}
 
-            {/* 🔴 2. খরচের পুঙ্খানুপুঙ্খ বিবরণী (COST BREAKDOWN) */}
-            {(activeTab === 'all' || activeTab === 'expense') && (
-              <div className="bg-white rounded-2xl shadow-xs border border-rose-100/90 overflow-hidden flex flex-col">
-                <div className="bg-rose-50/70 p-3 border-b border-rose-100 flex items-center justify-between">
+            {/* 🔴 TAB 3: Expense Breakdown */}
+            {activeTab === 'expense' && (
+              <div className="bg-white rounded-2xl shadow-xs border border-rose-100 overflow-hidden flex flex-col">
+                <div className="bg-rose-50/70 p-2.5 border-b border-rose-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔴</span>
                     <div>
@@ -1254,130 +1323,130 @@ export default function Reports() {
                   </span>
                 </div>
 
-                <div className="p-3.5 space-y-3 flex-1">
+                <div className="p-3 space-y-2.5">
                   {/* Cost Item 1: Stock Purchase */}
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                  <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-base">🐣</span>
                         <div className="truncate">
-                          <h4 className="text-xs font-black text-slate-800 truncate">{t('reports.costBuy')}</h4>
+                          <h4 className="text-xs font-black text-slate-850 truncate">{t('reports.costBuy')}</h4>
                           <p className="text-[10px] font-bold text-slate-400">
                             {selectedBatch?.totalChicks || 0} টি @ ৳{selectedBatch?.costPerChick || 0}
                           </p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-black text-slate-800">৳ {originalChicksTotalCost.toLocaleString()}</p>
+                        <p className="text-xs font-black text-slate-850">৳ {originalChicksTotalCost.toLocaleString()}</p>
                         <span className="text-[10px] font-extrabold text-slate-400">
                           {grandTotalCost > 0 ? ((originalChicksTotalCost / grandTotalCost) * 100).toFixed(1) : 0}%
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
-                      <div 
-                        className="bg-amber-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${grandTotalCost > 0 ? Math.max((originalChicksTotalCost / grandTotalCost) * 100, 2) : 0}%` }} 
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${grandTotalCost > 0 ? Math.max((originalChicksTotalCost / grandTotalCost) * 100, 2) : 0}%` }}
                       />
                     </div>
                   </div>
 
                   {/* Cost Item 2: Feed */}
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                  <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-base">🌾</span>
                         <div className="truncate">
-                          <h4 className="text-xs font-black text-slate-800 truncate">{t('reports.costFeed')}</h4>
+                          <h4 className="text-xs font-black text-slate-850 truncate">{t('reports.costFeed')}</h4>
                           <p className="text-[10px] font-bold text-slate-400">
                             {feedList.length} {language === 'bn' ? 'টি এন্ট্রি' : 'records'}
                           </p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-black text-slate-800">৳ {totalFeedCost.toLocaleString()}</p>
+                        <p className="text-xs font-black text-slate-850">৳ {totalFeedCost.toLocaleString()}</p>
                         <span className="text-[10px] font-extrabold text-slate-400">
                           {grandTotalCost > 0 ? ((totalFeedCost / grandTotalCost) * 100).toFixed(1) : 0}%
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
-                      <div 
-                        className="bg-blue-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalFeedCost / grandTotalCost) * 100, 2) : 0}%` }} 
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalFeedCost / grandTotalCost) * 100, 2) : 0}%` }}
                       />
                     </div>
                   </div>
 
                   {/* Cost Item 3: Medicine & Vaccine */}
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                  <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-base">💊</span>
                         <div className="truncate">
-                          <h4 className="text-xs font-black text-slate-800 truncate">{t('reports.costMedicine')}</h4>
+                          <h4 className="text-xs font-black text-slate-850 truncate">{t('reports.costMedicine')}</h4>
                           <p className="text-[10px] font-bold text-slate-400">
                             {medicineList.length} {language === 'bn' ? 'টি এন্ট্রি' : 'records'}
                           </p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-black text-slate-800">৳ {totalMedicineCost.toLocaleString()}</p>
+                        <p className="text-xs font-black text-slate-850">৳ {totalMedicineCost.toLocaleString()}</p>
                         <span className="text-[10px] font-extrabold text-slate-400">
                           {grandTotalCost > 0 ? ((totalMedicineCost / grandTotalCost) * 100).toFixed(1) : 0}%
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
-                      <div 
-                        className="bg-purple-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalMedicineCost / grandTotalCost) * 100, 2) : 0}%` }} 
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalMedicineCost / grandTotalCost) * 100, 2) : 0}%` }}
                       />
                     </div>
                   </div>
 
                   {/* Cost Item 4: Other Farm Expenses */}
-                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                  <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-base">⚡</span>
                         <div className="truncate">
-                          <h4 className="text-xs font-black text-slate-800 truncate">{t('reports.costOther')}</h4>
+                          <h4 className="text-xs font-black text-slate-850 truncate">{t('reports.costOther')}</h4>
                           <p className="text-[10px] font-bold text-slate-400">
-                            {expenseCategories.length > 0 
-                              ? expenseCategories.map(c => c.label).slice(0, 2).join(', ') 
+                            {expenseCategories.length > 0
+                              ? expenseCategories.map(c => c.label).slice(0, 2).join(', ')
                               : (language === 'bn' ? 'বিদ্যুৎ, লেবার ও বিবিধ' : 'Labor, electricity')}
                           </p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-black text-slate-800">৳ {totalExpenses.toLocaleString()}</p>
+                        <p className="text-xs font-black text-slate-850">৳ {totalExpenses.toLocaleString()}</p>
                         <span className="text-[10px] font-extrabold text-slate-400">
                           {grandTotalCost > 0 ? ((totalExpenses / grandTotalCost) * 100).toFixed(1) : 0}%
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
-                      <div 
-                        className="bg-rose-500 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalExpenses / grandTotalCost) * 100, 2) : 0}%` }} 
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="bg-rose-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${grandTotalCost > 0 ? Math.max((totalExpenses / grandTotalCost) * 100, 2) : 0}%` }}
                       />
                     </div>
                   </div>
 
                   {/* Grand Total Cost Bar */}
-                  <div className="border-t border-slate-150 pt-2.5 flex justify-between items-center bg-rose-50/30 p-2.5 rounded-xl mt-2">
+                  <div className="border-t border-slate-150 pt-2 flex justify-between items-center bg-rose-50/40 p-2 rounded-xl">
                     <span className="text-xs font-black text-slate-800">
                       {language === 'bn' ? 'সর্বমোট খরচ (ক্রয়সহ)' : t('reports.grandTotalCost')}
                     </span>
-                    <span className="text-sm font-black text-rose-700">
+                    <span className="text-xs sm:text-sm font-black text-rose-700">
                       ৳ {grandTotalCost.toLocaleString()}
                     </span>
                   </div>
 
                   {/* Toggle Itemized Expenses List */}
                   {expensesList.length > 0 && (
-                    <div className="pt-1">
+                    <div className="pt-0.5">
                       <button
                         onClick={() => setShowItemizedExpenses(!showItemizedExpenses)}
                         className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -1387,11 +1456,11 @@ export default function Reports() {
                       </button>
 
                       {showItemizedExpenses && (
-                        <div className="mt-2 space-y-1.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin animate-fadeIn">
+                        <div className="mt-2 space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin animate-fadeIn">
                           {expensesList.map((e, idx) => (
                             <div key={e.id || idx} className="p-2 rounded-lg bg-white border border-slate-200/80 text-[11px] flex justify-between items-center">
                               <div>
-                                <p className="font-extrabold text-slate-800">
+                                <p className="font-extrabold text-slate-850">
                                   {e.category || 'অন্যান্য খরচ'} {e.personName || e.vendorName ? `• ${e.personName || e.vendorName}` : ''}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
@@ -1410,168 +1479,126 @@ export default function Reports() {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* 💼 BATCH OUTSTANDING DUES & CASH FLOW SECTION (ক্যাশ ফ্লো ও বকেয়া বিশ্লেষণ) */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50 p-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                  <Wallet size={16} />
-                </div>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-black text-slate-850 flex items-center gap-1.5">
-                    <span>{t('reports.duesCardTitle')}</span>
+            {/* 💼 TAB 4: Batch Outstanding Dues & Cash Flow */}
+            {activeTab === 'dues' && (
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-3 p-3">
+                {/* Cash Realized Banner */}
+                <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-extrabold text-emerald-800">{t('reports.cashRealized')}</p>
+                    <p className="text-sm sm:text-base font-black text-emerald-700">৳ {batchDuesAnalysis.actualCashCollected.toLocaleString()}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
                     {batchDuesAnalysis.totalDueCount > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700">
                         {batchDuesAnalysis.totalDueCount} {language === 'bn' ? 'টি বকেয়া' : 'records'}
                       </span>
                     )}
-                  </h3>
-                  <p className="text-[11px] font-bold text-slate-500">
-                    {t('reports.duesExplanation')}
-                  </p>
-                </div>
-              </div>
-
-              {/* Realized Cash Highlight Badge */}
-              <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center justify-between sm:justify-start gap-2">
-                <div>
-                  <p className="text-[10px] font-extrabold text-emerald-800">{t('reports.cashRealized')}</p>
-                  <p className="text-xs sm:text-sm font-black text-emerald-700">৳ {batchDuesAnalysis.actualCashCollected.toLocaleString()}</p>
-                </div>
-                <Coins size={18} className="text-emerald-600 shrink-0" />
-              </div>
-            </div>
-
-            {/* Dues Details Grid */}
-            <div className="p-3.5 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* 🔵 Customer Receivables Box */}
-                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                      <h4 className="text-xs font-black text-blue-950">{t('reports.dueReceivable')}</h4>
-                    </div>
-                    <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
-                      ৳ {batchDuesAnalysis.totalBatchReceivable.toLocaleString()}
-                    </span>
+                    <Coins size={20} className="text-emerald-600 shrink-0" />
                   </div>
-                  <p className="text-[10px] font-bold text-blue-700/80 mt-1">
-                    {language === 'bn' 
-                      ? `মুরগি বা পণ্য বিক্রয় বাবদ ${batchDuesAnalysis.receivableItems.length} জন ক্রেতার কাছে বকেয়া পাওনা` 
-                      : `${batchDuesAnalysis.receivableItems.length} customer sales with pending receivables`}
-                  </p>
-
-                  {/* List of customer dues */}
-                  {batchDuesAnalysis.receivableItems.length > 0 ? (
-                    <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                      {batchDuesAnalysis.receivableItems.map((item, idx) => (
-                        <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-blue-100 text-[11px] flex items-center justify-between shadow-2xs">
-                          <div className="min-w-0 pr-2">
-                            <p className="font-black text-slate-800 truncate">{item.personName}</p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {item.date} {item.phone ? `• ${item.phone}` : ''} {item.details ? `• ${item.details}` : ''}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="font-black text-blue-600">৳ {item.remainingDue.toLocaleString()}</p>
-                            {item.paidAmount > 0 && (
-                              <p className="text-[9px] font-bold text-slate-400">
-                                {language === 'bn' ? 'জমা:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-2.5 bg-white/70 rounded-lg border border-dashed border-blue-200 text-center">
-                      <p className="text-[11px] font-bold text-blue-600">
-                        {language === 'bn' ? '🎉 এই ব্যাচে কোনো কাস্টমার বকেয়া নেই (সব টাকা আদায় হয়েছে)!' : 'No pending receivables for this batch.'}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                {/* 🟠 Supplier Payables Box */}
-                <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-600"></span>
-                      <h4 className="text-xs font-black text-amber-950">{t('reports.duePayable')}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {/* 🔵 Customer Receivables Box */}
+                  <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                        <h4 className="text-xs font-black text-blue-950">{t('reports.dueReceivable')}</h4>
+                      </div>
+                      <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                        ৳ {batchDuesAnalysis.totalBatchReceivable.toLocaleString()}
+                      </span>
                     </div>
-                    <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded-md border border-amber-200">
-                      ৳ {batchDuesAnalysis.totalBatchPayable.toLocaleString()}
-                    </span>
+                    <p className="text-[10px] font-bold text-blue-700/80 mt-1">
+                      {language === 'bn'
+                        ? `মুরগি/পণ্য বিক্রয় বাবদ ${batchDuesAnalysis.receivableItems.length} জনের কাছে পাওনা`
+                        : `${batchDuesAnalysis.receivableItems.length} customer receivables`}
+                    </p>
+
+                    {/* List of customer dues */}
+                    {batchDuesAnalysis.receivableItems.length > 0 ? (
+                      <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                        {batchDuesAnalysis.receivableItems.map((item, idx) => (
+                          <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-blue-100 text-[11px] flex items-center justify-between shadow-2xs">
+                            <div className="min-w-0 pr-2">
+                              <p className="font-black text-slate-800 truncate">{item.personName}</p>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {item.date} {item.phone ? `• ${item.phone}` : ''}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="font-black text-blue-600">৳ {item.remainingDue.toLocaleString()}</p>
+                              {item.paidAmount > 0 && (
+                                <p className="text-[9px] font-bold text-slate-400">
+                                  {language === 'bn' ? 'জমা:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 p-2 bg-white/70 rounded-lg border border-dashed border-blue-200 text-center">
+                        <p className="text-[10px] font-bold text-blue-600">
+                          {language === 'bn' ? '🎉 কোনো কাস্টমার বকেয়া নেই (সব আদায় হয়েছে)!' : 'No pending receivables.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10px] font-bold text-amber-800/80 mt-1">
-                    {language === 'bn' 
-                      ? `খাদ্য, ওষুধ বা খরচের বিল বাবদ ${batchDuesAnalysis.payableItems.length} জন সরবরাহকারীর বাকি দেনা` 
-                      : `${batchDuesAnalysis.payableItems.length} vendor/supplier pending payables`}
-                  </p>
 
-                  {/* List of supplier payables */}
-                  {batchDuesAnalysis.payableItems.length > 0 ? (
-                    <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                      {batchDuesAnalysis.payableItems.map((item, idx) => (
-                        <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-amber-100 text-[11px] flex items-center justify-between shadow-2xs">
-                          <div className="min-w-0 pr-2">
-                            <p className="font-black text-slate-800 truncate">{item.personName}</p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {item.date} {item.phone ? `• ${item.phone}` : ''} {item.details ? `• ${item.details}` : ''}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="font-black text-amber-600">৳ {item.remainingDue.toLocaleString()}</p>
-                            {item.paidAmount > 0 && (
-                              <p className="text-[9px] font-bold text-slate-400">
-                                {language === 'bn' ? 'পরিশোধ:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
+                  {/* 🟠 Supplier Payables Box */}
+                  <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                        <h4 className="text-xs font-black text-amber-950">{t('reports.duePayable')}</h4>
+                      </div>
+                      <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded-md border border-amber-200">
+                        ৳ {batchDuesAnalysis.totalBatchPayable.toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-bold text-amber-800/80 mt-1">
+                      {language === 'bn'
+                        ? `খাদ্য, ওষুধ বা খরচের বাবদ ${batchDuesAnalysis.payableItems.length} জনের দেনা`
+                        : `${batchDuesAnalysis.payableItems.length} supplier payables`}
+                    </p>
+
+                    {/* List of supplier payables */}
+                    {batchDuesAnalysis.payableItems.length > 0 ? (
+                      <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                        {batchDuesAnalysis.payableItems.map((item, idx) => (
+                          <div key={item.id || idx} className="p-2 bg-white rounded-lg border border-amber-100 text-[11px] flex items-center justify-between shadow-2xs">
+                            <div className="min-w-0 pr-2">
+                              <p className="font-black text-slate-800 truncate">{item.personName}</p>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {item.date} {item.phone ? `• ${item.phone}` : ''}
                               </p>
-                            )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="font-black text-amber-600">৳ {item.remainingDue.toLocaleString()}</p>
+                              {item.paidAmount > 0 && (
+                                <p className="text-[9px] font-bold text-slate-400">
+                                  {language === 'bn' ? 'পরিশোধ:' : 'Paid:'} ৳{item.paidAmount.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-2.5 bg-white/70 rounded-lg border border-dashed border-amber-200 text-center">
-                      <p className="text-[11px] font-bold text-amber-700">
-                        {language === 'bn' ? '✅ এই ব্যাচের সব খাদ্য, ওষুধ ও খরচের বিল পরিশোধিত!' : 'All supplier payables cleared for this batch.'}
-                      </p>
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 p-2 bg-white/70 rounded-lg border border-dashed border-amber-200 text-center">
+                        <p className="text-[10px] font-bold text-amber-700">
+                          {language === 'bn' ? '✅ সব খাদ্য, ওষুধ ও খরচের বিল পরিশোধিত!' : 'All supplier payables cleared.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
-
-          {/* Health & Mortality Summary Card */}
-          <div className="bg-amber-50/80 rounded-2xl p-3.5 shadow-xs border border-amber-200 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <AlertCircle size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <h4 className="font-black text-xs sm:text-sm text-amber-950">{t('reports.healthSummary')}</h4>
-                <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded-md border border-amber-200">
-                  {totalMortality} {language === 'bn' ? 'টি মৃত্যু' : 'dead'}
-                </span>
-              </div>
-              <p className="text-[11px] font-bold text-amber-800 mt-1">
-                {t('reports.mortalityRate')}: <strong>
-                  {selectedBatch && selectedBatch.totalChicks > 0 
-                    ? `${((totalMortality / selectedBatch.totalChicks) * 100).toFixed(2)}%` 
-                    : '0%'}
-                </strong> 
-                {selectedBatch && (
-                  <span className="text-amber-700"> • (মোট {selectedBatch.totalChicks} টির মধ্যে {selectedBatch.totalChicks - totalMortality} টি জীবিত)</span>
-                )}
-              </p>
-            </div>
-          </div>
-
         </div>
       )}
     </div>

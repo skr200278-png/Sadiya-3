@@ -56,41 +56,19 @@ export default function Login() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'login' | 'register'>(() => {
-    return (localStorage.getItem('reg_mode') === 'register' || localStorage.getItem('reg_active_step') === 'otp') ? 'register' : 'login';
-  });
-
-  // Two-Step Registration: Step 1 ('info') -> Name, Email, PIN; Step 2 ('otp') -> 6-Digit Code
-  const [registerStep, setRegisterStep] = useState<'info' | 'otp'>(() => {
-    return localStorage.getItem('reg_active_step') === 'otp' ? 'otp' : 'info';
-  });
+  const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Form Fields
-  const [name, setName] = useState(() => localStorage.getItem('reg_saved_name') || '');
-  const [email, setEmail] = useState(() => localStorage.getItem('reg_saved_email') || '');
-  const [password, setPassword] = useState(() => localStorage.getItem('reg_saved_password') || '');
-  const [confirmPassword, setConfirmPassword] = useState(() => localStorage.getItem('reg_saved_password') || '');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // 6-Digit OTP Verification State for Registration
-  const [verificationOtp, setVerificationOtp] = useState('');
-  const [otpSending, setOtpSending] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCooldown, setOtpCooldown] = useState(0);
 
   // Security honeypot & auth lock
   const [botHoneypot, setBotHoneypot] = useState('');
   const submitAuthLock = React.useRef(false);
-
-  // OTP Resend Cooldown Countdown Timer
-  useEffect(() => {
-    if (otpCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [otpCooldown]);
 
   // Forgot / Reset Password Modal State
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -177,11 +155,10 @@ export default function Login() {
   }, []);
 
   const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
-  const isRegistering = registerStep === 'otp' || localStorage.getItem('reg_active_step') === 'otp' || localStorage.getItem('reg_mode') === 'register';
-  const hasSavedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut && !isRegistering;
+  const hasSavedSession = (Boolean(currentUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut && mode !== 'register';
 
   // If user already has an active account session, never show the login screen!
-  if ((currentUser || hasSavedSession) && !isRegistering) {
+  if ((currentUser || hasSavedSession) && mode !== 'register') {
     return <Navigate to="/" replace />;
   }
 
@@ -415,14 +392,16 @@ export default function Login() {
 
   /*
    * STEP 1: VALIDATE INFO AND MOVE TO STEP 2 (SEND 6-DIGIT OTP CODE)
-   * ⚡ ZERO DELAY: Moves to the OTP screen instantly in 0 milliseconds!
+   * DIRECT 1-STEP REGISTRATION
+   * Instant account creation with Google Firebase Auth & Anti-Bot Protection
    */
-  const handleProceedToOtpStep = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (otpSending) return;
+  const handleDirectRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading || submitAuthLock.current) return;
 
+    // 1. Bot Honeypot Protection
     if (botHoneypot.trim()) {
-      console.warn('Bot submission blocked via honeypot.');
+      console.warn('Bot attack dropped via honeypot field.');
       return;
     }
 
@@ -431,6 +410,7 @@ export default function Login() {
     const cleanPin = password.trim();
     const cleanConfirmPin = confirmPassword.trim();
 
+    // 2. Strict Input Validations
     if (!cleanName) {
       toast.error('আপনার পুরো নাম লিখুন।');
       return;
@@ -456,7 +436,7 @@ export default function Login() {
       return;
     }
 
-    // Rate Limiting: Max 5 registration attempts per device in 15 minutes
+    // 3. Anti-Abuse Rate Limiting: Max 5 registration attempts per device in 15 minutes
     const now = Date.now();
     try {
       const regAttemptsRaw = localStorage.getItem('farm_reg_attempts');
@@ -469,125 +449,9 @@ export default function Login() {
         setErrorMessage(errorMsg);
         return;
       }
+      regAttempts.push(now);
+      localStorage.setItem('farm_reg_attempts', JSON.stringify(regAttempts));
     } catch {}
-
-    // ⚡ 1. INSTANTLY GENERATE & STORE CODE & CREDENTIALS
-    const activeCode = emailOtpService.generateCode(cleanEmail);
-
-    try {
-      localStorage.setItem('reg_mode', 'register');
-      localStorage.setItem('reg_active_step', 'otp');
-      localStorage.setItem('reg_saved_name', cleanName);
-      localStorage.setItem('reg_saved_email', cleanEmail);
-      localStorage.setItem('reg_saved_password', cleanPin);
-    } catch (storageErr) {
-      console.warn('Storage save notice:', storageErr);
-    }
-
-    // ⚡ 2. ZERO-DELAY TRANSITION TO STEP 2 (0 milliseconds, NO FREEZE!)
-    setRegisterStep('otp');
-    setOtpSent(true);
-    setOtpCooldown(60);
-    setErrorMessage(null);
-
-    // ⚡ 3. ASYNC BACKGROUND EMAIL DISPATCH (Does NOT block the user interface)
-    setOtpSending(true);
-    emailOtpService.sendOtp(cleanEmail, cleanName || 'খামারি ভাই', activeCode)
-      .then((res) => {
-        if (res.success) {
-          toast.success(
-            language === 'bn'
-              ? `🐥 আপনার জিমেইল (${cleanEmail})-এ ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`
-              : `🐥 6-Digit code sent to your Gmail (${cleanEmail})! Please check your inbox or spam folder.`,
-            { duration: 6500, id: 'otp_dispatch_toast' }
-          );
-        } else {
-          toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।');
-          setErrorMessage(res.message);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to send OTP in background:', err);
-      })
-      .finally(() => {
-        setOtpSending(false);
-      });
-  };
-
-  /*
-   * RESEND REGISTRATION OTP CODE TO GMAIL
-   */
-  const handleSendRegistrationOtp = async () => {
-    if (otpSending || otpCooldown > 0) return;
-    if (botHoneypot.trim()) return;
-
-    const cleanEmail = email.trim().toLowerCase() || (localStorage.getItem('reg_saved_email') || '').trim().toLowerCase();
-    const cleanName = name.trim() || localStorage.getItem('reg_saved_name') || 'খামারি ভাই';
-
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      toast.error('সঠিক জিমেইল / ইমেইল লিখুন।');
-      return;
-    }
-
-    const activeCode = emailOtpService.getActiveCode(cleanEmail) || emailOtpService.generateCode(cleanEmail);
-    setOtpSending(true);
-    setOtpCooldown(60);
-    setErrorMessage(null);
-
-    toast.loading(language === 'bn' ? 'কোড পাঠানো হচ্ছে...' : 'Sending code...', { id: 'resend_toast', duration: 1500 });
-
-    emailOtpService.sendOtp(cleanEmail, cleanName, activeCode)
-      .then((res) => {
-        if (res.success) {
-          toast.success(
-            language === 'bn'
-              ? `🐥 নতুন কোড আপনার জিমেইল (${cleanEmail})-এ পাঠানো হয়েছে!`
-              : `🐥 New code sent to your Gmail (${cleanEmail})!`,
-            { id: 'resend_toast', duration: 4500 }
-          );
-        } else {
-          toast.error(res.message || 'কোড পাঠাতে সমস্যা হয়েছে।', { id: 'resend_toast' });
-          setErrorMessage(res.message);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to send OTP:', err);
-        toast.error('কোড পাঠাতে সমস্যা হয়েছে।', { id: 'resend_toast' });
-      })
-      .finally(() => {
-        setOtpSending(false);
-      });
-  };
-
-  /*
-   * STEP 2: VERIFY 6-DIGIT OTP AND COMPLETE ACCOUNT REGISTRATION
-   */
-  const handleVerifyRegistrationOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (loading || submitAuthLock.current) return;
-
-    if (botHoneypot.trim()) {
-      console.warn('Bot attack dropped via honeypot field.');
-      return;
-    }
-
-    const cleanName = name.trim() || localStorage.getItem('reg_saved_name') || 'খামারি';
-    const cleanEmail = email.trim().toLowerCase() || (localStorage.getItem('reg_saved_email') || '').trim().toLowerCase();
-    const cleanPin = password.trim() || localStorage.getItem('reg_saved_password') || '';
-    const cleanOtp = verificationOtp.trim();
-
-    if (!cleanOtp) {
-      toast.error('আপনার জিমেইলে পাওয়া ৬-সংখ্যার কোডটি লিখুন।');
-      return;
-    }
-
-    const otpValidation = emailOtpService.verifyCode(cleanEmail, cleanOtp);
-    if (!otpValidation.valid) {
-      const errorMsg = otpValidation.errorMessage || 'ভুল কোড দিয়েছেন! সঠিক ৬-সংখ্যার কোড লিখুন।';
-      setErrorMessage(errorMsg);
-      toast.error(errorMsg);
-      return;
-    }
 
     setLoading(true);
     submitAuthLock.current = true;
@@ -609,139 +473,10 @@ export default function Login() {
       } catch {}
 
       await bootstrapUser(result.user.uid, cleanName, cleanEmail);
-      emailOtpService.clearOtp(cleanEmail);
-
-      // Record successful registration attempt for rate-limiting
-      try {
-        const now = Date.now();
-        const regAttemptsRaw = localStorage.getItem('farm_reg_attempts');
-        const regAttempts: number[] = regAttemptsRaw 
-          ? JSON.parse(regAttemptsRaw).filter((t: number) => now - t < 15 * 60 * 1000) 
-          : [];
-        regAttempts.push(now);
-        localStorage.setItem('farm_reg_attempts', JSON.stringify(regAttempts));
-      } catch {}
-
-      try {
-        localStorage.removeItem('reg_mode');
-        localStorage.removeItem('reg_active_step');
-        localStorage.removeItem('reg_saved_name');
-        localStorage.removeItem('reg_saved_email');
-        localStorage.removeItem('reg_saved_password');
-      } catch {}
 
       toast.success(
         language === 'bn'
-          ? '🎉 অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে যাচাই ও তৈরি হয়েছে। খামারে স্বাগতম!'
-          : '🎉 Congratulations! Your account has been verified and created. Welcome!'
-      );
-      navigate('/', { replace: true });
-    } catch (error: any) {
-      const errCode = error?.code || '';
-      const errMsg = error?.message || '';
-      const isEmailInUse = errCode === 'auth/email-already-in-use' || errMsg.includes('auth/email-already-in-use');
-
-      if (isEmailInUse) {
-        setMode('login');
-        setRegisterStep('info');
-        setErrorMessage(
-          language === 'bn'
-            ? 'এই জিমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে পিন দিয়ে সরাসরি লগইন করুন অথবা পিন ভুলে গেলে রিসেট করুন।'
-            : 'An account already exists with this email. Please log in with your PIN.'
-        );
-        toast.error(language === 'bn' ? 'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগইন ট্যাবে নেওয়া হয়েছে।' : 'Account exists. Switched to login.');
-      } else if (errCode === 'auth/weak-password') {
-        setErrorMessage(language === 'bn' ? 'পিন কমপক্ষে ৬ ডিজিটের হতে হবে।' : 'PIN must be at least 6 characters.');
-        toast.error(language === 'bn' ? 'পিন অন্তত ৬ অক্ষরের হতে হবে।' : 'PIN must be at least 6 characters.');
-      } else {
-        setErrorMessage(
-          language === 'bn'
-            ? `রেজিস্ট্রেশন সম্পন্ন করা যায়নি (${errCode || 'Error'}): ${errMsg || 'আবার চেষ্টা করুন।'}`
-            : `Registration failed: ${errMsg || 'Please try again.'}`
-        );
-        toast.error(language === 'bn' ? 'রেজিস্ট্রেশন সম্পন্ন করা যায়নি।' : 'Registration failed.');
-      }
-    } finally {
-      setLoading(false);
-      setTimeout(() => {
-        submitAuthLock.current = false;
-      }, 1200);
-    }
-  };
-
-  /*
-   * DIRECT REGISTRATION (Safety bypass if user cannot check email)
-   */
-  const handleDirectRegistration = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (loading || submitAuthLock.current) return;
-
-    if (botHoneypot.trim()) {
-      console.warn('Bot attack dropped via honeypot field.');
-      return;
-    }
-
-    const cleanName = name.trim() || localStorage.getItem('reg_saved_name') || 'খামারি';
-    const cleanEmail = email.trim().toLowerCase() || (localStorage.getItem('reg_saved_email') || '').trim().toLowerCase();
-    const cleanPin = password.trim() || localStorage.getItem('reg_saved_password') || '';
-    const cleanConfirmPin = confirmPassword.trim() || cleanPin;
-
-    if (!cleanName) {
-      toast.error('আপনার পুরো নাম লিখুন।');
-      return;
-    }
-
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      toast.error('সঠিক জিমেইল / ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
-      return;
-    }
-
-    if (emailOtpService.isDisposableEmail(cleanEmail)) {
-      toast.error('অস্থায়ী বা ফেক ইমেইল গ্রহণযোগ্য নয়। আসল জিমেইল দিন।');
-      return;
-    }
-
-    if (cleanPin.length < 6) {
-      toast.error(language === 'bn' ? 'পিন বা পাসওয়ার্ড কমপক্ষে ৬ ডিজিট বা অক্ষরের হতে হবে।' : 'PIN / Password must be at least 6 characters.');
-      return;
-    }
-
-    if (cleanPin !== cleanConfirmPin) {
-      toast.error(language === 'bn' ? 'উভয় ঘরে একই পিন বা পাসওয়ার্ড দিন।' : 'PIN / Password does not match! Please recheck.');
-      return;
-    }
-
-    setLoading(true);
-    submitAuthLock.current = true;
-    setErrorMessage(null);
-    setUnauthorizedDomain(null);
-
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-    } catch {
-      try {
-        await setPersistence(auth, indexedDBLocalPersistence);
-      } catch {}
-    }
-
-    try {
-      const result = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPin);
-      try {
-        await updateProfile(result.user, { displayName: cleanName });
-      } catch {}
-      await bootstrapUser(result.user.uid, cleanName, cleanEmail);
-
-      try {
-        localStorage.removeItem('reg_mode');
-        localStorage.removeItem('reg_active_step');
-        localStorage.removeItem('reg_saved_name');
-        localStorage.removeItem('reg_saved_email');
-        localStorage.removeItem('reg_saved_password');
-      } catch {}
-
-      toast.success(
-        language === 'bn' 
-          ? '🎉 অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে। খামারে স্বাগতম!' 
+          ? '🎉 অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে। খামারে স্বাগতম!'
           : '🎉 Congratulations! Your account has been created. Welcome!'
       );
       navigate('/', { replace: true });
@@ -752,10 +487,9 @@ export default function Login() {
 
       if (isEmailInUse) {
         setMode('login');
-        setRegisterStep('info');
         setErrorMessage(
           language === 'bn'
-            ? 'এই জিমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে পিন দিয়ে সরাসরি লগইন করুন অথবা পিন ভুলে গেলে রিসেট করুন।'
+            ? 'এই জিমেইল দিয়ে আগেই অ্যাকাউন্ট তৈরি করা আছে। নিচে পিন দিয়ে সরাসরি লগইন করুন।'
             : 'An account already exists with this email. Please log in with your PIN.'
         );
         toast.error(language === 'bn' ? 'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগইন ট্যাবে নেওয়া হয়েছে।' : 'Account exists. Switched to login.');
@@ -774,19 +508,19 @@ export default function Login() {
       setLoading(false);
       setTimeout(() => {
         submitAuthLock.current = false;
-      }, 1200);
+      }, 1000);
     }
   };
 
   /*
-   * MAIN AUTH SUBMISSION (Email + 6-Digit PIN or Step 1 Next)
+   * MAIN AUTH SUBMISSION (Email + 6-Digit PIN or Direct Registration)
    */
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1. REGISTRATION FLOW - STEP 1: Proceed to OTP
+    // 1. REGISTRATION FLOW - Direct 1-Step Instant Signup
     if (mode === 'register') {
-      await handleProceedToOtpStep(e);
+      await handleDirectRegistration(e);
       return;
     }
 
@@ -1105,196 +839,12 @@ export default function Login() {
         </div>
 
         <div className="p-4 sm:p-6">
-          {mode === 'register' && registerStep === 'otp' ? (
-            /* STEP 2: DEDICATED VERIFICATION CODE (OTP) SCREEN */
-            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
-              {/* Top Navigation & Step Indicator */}
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegisterStep('info');
-                    try {
-                      localStorage.removeItem('reg_active_step');
-                    } catch {}
-                    setErrorMessage(null);
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-emerald-700 cursor-pointer py-1.5 px-3 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <ArrowLeft size={15} />
-                  <span>{language === 'bn' ? 'তথ্য পরিবর্তন / পেছনে যান' : 'Back / Edit Info'}</span>
-                </button>
-                <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                  {language === 'bn' ? 'ধাপ ২ / ২ : কোড যাচাই' : 'Step 2 of 2 : OTP Code'}
-                </span>
-              </div>
-
-              {/* Verification Header */}
-              <div className="text-center py-2 space-y-1.5">
-                <div className="w-14 h-14 bg-gradient-to-tr from-emerald-100 to-teal-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-2 shadow-sm border border-emerald-200">
-                  <ShieldCheck size={30} className="text-emerald-700" />
-                </div>
-
-                <h3 className="text-lg font-black text-gray-900 tracking-tight">
-                  {language === 'bn' ? 'জিমেইলে পাঠানো ৬-সংখ্যার কোড দিন' : 'Enter 6-Digit Verification Code'}
-                </h3>
-
-                <p className="text-xs text-gray-500">
-                  {language === 'bn' ? 'আপনার জিমেইলে অফিশিয়াল কোড পাঠানো হয়েছে:' : 'A 6-digit code was sent to:'}
-                </p>
-
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-900 max-w-full truncate shadow-2xs">
-                  <Mail size={14} className="shrink-0 text-emerald-700" />
-                  <span className="truncate">{email.trim().toLowerCase() || localStorage.getItem('reg_saved_email')}</span>
-                </div>
-              </div>
-
-              {/* Error Message if wrong code entered */}
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-xs text-red-900 font-semibold flex items-center gap-2">
-                  <AlertTriangle size={16} className="text-red-600 shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* OTP Form */}
-              <form onSubmit={handleVerifyRegistrationOtp} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 text-center">
-                    {language === 'bn' ? '৬-সংখ্যার কোডটি লিখুন' : 'Enter 6-Digit Code'}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    placeholder="• • • • • •"
-                    value={verificationOtp}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setVerificationOtp(val);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    className="w-full py-3.5 px-4 border-2 border-emerald-400 rounded-2xl text-center text-3xl font-mono font-black tracking-[0.35em] focus:outline-none focus:ring-4 focus:ring-emerald-500/20 bg-emerald-50/20 text-emerald-950 shadow-inner"
-                    autoFocus
-                  />
-                  <p className="text-[11px] text-gray-400 text-center mt-1.5">
-                    {language === 'bn'
-                      ? 'জিমেইলের ইনবক্স বা স্প্যাম (Spam) ফোল্ডার চেক করুন'
-                      : 'Check Gmail inbox or Spam folder'}
-                  </p>
-                </div>
-
-                {/* Instant Verification Code Card (Guarantees zero lockouts if email server is delayed) */}
-                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 flex flex-col gap-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
-                      <Sparkles size={16} className="text-amber-600 shrink-0" />
-                      <span>{language === 'bn' ? 'তাৎক্ষণিক যাচাইকরণ কোড' : 'Instant Verification Code'}</span>
-                    </div>
-                    <span className="font-mono font-black text-sm bg-white px-3 py-1 rounded-xl text-emerald-800 border border-emerald-300 tracking-widest shadow-2xs">
-                      {emailOtpService.getActiveCode(email || localStorage.getItem('reg_saved_email') || '') || '748291'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-amber-900 leading-relaxed">
-                    {language === 'bn'
-                      ? 'যদি জিমেইলে কোড আসতে সামান্য দেরি হয়, তবে উপরের কোডটি বক্সে লিখুন অথবা নিচের বাটনে চাপ দিন।'
-                      : 'If email is delayed, use the 6-digit code above or tap the button below.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const code = emailOtpService.getActiveCode(email || localStorage.getItem('reg_saved_email') || '') || '748291';
-                      setVerificationOtp(code);
-                      toast.success(language === 'bn' ? 'কোডটি বক্সে বসানো হয়েছে!' : 'Code filled into box!');
-                    }}
-                    className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <CheckCircle2 size={15} />
-                    <span>{language === 'bn' ? '১-ক্লিকে কোড বসান' : 'Auto-fill Code'}</span>
-                  </button>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading || verificationOtp.trim().length !== 6}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 text-sm cursor-pointer"
-                >
-                  {loading ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      {language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying...'}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2">
-                      <CheckCircle2 size={18} />
-                      <span>{language === 'bn' ? 'নিবন্ধন সম্পন্ন করুন (খামারে প্রবেশ)' : 'Complete Signup (Enter Farm)'}</span>
-                    </span>
-                  )}
-                </button>
-
-                {/* Resend Code Action */}
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSendRegistrationOtp}
-                    disabled={otpSending || otpCooldown > 0}
-                    className="w-full py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-medium transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <RefreshCw size={13} className={otpSending ? 'animate-spin' : ''} />
-                    <span>
-                      {otpCooldown > 0
-                        ? `${language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code'} (${otpCooldown}s)`
-                        : (language === 'bn' ? 'পুনরায় কোড পাঠান' : 'Resend Code')}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Direct complete bypass button */}
-                <button
-                  type="button"
-                  onClick={(e) => handleDirectRegistration(e)}
-                  disabled={loading}
-                  className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <UserCheck size={14} />
-                  <span>{language === 'bn' ? 'কোড ছাড়া সরাসরি একাউন্ট তৈরি করুন' : 'Create Account Directly Without Code'}</span>
-                </button>
-
-                {/* Back to Edit Info */}
-                <div className="text-center pt-2 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRegisterStep('info');
-                      try {
-                        localStorage.removeItem('reg_active_step');
-                      } catch {}
-                      setErrorMessage(null);
-                    }}
-                    className="text-xs text-gray-500 hover:text-emerald-700 font-semibold cursor-pointer flex items-center justify-center gap-1 mx-auto"
-                  >
-                    <ArrowLeft size={13} />
-                    <span>{language === 'bn' ? 'তথ্য পরিবর্তন করতে পেছনে যান' : 'Back to edit info'}</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            /* STEP 1: STANDARD TABS + FORM */
-            <>
               {/* Mode Switcher Tabs */}
               <div className="flex bg-gray-100 p-1 rounded-2xl mb-4 border border-gray-200">
                 <button
                   type="button"
                   onClick={() => {
                     setMode('login');
-                    setRegisterStep('info');
-                    try {
-                      localStorage.removeItem('reg_mode');
-                      localStorage.removeItem('reg_active_step');
-                    } catch {}
                     setErrorMessage(null);
                   }}
                   className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
@@ -1310,10 +860,6 @@ export default function Login() {
                   type="button"
                   onClick={() => {
                     setMode('register');
-                    setRegisterStep('info');
-                    try {
-                      localStorage.setItem('reg_mode', 'register');
-                    } catch {}
                     setErrorMessage(null);
                   }}
                   className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
@@ -1343,10 +889,6 @@ export default function Login() {
                             type="button"
                             onClick={() => {
                               setMode('register');
-                              setRegisterStep('info');
-                              try {
-                                localStorage.setItem('reg_mode', 'register');
-                              } catch {}
                               setErrorMessage(null);
                             }}
                             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
@@ -1359,11 +901,6 @@ export default function Login() {
                             type="button"
                             onClick={() => {
                               setMode('login');
-                              setRegisterStep('info');
-                              try {
-                                localStorage.removeItem('reg_mode');
-                                localStorage.removeItem('reg_active_step');
-                              } catch {}
                               setErrorMessage(null);
                             }}
                             className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer"
@@ -1526,21 +1063,21 @@ export default function Login() {
                       </div>
                     </div>
 
-                    {/* Submit Button -> Moves to OTP Step in 0ms! */}
+                    {/* Submit Button -> Direct 1-Step Instant Account Creation */}
                     <button
                       type="submit"
-                      disabled={loading || otpSending}
+                      disabled={loading}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl transition-all disabled:opacity-50 shadow-md shadow-emerald-700/20 active:scale-[0.99] flex items-center justify-center gap-2 mt-2 text-sm cursor-pointer"
                     >
-                      {otpSending ? (
+                      {loading ? (
                         <span className="inline-flex items-center gap-2">
                           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          {language === 'bn' ? 'কোড পাঠানো হচ্ছে...' : 'Sending code...'}
+                          {language === 'bn' ? 'অ্যাকাউন্ট তৈরি হচ্ছে...' : 'Creating Account...'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-2">
-                          <Send size={18} />
-                          <span>{language === 'bn' ? 'পরবর্তী ধাপ: ৬-সংখ্যার কোড পাঠান' : 'Next: Send 6-Digit Code'}</span>
+                          <UserPlus size={18} />
+                          <span>{language === 'bn' ? 'সরাসরি অ্যাকাউন্ট তৈরি করুন' : 'Create Account'}</span>
                         </span>
                       )}
                     </button>
@@ -1685,8 +1222,6 @@ export default function Login() {
                   </>
                 )}
               </form>
-            </>
-          )}
         </div>
 
         <div className="bg-gray-50 border-t border-gray-100 p-4 text-center">

@@ -86,6 +86,21 @@ export default function StoreDirectory() {
   const [stores, setStores] = useState<DemoStoreListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // User's own store listings & Max 2 active stores limit
+  const MAX_USER_STORES = 2;
+  const [showStoreLimitModal, setShowStoreLimitModal] = useState(false);
+
+  const myStores = stores.filter(store => {
+    return Boolean(
+      (currentUser && store.userId && currentUser.uid === store.userId) ||
+      (currentUser?.email && (store as any).userEmail && currentUser.email === (store as any).userEmail) ||
+      (currentUser?.phoneNumber && store.phone && (store.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(store.phone))) ||
+      myCreatedStoreIds.includes(store.id) ||
+      (isDemoUser && (store.userId === 'demo_user' || store.userId === 'demo_khamari_user_1' || store.id?.startsWith('store_my_')))
+    );
+  });
+  const hasReachedStoreLimit = myStores.length >= MAX_USER_STORES;
   
   // Auto-detect user's country for instant localized view
   const [detectedCountry] = useState(() => detectUserCountry());
@@ -96,6 +111,7 @@ export default function StoreDirectory() {
   const [selectedDistrict, setSelectedDistrict] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [deliveryOnlyFilter, setDeliveryOnlyFilter] = useState(false);
+  const [showLocationFilters, setShowLocationFilters] = useState(false);
 
   // Modal State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -160,6 +176,11 @@ export default function StoreDirectory() {
 
   // Open Form
   const handleOpenForm = (storeToEdit?: DemoStoreListing) => {
+    if (!storeToEdit && hasReachedStoreLimit && !isMasterAdmin) {
+      setShowStoreLimitModal(true);
+      return;
+    }
+
     if (storeToEdit) {
       setEditingStoreId(storeToEdit.id);
       setCountry(storeToEdit.country || 'BD');
@@ -241,6 +262,16 @@ export default function StoreDirectory() {
       return toast.error(language === 'bn' ? 'বাজার বা এলাকার ঠিকানা লিখুন' : 'Please enter address');
     }
 
+    // Strict Quota: Max 2 stores allowed per user
+    if (!editingStoreId && hasReachedStoreLimit && !isMasterAdmin) {
+      toast.error(language === 'bn' 
+        ? 'আপনার ইতিমধ্যে ২টি দোকান তালিকাভুক্ত আছে! ১ ব্যবহারকারী সর্বোচ্চ ২টি দোকান রাখতে পারেন। নতুন দোকান দিতে আগেরটি এডিট বা ডিলিট করুন।' 
+        : 'You already have 2 stores listed! Maximum 2 stores allowed per user.');
+      setIsFormOpen(false);
+      setShowStoreLimitModal(true);
+      return;
+    }
+
     setIsSubmitting(true);
     submitLock.current = true;
 
@@ -308,8 +339,8 @@ export default function StoreDirectory() {
 
       toast.success(
         language === 'bn' 
-          ? (editingStoreId ? 'দোকানের তথ্য আপডেট হয়েছে!' : 'নতুন দোকান সফলভাবে তালিকাভুক্ত হয়েছে!') 
-          : (editingStoreId ? 'Store details updated!' : 'New store listed successfully!')
+          ? (editingStoreId ? 'দোকানের তথ্য সফলভাবে আপডেট হয়েছে!' : `নতুন দোকান সফলভাবে তালিকাভুক্ত হয়েছে! (${Math.min(myStores.length + 1, MAX_USER_STORES)}/${MAX_USER_STORES} ব্যবহৃত)`) 
+          : (editingStoreId ? 'Store details updated!' : `New store listed successfully! (${Math.min(myStores.length + 1, MAX_USER_STORES)}/${MAX_USER_STORES} used)`)
       );
       setIsFormOpen(false);
       setEditingStoreId(null);
@@ -353,7 +384,9 @@ export default function StoreDirectory() {
 
   // Delete Store (Advertiser / Owner or Master Admin)
   const handleDeleteStore = async (storeId: string) => {
-    if (!window.confirm(language === 'bn' ? 'আপনি কি নিশ্চিত এই দোকানটি মুছে ফেলতে চান?' : 'Are you sure you want to delete this store listing?')) {
+    if (!window.confirm(language === 'bn' 
+      ? 'আপনি কি নিশ্চিত এই দোকানটি মুছে ফেলতে চান? এটি মুছে ফেললে আপনার ১টি বিজ্ঞাপনের স্লট খালি হবে এবং আপনি নতুন দোকান যোগ করতে পারবেন।' 
+      : 'Are you sure you want to delete this store listing? Deleting will free up 1 slot for a new store.')) {
       return;
     }
 
@@ -375,7 +408,12 @@ export default function StoreDirectory() {
         }
       }
       setStores(prev => prev.filter(s => s.id !== storeId));
-      toast.success(language === 'bn' ? 'দোকান মুছে ফেলা হয়েছে' : 'Store deleted');
+      if (editingStoreId === storeId) {
+        setEditingStoreId(null);
+      }
+      toast.success(language === 'bn' 
+        ? 'দোকান মুছে ফেলা হয়েছে। আপনার বিজ্ঞাপন স্লট খালি হয়েছে, এখন নতুন দোকান যোগ করতে পারবেন।' 
+        : 'Store deleted. Your slot is now available to list a new store.');
     } catch (err) {
       console.error('Error deleting store:', err);
       toast.error(language === 'bn' ? 'মুছতে সমস্যা হয়েছে' : 'Failed to delete');
@@ -455,202 +493,212 @@ export default function StoreDirectory() {
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-8 animate-in fade-in duration-200">
       
-      {/* 1. Header Banner & VIP Notice */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 text-white p-4 rounded-2xl shadow-sm relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center border border-white/20">
-                <Store size={22} className="text-yellow-300 animate-pulse" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h2 className="text-base sm:text-lg font-black tracking-tight">
-                    {language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Agri-Vet Store Directory'}
-                  </h2>
-                  <span className="bg-yellow-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
-                    PRO
-                  </span>
-                </div>
-                <p className="text-[11px] text-teal-100 font-medium">
-                  {language === 'bn' ? '৬৪ জেলার পোল্ট্রি-ক্যাটল ফিড ডিলার ও ভেটেরিনারি ঔষধালয়' : 'Find Feed Dealers & Vet Medicine Pharmacies Worldwide'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleOpenForm()}
-              className="bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer transition-all"
-            >
-              <Plus size={16} />
-              <span>{language === 'bn' ? 'দোকান যোগ করুন' : 'List Shop'}</span>
-            </button>
+      {/* 1. Ultra-Compact Header Banner */}
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-700 to-slate-900 text-white p-2.5 sm:p-3 rounded-2xl shadow-xs relative overflow-hidden flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+            <Store size={18} className="text-yellow-300" />
           </div>
-
-          {/* Quick Stats Badges */}
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/15">
-            <div className="bg-white/10 p-2 rounded-xl text-center backdrop-blur-2xs border border-white/10">
-              <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'মোট ডিলার/দোকান' : 'Total Stores'}</span>
-              <span className="text-sm font-black font-sans text-yellow-300">{stores.length}+</span>
-            </div>
-            <div className="bg-white/10 p-2 rounded-xl text-center backdrop-blur-2xs border border-white/10">
-              <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'কাভারেজ' : 'Coverage'}</span>
-              <span className="text-sm font-black font-sans text-white">{language === 'bn' ? '৬৪ জেলা / বিশ্বব্যাপী' : '64 Districts / Global'}</span>
-            </div>
-            <div className="bg-white/10 p-2 rounded-xl text-center backdrop-blur-2xs border border-white/10">
-              <span className="text-[9px] text-teal-200 block font-bold">{language === 'bn' ? 'হোম ডেলিভারি' : 'Delivery'}</span>
-              <span className="text-sm font-black text-emerald-300 flex items-center justify-center gap-1">
-                <Truck size={13} /> {language === 'bn' ? 'উপলব্ধ' : 'Active'}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-xs sm:text-sm font-black tracking-tight truncate">
+                {language === 'bn' ? 'ফিড ও ঔষধ দোকান ডিরেক্টরি' : 'Agri-Vet Store Directory'}
+              </h2>
+              <span className="bg-yellow-400 text-slate-950 text-[7.5px] font-black px-1.5 py-0.2 rounded-full uppercase shrink-0">
+                PRO
               </span>
             </div>
+            <p className="text-[9.5px] text-teal-100 font-medium truncate">
+              {language === 'bn' ? '৬৪ জেলার অনুমোদিত ফিড ডিলার ও ভেটেরিনারি ঔষধালয়' : 'Find Feed Dealers & Vet Pharmacies'}
+            </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => handleOpenForm()}
+          className="bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-slate-950 px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shadow-xs shrink-0 cursor-pointer transition-all"
+        >
+          <Plus size={14} />
+          <span>{hasReachedStoreLimit && !isMasterAdmin ? (language === 'bn' ? 'কোটা পূর্ণ' : 'Full') : (language === 'bn' ? 'দোকান দিন' : 'List Shop')}</span>
+          <span className="text-[9px] bg-slate-900/10 px-1 py-0.2 rounded-md font-sans">
+            {myStores.length}/{MAX_USER_STORES}
+          </span>
+        </button>
       </div>
 
-      {/* Prominent Fraud & Advance Money Disclaimer Notice */}
-      <MarketplaceDisclaimerBanner />
-
-      {/* 3. Search & Country/District Filter Controls */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-150 shadow-xs space-y-3">
-        {/* Search Bar */}
-        <div className="relative">
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={language === 'bn' ? 'দোকানের নাম, ব্র্যান্ড (সিপি/নারিশ/স্কয়ার), ঔষধ বা এলাকা দিয়ে খুঁজুন...' : 'Search by store name, brand, medicine or area...'}
-            className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-850 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-            >
-              <X size={15} />
-            </button>
-          )}
+      {/* 2. Slim 1-Line Security Disclaimer */}
+      <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-2.5 py-1.5 text-[10.5px] text-amber-900 font-bold flex items-center justify-between gap-1 shadow-2xs">
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="text-xs shrink-0">⚠️</span>
+          <span className="truncate">
+            {language === 'bn' 
+              ? 'সতর্কতা: পণ্য না বুঝে কোনো অগ্রিম টাকা পাঠাবেন না। নিজ দায়িত্বে যাচাই করুন।' 
+              : 'Notice: Never send advance money without product verification.'}
+          </span>
         </div>
+        <span className="text-[9px] bg-amber-200/80 text-amber-950 px-1.5 py-0.2 rounded font-black shrink-0">
+          {language === 'bn' ? 'ক্যাশ অন ডেলিভারি' : 'COD'}
+        </span>
+      </div>
 
-        {/* Location Dropdowns: Country & District/City */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
-          {/* Country Dropdown */}
-          <div className="relative">
-            <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
-            <select
-              value={selectedCountry}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedCountry(val);
-                if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
-                  setSelectedDistrict('all');
-                }
-              }}
-              className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">🌍 {language === 'bn' ? 'সকল দেশ (All Countries)' : '🌍 All Countries'}</option>
-              {COUNTRY_LIST.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {language === 'bn' ? c.nameBn : c.nameEn}
-                </option>
-              ))}
-            </select>
+      {/* 3. Compact Search & Filter Controls */}
+      <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        {/* Search Input + Location Filter Toggle Button in 1 Line */}
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={language === 'bn' ? 'দোকানের নাম, ফিড বা এলাকা দিয়ে খুঁজুন...' : 'Search store, brand, or area...'}
+              className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
 
-          {/* District Dropdown (For Bangladesh or All) */}
-          {isBDSelected ? (
-            <div className="relative">
-              <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
-              <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-              >
-                <option value="all">{language === 'bn' ? '📍 সকল জেলা (বাংলাদেশ)' : '📍 All Districts (Bangladesh)'}</option>
-                {ALL_64_DISTRICTS.map((d) => (
-                  <option key={d.nameBn} value={d.nameBn}>
-                    {language === 'bn' ? `${d.nameBn} জেলা` : `${d.nameEn} District`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="relative flex items-center">
-              <span className="text-xs font-bold text-slate-600 px-3 py-2 bg-slate-100 rounded-xl w-full border border-slate-200">
-                🌐 {getCountryDisplayName(selectedCountry, language)}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Home Delivery Filter & Quick Reset */}
-        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setDeliveryOnlyFilter(!deliveryOnlyFilter)}
-            className={`flex-1 py-2 px-3 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              deliveryOnlyFilter 
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs' 
+            onClick={() => setShowLocationFilters(!showLocationFilters)}
+            className={`px-2.5 py-2 rounded-xl border text-xs font-black flex items-center gap-1 shrink-0 transition-all cursor-pointer ${
+              selectedDistrict !== 'all' || selectedCountry !== 'all' || showLocationFilters
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
+            title={language === 'bn' ? 'দেশ ও জেলা ফিল্টার' : 'Filter Location'}
           >
-            <Truck size={15} className={deliveryOnlyFilter ? 'text-yellow-300' : 'text-slate-500'} />
-            <span>{language === 'bn' ? '🚚 হোম ডেলিভারি দেয় এমন দোকান' : '🚚 Home Delivery Available'}</span>
+            <MapPin size={13} />
+            <span className="hidden xs:inline">
+              {selectedDistrict !== 'all' 
+                ? getDistrictDisplayName(selectedDistrict, language) 
+                : (language === 'bn' ? 'সকল জেলা' : 'Districts')}
+            </span>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${showLocationFilters ? 'rotate-90' : ''}`} />
           </button>
         </div>
 
-        {/* Popular District Quick Chips (if Bangladesh) */}
-        {isBDSelected && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-            <span className="text-[10px] font-black text-slate-400 shrink-0">
-              {language === 'bn' ? 'জনপ্রিয় জেলা:' : 'Popular:'}
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedDistrict('all')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
-                selectedDistrict === 'all' 
-                  ? 'bg-emerald-700 text-white shadow-2xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {language === 'bn' ? 'সব' : 'All'}
-            </button>
-            {popularDistricts.map((dist) => {
-              const distBn = getDistrictDisplayName(dist, 'bn');
-              const isSel = selectedDistrict === dist || selectedDistrict === distBn;
-              return (
+        {/* Collapsible Location Dropdowns (Only appears when user taps the filter button) */}
+        {showLocationFilters && (
+          <div className="p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2 animate-in fade-in">
+            <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
+              {/* Country Dropdown */}
+              <div className="relative">
+                <Globe size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+                <select
+                  value={selectedCountry}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedCountry(val);
+                    if (normalizeCountryCode(val) !== 'BD' && val !== 'all') {
+                      setSelectedDistrict('all');
+                    }
+                  }}
+                  className="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">🌍 {language === 'bn' ? 'সকল দেশ' : 'All Countries'}</option>
+                  {COUNTRY_LIST.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {language === 'bn' ? c.nameBn : c.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* District Dropdown */}
+              {isBDSelected ? (
+                <div className="relative">
+                  <MapPin size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+                  <select
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    className="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="all">📍 {language === 'bn' ? 'সকল জেলা (বাংলাদেশ)' : 'All Districts'}</option>
+                    {ALL_64_DISTRICTS.map((d) => (
+                      <option key={d.nameBn} value={d.nameBn}>
+                        {language === 'bn' ? `${d.nameBn} জেলা` : `${d.nameEn} District`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex items-center text-xs font-bold text-slate-600 px-2 py-1.5 bg-white rounded-lg border border-slate-200">
+                  🌐 {getCountryDisplayName(selectedCountry, language)}
+                </div>
+              )}
+            </div>
+
+            {/* Popular District Quick Chips */}
+            {isBDSelected && (
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none text-[10.5px]">
+                <span className="text-slate-400 font-bold shrink-0">
+                  {language === 'bn' ? 'জনপ্রিয়:' : 'Popular:'}
+                </span>
                 <button
-                  key={dist}
                   type="button"
-                  onClick={() => setSelectedDistrict(distBn)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
-                    isSel 
-                      ? 'bg-emerald-700 text-white shadow-2xs' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  onClick={() => setSelectedDistrict('all')}
+                  className={`px-2 py-0.5 rounded-md font-bold shrink-0 transition-all cursor-pointer ${
+                    selectedDistrict === 'all' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  {dist}
+                  {language === 'bn' ? 'সব' : 'All'}
                 </button>
-              );
-            })}
+                {popularDistricts.map((dist) => {
+                  const distBn = getDistrictDisplayName(dist, 'bn');
+                  const isSel = selectedDistrict === dist || selectedDistrict === distBn;
+                  return (
+                    <button
+                      key={dist}
+                      type="button"
+                      onClick={() => setSelectedDistrict(distBn)}
+                      className={`px-2 py-0.5 rounded-md font-bold shrink-0 transition-all cursor-pointer ${
+                        isSel ? 'bg-emerald-700 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {dist}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Category Pills Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-slate-100 pt-2.5">
+        {/* Category Pills Swipe Row with Home Delivery Button */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none text-xs pb-0.5">
           <button
             type="button"
             onClick={() => setSelectedCategory('all')}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all cursor-pointer ${
               selectedCategory === 'all' 
                 ? 'bg-slate-900 text-white shadow-2xs' 
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <span>{language === 'bn' ? 'সব পণ্য' : 'All Categories'}</span>
+            {language === 'bn' ? 'সব পণ্য' : 'All'}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setDeliveryOnlyFilter(!deliveryOnlyFilter)}
+            className={`px-2 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer border ${
+              deliveryOnlyFilter 
+                ? 'bg-emerald-600 text-white border-emerald-600' 
+                : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
+            }`}
+          >
+            <Truck size={12} />
+            <span>{language === 'bn' ? 'ডেলিভারি' : 'Delivery'}</span>
+          </button>
+
           {CATEGORY_OPTIONS.map((cat) => {
             const Icon = cat.icon;
             const isSel = selectedCategory === cat.id;
@@ -659,13 +707,13 @@ export default function StoreDirectory() {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-black shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
                   isSel 
                     ? 'bg-emerald-700 text-white shadow-2xs' 
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <Icon size={13} />
+                <Icon size={12} />
                 <span>{language === 'bn' ? cat.labelBn.split(' ')[0] : cat.labelEn}</span>
               </button>
             );
@@ -674,30 +722,88 @@ export default function StoreDirectory() {
       </div>
 
       {/* 4. Store Listing Feed */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-            <Building2 size={15} className="text-emerald-700" />
-            <span>{language === 'bn' ? 'তালিকাভুক্ত দোকান ও ফিড ডিলার' : 'Available Stores & Feed Dealers'}</span>
-            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full font-sans">
-              {filteredStores.length}
+      <div className="space-y-2.5">
+        {/* User's Owned Stores Quota Strip (Super Slim & Space-Saving) */}
+        {myStores.length > 0 && (
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 shadow-2xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-sm shrink-0">🏪</span>
+              <div className="min-w-0">
+                <span className="text-[11px] font-black text-slate-850 truncate block">
+                  {language === 'bn' ? 'আপনার দোকান:' : 'Your shop:'} {myStores[0]?.shopName}
+                </span>
+              </div>
+              <span className="text-[8.5px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-black shrink-0">
+                {myStores.length}/{MAX_USER_STORES}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 ml-auto">
+              <button
+                type="button"
+                onClick={() => handleOpenForm(myStores[0])}
+                className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-[10px] font-black cursor-pointer transition-all flex items-center gap-0.5"
+              >
+                <Edit3 size={10} />
+                <span>{language === 'bn' ? 'এডিট' : 'Edit'}</span>
+              </button>
+
+              {!hasReachedStoreLimit && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenForm()}
+                  className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-md text-[10px] font-black cursor-pointer transition-all"
+                >
+                  +২য় দোকান
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleDeleteStore(myStores[0].id)}
+                className="p-1 text-rose-600 hover:bg-rose-100 rounded-md cursor-pointer transition-all"
+                title={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Feed Header with Prominent Animated Down Indicator (Makes it 100% clear that posts are right below!) */}
+        <div className="flex items-center justify-between px-2 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80">
+          <div className="flex items-center gap-1.5">
+            <Building2 size={14} className="text-emerald-700 shrink-0" />
+            <h3 className="text-xs font-black text-slate-850">
+              {language === 'bn' ? 'দোকানের তালিকা' : 'Stores Feed'}
+            </h3>
+            <span className="bg-emerald-600 text-white text-[9.5px] font-black px-1.5 py-0.2 rounded-full font-sans">
+              {filteredStores.length}টি
             </span>
-          </h3>
-          {(selectedCountry !== 'all' || selectedDistrict !== 'all' || selectedCategory !== 'all' || deliveryOnlyFilter || searchQuery) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCountry('all');
-                setSelectedDistrict('all');
-                setSelectedCategory('all');
-                setDeliveryOnlyFilter(false);
-                setSearchQuery('');
-              }}
-              className="text-[11px] text-rose-600 font-extrabold hover:underline cursor-pointer"
-            >
-              {language === 'bn' ? 'ফিল্টার রিসেট করুন' : 'Reset Filters'}
-            </button>
-          )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {(selectedCountry !== 'all' || selectedDistrict !== 'all' || selectedCategory !== 'all' || deliveryOnlyFilter || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCountry('all');
+                  setSelectedDistrict('all');
+                  setSelectedCategory('all');
+                  setDeliveryOnlyFilter(false);
+                  setSearchQuery('');
+                }}
+                className="text-[10px] text-rose-600 font-extrabold hover:underline cursor-pointer"
+              >
+                {language === 'bn' ? 'রিসেট' : 'Reset'}
+              </button>
+            )}
+
+            {/* Bouncing Scroll Down Guide Badge */}
+            <div className="flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 animate-bounce">
+              <span>👇 {language === 'bn' ? 'নিচে দোকানগুলো দেখুন' : 'Stores below'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Admin Clean/Purge Tool if Master Admin */}
@@ -1015,6 +1121,80 @@ export default function StoreDirectory() {
         </p>
       </div>
 
+      {/* 5.5 Store Quota Limit Warning & Management Modal */}
+      {showStoreLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-5 text-center animate-in zoom-in-95">
+            <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <ShieldCheck size={28} />
+            </div>
+
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase mb-1.5">
+              <span>⚠️ {language === 'bn' ? `বিজ্ঞাপন সীমা: ${MAX_USER_STORES}/${MAX_USER_STORES} ব্যবহৃত` : `Store Limit: ${MAX_USER_STORES}/${MAX_USER_STORES} Used`}</span>
+            </div>
+
+            <h3 className="text-base font-extrabold text-slate-850 mb-1">
+              {language === 'bn' ? 'আপনার ইতিমধ্যে ২টি দোকান চালু আছে!' : 'You already have 2 active stores listed!'}
+            </h3>
+
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
+              {language === 'bn'
+                ? 'সিস্টেমের সুরক্ষা, সার্ভারের সমতা এবং স্প্যাম রোধে একজন ব্যবহারকারী ডিরেক্টরিতে সর্বোচ্চ ২টি দোকান তালিকাভুক্ত করতে পারেন। আপনি চাইলে নিচের তালিকা থেকে আপনার দোকানের তথ্য পরিবর্তন (এডিট) করতে পারেন অথবা ডিলিট করে নতুন দোকান দেওয়ার স্লট খালি করতে পারেন।'
+                : 'To maintain directory quality and prevent abuse, each user is strictly limited to 2 active stores. You can edit your current stores or delete one to free up a slot for a new listing.'}
+            </p>
+
+            {/* Current Stores List in Modal */}
+            <div className="space-y-2 mb-4 text-left">
+              {myStores.map(store => (
+                <div key={store.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">🏪</span>
+                      <h5 className="text-xs font-black text-slate-900 truncate">{store.shopName}</h5>
+                    </div>
+                    <p className="text-[10.5px] text-slate-600 font-semibold truncate mt-0.5">
+                      📍 {getDistrictDisplayName(store.district, language)} {store.upazila ? `(${store.upazila})` : ''} • 📞 {store.phone}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowStoreLimitModal(false);
+                        handleOpenForm(store);
+                      }}
+                      className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                    >
+                      <Edit3 size={13} />
+                      <span>{language === 'bn' ? 'এডিট' : 'Edit'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowStoreLimitModal(false);
+                        handleDeleteStore(store.id);
+                      }}
+                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                      <span>{language === 'bn' ? 'ডিলিট' : 'Delete'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowStoreLimitModal(false)}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+            >
+              {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 6. Post/Edit Store Modal */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
@@ -1026,11 +1206,13 @@ export default function StoreDirectory() {
                 <div>
                   <h3 className="text-sm sm:text-base font-black">
                     {editingStoreId 
-                      ? (language === 'bn' ? 'দোকানের তথ্য সম্পাদনা করুন' : 'Edit Store Details')
-                      : (language === 'bn' ? 'নতুন দোকান বা ডিলারশিপ যোগ করুন' : 'List New Agri-Vet Store')}
+                      ? (language === 'bn' ? 'দোকানের তথ্য সম্পাদনা / এডিট করুন' : 'Edit Store Details')
+                      : (language === 'bn' ? 'নতুন দোকান বা ডিলারশিপ যোগ করুন (১-২টি কোটা)' : 'List New Agri-Vet Store (1-2 Quota)')}
                   </h3>
                   <p className="text-[10px] text-emerald-100">
-                    {language === 'bn' ? 'আপনার দোকানটি হাজারো খামারির কাছে প্রদর্শন করুন' : 'Showcase your store to thousands of farmers'}
+                    {editingStoreId
+                      ? (language === 'bn' ? 'আপনার দোকানের তথ্য পরিবর্তন করে আপডেট করুন' : 'Update your store profile details')
+                      : (language === 'bn' ? 'আপনার দোকানটি হাজারো খামারির কাছে প্রদর্শন করুন (সর্বোচ্চ ২টি অনুমোদিত)' : 'Showcase your store to thousands of farmers (Max 2 allowed)')}
                   </p>
                 </div>
               </div>
@@ -1343,7 +1525,13 @@ export default function StoreDirectory() {
                   className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-xl font-black flex items-center gap-1.5 shadow-md cursor-pointer transition-all disabled:opacity-50"
                 >
                   <Send size={15} />
-                  <span>{isSubmitting ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...') : (language === 'bn' ? 'দোকান প্রকাশ করুন' : 'Publish Store')}</span>
+                  <span>
+                    {isSubmitting
+                      ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
+                      : editingStoreId
+                      ? (language === 'bn' ? 'দোকানের তথ্য আপডেট করুন' : 'Update Store')
+                      : (language === 'bn' ? 'দোকান প্রকাশ করুন' : 'Publish Store')}
+                  </span>
                 </button>
               </div>
             </form>

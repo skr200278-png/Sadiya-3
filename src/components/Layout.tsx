@@ -8,6 +8,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { demoStore } from '../utils/demoStore';
 import VoiceAssistantModal from './VoiceAssistantModal';
+import BroadcastNoticeTicker from './BroadcastNoticeTicker';
 import appLogo from '../assets/images/farm_app_icon_1779214389225.png';
 
 export default function Layout() {
@@ -54,7 +55,10 @@ export default function Layout() {
     }
   }, [currentUser, isDemoUser]);
 
-  if (!currentUser) return <Outlet />;
+  const isExplicitlyLoggedOut = localStorage.getItem('user_has_logged_out') === 'true';
+  const hasCachedSession = (Boolean(currentUser) || Boolean(isDemoUser) || localStorage.getItem('has_authenticated_session') === 'true' || Boolean(localStorage.getItem('cached_auth_user'))) && !isExplicitlyLoggedOut;
+
+  if (!currentUser && !isDemoUser && !hasCachedSession) return <Outlet />;
 
   const isPlayStore = import.meta.env.VITE_DISTRIBUTION_CHANNEL === 'playstore';
   const isAppLocked = !isPlayStore && config.monetizationEnabled !== false && config.appLockRequired === true && !isPremium && !isAdmin && location.pathname !== '/profile';
@@ -115,6 +119,9 @@ export default function Layout() {
           </Link>
         </div>
       </header>
+
+      {/* Live Broadcast Notice Ticker */}
+      <BroadcastNoticeTicker />
 
       {/* Offline Status Alert */}
       {!isOnline && (

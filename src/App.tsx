@@ -30,6 +30,7 @@ import DoctorConsultation from './views/DoctorConsultation';
 import StoreDirectory from './views/StoreDirectory';
 import ChickMarket from './views/ChickMarket';
 import FCR from './views/FCR';
+import DiseaseDoctorAdvisor from './views/DiseaseDoctorAdvisor';
 import AppLifecycleHandler from './components/AppLifecycleHandler';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -74,6 +75,8 @@ function AppRoutes() {
             <Route path="dues" element={<Dues />} />
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="doctor" element={<DoctorConsultation />} />
+            <Route path="disease-advisor" element={<DiseaseDoctorAdvisor />} />
+            <Route path="disease-guide" element={<DiseaseDoctorAdvisor />} />
             <Route path="chicks" element={<ChickMarket />} />
             <Route path="hatchery" element={<ChickMarket />} />
             <Route path="store" element={<StoreDirectory />} />

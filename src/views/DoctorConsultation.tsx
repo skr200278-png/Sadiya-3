@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { db, offlineSafeDocWrite, handleFirestoreError, OperationType, fastGetDocs } from '../firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, orderBy, onSnapshot } from 'firebase/firestore';
 import { 
   ALL_64_DISTRICTS, 
   COUNTRY_LIST, 
@@ -345,6 +346,42 @@ export default function DoctorConsultation() {
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ'
   });
 
+  // Single active doctor ad per user constraint
+  const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
+  const [showAlreadyHasAdModal, setShowAlreadyHasAdModal] = useState(false);
+
+  // Identify user's active community ad (Limit: strictly 1 active ad allowed per user)
+  const myDoctorAd = communityDoctors.find(doc => {
+    if (!doc.isCommunity) return false;
+    return Boolean(
+      (currentUser && doc.userId === currentUser.uid) || 
+      (doc.userEmail && currentUser?.email && doc.userEmail === currentUser.email) ||
+      (isDemoUser && doc.isCommunity)
+    );
+  }) || null;
+
+  // Open edit modal for user's existing ad
+  const handleStartEditMyDoctorAd = (docProfile: DoctorProfile) => {
+    setEditingDoctorId(docProfile.id);
+    setDoctorForm({
+      nameBn: docProfile.nameBn || '',
+      degreeBn: docProfile.degreeBn || '',
+      specialty: (docProfile.specialty as any) || 'poultry',
+      specialtyLabelBn: docProfile.specialtyLabelBn || '',
+      instituteBn: docProfile.instituteBn || '',
+      country: docProfile.country || (selectedCountry === 'all' ? 'BD' : (selectedCountry || 'BD')),
+      district: docProfile.district || 'ঢাকা',
+      cityOrState: docProfile.district || '',
+      experienceYears: String(docProfile.experienceYears || '3'),
+      phone: docProfile.phone || '',
+      whatsapp: docProfile.whatsapp || '',
+      visitingHoursBn: docProfile.visitingHoursBn || 'সকাল ৯:০০ - রাত ৯:০০',
+      consultationFeeBn: docProfile.consultationFeeBn || 'বিনামূল্যে প্রাথমিক পরামর্শ'
+    });
+    setShowAlreadyHasAdModal(false);
+    setIsDoctorPostModalOpen(true);
+  };
+
   // Save selected country to localStorage for consistent user experience
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode);
@@ -425,10 +462,20 @@ export default function DoctorConsultation() {
     };
   };
 
-  // Submit Doctor Profile / Advertisement (Double-Click Prevention)
+  // Submit or Update Doctor Profile / Advertisement (Enforces 1-ad limit per user)
   const handlePostDoctorProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (docPosting || submitDocLock.current) return;
+
+    // Strict 1-Ad limit check: If posting new (not editing) and an ad already exists for user
+    if (!editingDoctorId && myDoctorAd) {
+      toast.error(language === 'bn' 
+        ? 'আপনার ইতিমধ্যে ১টি ডাক্তারের বিজ্ঞাপন চালু রয়েছে! একসাথে ১টির বেশি বিজ্ঞাপন পোস্ট করা যাবে না। আগেরটি এডিট বা ডিলিট করুন।' 
+        : 'You already have an active doctor listing. Maximum 1 ad allowed per user.');
+      setIsDoctorPostModalOpen(false);
+      setShowAlreadyHasAdModal(true);
+      return;
+    }
 
     if (!doctorForm.nameBn.trim()) {
       toast.error(language === 'bn' ? 'ডাক্তারের নাম লিখুন' : 'Doctor name is required');
@@ -458,7 +505,7 @@ export default function DoctorConsultation() {
       ? doctorForm.district 
       : (doctorForm.cityOrState.trim() || doctorForm.district || countryInfo.nameEn);
 
-    const newDocData: Omit<DoctorProfile, 'id'> = {
+    const docPayload = {
       userId: currentUser?.uid || 'demo_user',
       userEmail: currentUser?.email || '',
       nameBn: doctorForm.nameBn.trim(),
@@ -485,29 +532,58 @@ export default function DoctorConsultation() {
       isOnline: true,
       avatarIcon: doctorForm.specialty === 'fish' ? '👨‍🔬' : '👨‍⚕️',
       isCommunity: true,
-      createdAt: now.toISOString(),
-      expiresAt: expiryDate.toISOString(),
       isActive: true
     };
 
     try {
-      if (isDemoUser) {
-        const item: DoctorProfile = { id: 'community_doc_' + Date.now(), ...newDocData };
-        const updated = [item, ...communityDoctors];
-        setCommunityDoctors(updated);
-        localStorage.setItem('demo_community_doctors', JSON.stringify(updated));
+      if (editingDoctorId) {
+        // EDIT MODE: Update existing listing
+        if (isDemoUser) {
+          const updated = communityDoctors.map(d => 
+            d.id === editingDoctorId ? { ...d, ...docPayload, updatedAt: now.toISOString() } : d
+          );
+          setCommunityDoctors(updated);
+          localStorage.setItem('demo_community_doctors', JSON.stringify(updated));
+        } else {
+          await offlineSafeDocWrite(updateDoc(doc(db, 'doctor_listings', editingDoctorId), {
+            ...docPayload,
+            updatedAt: now.toISOString()
+          }));
+          setCommunityDoctors(prev => prev.map(d => 
+            d.id === editingDoctorId ? { ...d, ...docPayload, updatedAt: now.toISOString() } : d
+          ));
+        }
+        toast.success(language === 'bn' ? 'বিজ্ঞাপনের তথ্য সফলভাবে আপডেট হয়েছে!' : 'Doctor listing updated successfully!');
       } else {
-        const docRef = await offlineSafeDocWrite(addDoc(collection(db, 'doctor_listings'), {
-          ...newDocData,
-          serverTimestamp: serverTimestamp()
-        }));
-        const item: DoctorProfile = { id: docRef ? docRef.id : 'temp_' + Date.now(), ...newDocData };
-        setCommunityDoctors(prev => [item, ...prev]);
+        // CREATE NEW MODE: Use deterministic document ID user_{uid} to enforce 1-ad constraint at database level
+        const targetDocId = currentUser?.uid ? `user_${currentUser.uid}` : `community_doc_${Date.now()}`;
+        const newDocData: DoctorProfile = {
+          id: targetDocId,
+          ...docPayload,
+          createdAt: now.toISOString(),
+          expiresAt: expiryDate.toISOString()
+        };
+
+        if (isDemoUser) {
+          const updated = [newDocData, ...communityDoctors.filter(d => d.id !== targetDocId)];
+          setCommunityDoctors(updated);
+          localStorage.setItem('demo_community_doctors', JSON.stringify(updated));
+        } else {
+          await offlineSafeDocWrite(setDoc(doc(db, 'doctor_listings', targetDocId), {
+            ...docPayload,
+            createdAt: now.toISOString(),
+            expiresAt: expiryDate.toISOString(),
+            serverTimestamp: serverTimestamp()
+          }));
+          setCommunityDoctors(prev => [newDocData, ...prev.filter(d => d.id !== targetDocId)]);
+        }
+        toast.success(language === 'bn' ? 'ডাক্তার হিসেবে আপনার বিজ্ঞাপন ৩০ দিনের জন্য প্রকাশিত হয়েছে!' : 'Doctor profile published for 30 days!');
       }
 
-      toast.success(language === 'bn' ? 'ডাক্তার হিসেবে আপনার বিজ্ঞাপন ৩০ দিনের জন্য প্রকাশিত হয়েছে!' : 'Doctor profile published for 30 days!');
       setIsDoctorPostModalOpen(false);
+      setEditingDoctorId(null);
       admobService.showInterstitialIfEligible('action:saved_doctor_profile', true);
+
       // Reset form
       setDoctorForm({
         nameBn: '',
@@ -525,8 +601,8 @@ export default function DoctorConsultation() {
         consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ'
       });
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, 'doctor_listings');
-      toast.error(language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করতে সমস্যা হয়েছে।' : 'Error posting profile');
+      handleFirestoreError(err, editingDoctorId ? OperationType.UPDATE : OperationType.CREATE, 'doctor_listings');
+      toast.error(language === 'bn' ? 'বিজ্ঞাপন সংরক্ষণ করতে সমস্যা হয়েছে।' : 'Error saving doctor profile');
     } finally {
       setDocPosting(false);
       setTimeout(() => {
@@ -610,7 +686,12 @@ export default function DoctorConsultation() {
         await offlineSafeDocWrite(deleteDoc(doc(db, 'doctor_listings', docProfile.id)));
         setCommunityDoctors(prev => prev.filter(d => d.id !== docProfile.id));
       }
-      toast.success(language === 'bn' ? 'বিজ্ঞাপন সফলভাবে মুছে ফেলা হয়েছে।' : 'Listing deleted successfully.');
+      if (editingDoctorId === docProfile.id) {
+        setEditingDoctorId(null);
+      }
+      toast.success(language === 'bn' 
+        ? 'বিজ্ঞাপন মুছে ফেলা হয়েছে। আপনার বিজ্ঞাপন স্লট খালি হয়েছে, এখন নতুন বিজ্ঞাপন দিতে পারবেন।' 
+        : 'Listing deleted. Your slot is now free to post a new listing.');
       setDocToDelete(null);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, 'doctor_listings');
@@ -751,6 +832,26 @@ export default function DoctorConsultation() {
   });
 
   const handleOpenDoctorPostModal = () => {
+    if (myDoctorAd) {
+      setShowAlreadyHasAdModal(true);
+      return;
+    }
+    setEditingDoctorId(null);
+    setDoctorForm({
+      nameBn: '',
+      degreeBn: '',
+      specialty: 'poultry',
+      specialtyLabelBn: '',
+      instituteBn: '',
+      country: selectedCountry === 'all' ? 'BD' : (selectedCountry || 'BD'),
+      district: 'ঢাকা',
+      cityOrState: '',
+      experienceYears: '3',
+      phone: currentUser?.phoneNumber || '',
+      whatsapp: currentUser?.phoneNumber || '',
+      visitingHoursBn: 'সকাল ৯:০০ - রাত ৯:০০',
+      consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ'
+    });
     setIsDoctorPostModalOpen(true);
   };
 
@@ -786,11 +887,19 @@ export default function DoctorConsultation() {
           >
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <UserPlus size={18} className="text-white" />
+                {myDoctorAd ? <Edit size={18} className="text-white" /> : <UserPlus size={18} className="text-white" />}
               </div>
               <div className="text-left">
-                <p className="text-[9px] text-teal-200 font-bold uppercase">{language === 'bn' ? 'ডাক্তারদের জন্য' : 'For Doctors'}</p>
-                <p className="text-xs font-black">{language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল / বিজ্ঞাপন দিন' : 'Post Vet Doctor Profile'}</p>
+                <p className="text-[9px] text-teal-200 font-bold uppercase">
+                  {myDoctorAd 
+                    ? (language === 'bn' ? 'বিজ্ঞাপন সক্রিয় (১/১ ব্যবহৃত)' : 'Active Listing (1/1)') 
+                    : (language === 'bn' ? 'ডাক্তারদের জন্য (১টি স্লট)' : 'For Doctors (1 Slot)')}
+                </p>
+                <p className="text-xs font-black">
+                  {myDoctorAd 
+                    ? (language === 'bn' ? 'আমার বিজ্ঞাপন এডিট বা পরিচালনা' : 'Manage / Edit My Listing') 
+                    : (language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল / বিজ্ঞাপন দিন' : 'Post Vet Doctor Profile')}
+                </p>
               </div>
             </div>
             <ChevronRight size={16} />
@@ -815,6 +924,34 @@ export default function DoctorConsultation() {
           </a>
         </div>
       </div>
+
+      {/* NEW: Smart Disease Diagnosis & Medicine Advisor Highlight Card */}
+      <Link
+        to="/disease-advisor"
+        className="block bg-gradient-to-r from-emerald-600 via-teal-700 to-slate-900 hover:from-emerald-700 hover:to-slate-950 p-3 sm:p-3.5 rounded-2xl text-white shadow-sm border border-emerald-400/30 group transition-all active:scale-98"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <span className="text-xl">🩺</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.2 rounded bg-amber-400 text-amber-950 text-[9px] font-black uppercase">
+                  {language === 'bn' ? 'নতুন ফিচার' : 'NEW'}
+                </span>
+                <p className="text-xs sm:text-sm font-black truncate">
+                  {language === 'bn' ? 'স্মার্ট রোগ নির্ণয় ও ঔষধ প্রেসক্রিপশন' : 'Smart Disease Diagnosis & Medicine Rx'}
+                </p>
+              </div>
+              <p className="text-[11px] text-teal-100 truncate mt-0.5 font-medium">
+                {language === 'bn' ? 'মুরগি, গরু বা মাছের রোগের নাম লিখুন — সঠিক ঔষধ ও ডোজ জানুন ➜' : 'Type disease or symptoms to get verified medicine dosage ➜'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-teal-200 shrink-0 group-hover:translate-x-1 transition-transform" />
+        </div>
+      </Link>
 
       {/* 2. Filters & Search Box */}
       <div className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-150 space-y-2.5">
@@ -961,6 +1098,71 @@ export default function DoctorConsultation() {
           </span>
         </div>
 
+        {/* User's Own Active Advertisement Highlight Card (1 of 1 ad quota) */}
+        {myDoctorAd && (
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-teal-200 rounded-2xl p-3 sm:p-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl shrink-0 shadow-2xs">
+                  {myDoctorAd.avatarIcon || '👨‍⚕️'}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-teal-700 text-white shadow-2xs">
+                      {language === 'bn' ? 'আপনার সক্রিয় বিজ্ঞাপন (১/১ ব্যবহৃত)' : 'Your Active Listing (1/1 Used)'}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      myDoctorAd.isActive !== false 
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}>
+                      {myDoctorAd.isActive !== false 
+                        ? (language === 'bn' ? '● লাইভ সম্প্রচার চলছে' : '● Live') 
+                        : (language === 'bn' ? '⏸️ সাময়িক বন্ধ' : '⏸️ Paused')}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-black text-slate-850 mt-1 truncate">
+                    {myDoctorAd.nameBn}
+                  </h4>
+                  <p className="text-[11px] text-slate-600 font-semibold truncate">
+                    {myDoctorAd.degreeBn} • 🏛️ {myDoctorAd.instituteBn} • 📍 {getDistrictDisplayName(myDoctorAd.district, language)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 text-[10.5px]">
+                    <span className="text-teal-800 font-bold">
+                      {getExpiryInfo(myDoctorAd).label}
+                    </span>
+                    <span className="text-slate-400">•</span>
+                    <span className="text-slate-500 font-medium">
+                      {language === 'bn' ? 'নতুন বিজ্ঞাপন দিতে হলে এটি এডিট বা ডিলিট করুন' : 'Edit or delete to change profile'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleStartEditMyDoctorAd(myDoctorAd)}
+                  className="py-1.5 px-3 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                  title={language === 'bn' ? 'বিজ্ঞাপনটি এডিট করুন' : 'Edit advertisement'}
+                >
+                  <Edit size={14} />
+                  <span>{language === 'bn' ? 'এডিট করুন' : 'Edit'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocToDelete(myDoctorAd)}
+                  className="py-1.5 px-2.5 bg-red-50 hover:bg-red-100 active:scale-98 text-red-600 border border-red-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                  title={language === 'bn' ? 'বিজ্ঞাপনটি ডিলিট করে স্লট খালি করুন' : 'Delete listing to free slot'}
+                >
+                  <Trash2 size={14} />
+                  <span>{language === 'bn' ? 'ডিলিট' : 'Delete'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {filteredDoctors.length === 0 ? (
           <div className="bg-white rounded-2xl p-6 text-center border border-dashed border-slate-200">
             <Stethoscope size={32} className="mx-auto text-slate-300 mb-2" />
@@ -973,7 +1175,7 @@ export default function DoctorConsultation() {
               {language === 'bn' ? 'নতুন ডাক্তার বা কনসালট্যান্ট বিজ্ঞাপন পোস্ট করতে নিচের বাটনে চাপ দিন।' : 'Post a doctor listing now!'}
             </p>
             <button
-              onClick={() => setIsDoctorPostModalOpen(true)}
+              onClick={handleOpenDoctorPostModal}
               className="py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
             >
               + {language === 'bn' ? 'ডাক্তার হিসেবে বিজ্ঞাপন দিন' : 'Post Vet Listing'}
@@ -1130,6 +1332,18 @@ export default function DoctorConsultation() {
                 {canManage && (
                   <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200 bg-slate-50/80 -mx-3.5 -mb-3.5 p-2.5 flex flex-wrap items-center justify-between gap-1.5">
                     <div className="flex items-center gap-1.5">
+                      {/* Edit Button for Listing Owner or Admin */}
+                      {doctor.isCommunity && (
+                        <button
+                          onClick={() => handleStartEditMyDoctorAd(doctor)}
+                          className="py-1 px-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                          title={language === 'bn' ? 'বিজ্ঞাপনটি এডিট করুন' : 'Edit Advertisement'}
+                        >
+                          <Edit size={13} />
+                          <span>{language === 'bn' ? 'এডিট' : 'Edit'}</span>
+                        </button>
+                      )}
+
                       {/* Delete Button */}
                       <button
                         onClick={() => setDocToDelete(doctor)}
@@ -1221,26 +1435,105 @@ export default function DoctorConsultation() {
         </div>
       </div>
 
-      {/* 6. Post Doctor Profile / Advertisement Modal */}
+      {/* 5.5 Already Has Active Listing Warning & Action Modal */}
+      {showAlreadyHasAdModal && myDoctorAd && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in duration-150">
+            <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <ShieldCheck size={28} />
+            </div>
+
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase mb-1.5">
+              <span>⚠️ {language === 'bn' ? 'বিজ্ঞাপন সীমা: ১/১ ব্যবহৃত' : 'Listing Limit: 1/1 Used'}</span>
+            </div>
+
+            <h3 className="text-base font-extrabold text-slate-850 mb-1">
+              {language === 'bn' ? 'আপনার ইতিমধ্যে ১টি বিজ্ঞাপন চালু আছে!' : 'You already have an active ad!'}
+            </h3>
+
+            <p className="text-xs text-slate-600 mb-3.5 leading-relaxed font-medium">
+              {language === 'bn'
+                ? 'সিস্টেমের সুরক্ষা ও সমতা বজায় রাখতে একজন ব্যবহারকারী একবারে ১টির বেশি বিজ্ঞাপন দিতে পারবেন না। আপনি চাইলে আপনার বর্তমান বিজ্ঞাপনটি এডিট/সংশোধন করতে পারেন অথবা ডিলিট করে নতুন বিজ্ঞাপন দিতে পারবেন।'
+                : 'To maintain directory quality and prevent abuse, each user is strictly limited to 1 active doctor listing. You can edit your current listing or delete it to post a new one.'}
+            </p>
+
+            {/* Current Ad Preview Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-left mb-3.5">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">{myDoctorAd.avatarIcon || '👨‍⚕️'}</span>
+                <span className="text-xs font-black text-slate-850 truncate">{myDoctorAd.nameBn}</span>
+              </div>
+              <p className="text-[11px] text-slate-600 font-medium">
+                {myDoctorAd.degreeBn} • 📍 {getDistrictDisplayName(myDoctorAd.district, language)}
+              </p>
+              <div className="flex items-center justify-between text-[10.5px] mt-1 pt-1.5 border-t border-slate-200/60">
+                <span className="text-teal-700 font-bold">{getExpiryInfo(myDoctorAd).label}</span>
+                <span className="font-bold text-slate-500">📞 {myDoctorAd.phone}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleStartEditMyDoctorAd(myDoctorAd)}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all"
+              >
+                <Edit size={15} />
+                <span>{language === 'bn' ? 'বর্তমান বিজ্ঞাপনটি এডিট / সংশোধন করুন' : 'Edit Current Advertisement'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAlreadyHasAdModal(false);
+                  setDocToDelete(myDoctorAd);
+                }}
+                className="w-full py-2.5 bg-red-50 hover:bg-red-100 active:scale-98 text-red-600 border border-red-200 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <Trash2 size={15} />
+                <span>{language === 'bn' ? 'বিজ্ঞাপনটি ডিলিট করুন (নতুন দেওয়ার জন্য)' : 'Delete Listing (To Post New One)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowAlreadyHasAdModal(false)}
+                className="w-full py-2 text-slate-500 hover:bg-slate-100 rounded-xl font-bold text-xs cursor-pointer transition-all"
+              >
+                {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Post / Edit Doctor Profile / Advertisement Modal */}
       {isDoctorPostModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl border border-slate-100 my-auto animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center">
-                  <UserPlus size={18} />
+                  {editingDoctorId ? <Edit size={18} /> : <UserPlus size={18} />}
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-850">
-                    {language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল / বিজ্ঞাপন দিন' : 'Register Doctor Profile'}
+                    {editingDoctorId 
+                      ? (language === 'bn' ? 'ডাক্তারের বিজ্ঞাপন সংশোধন / এডিট করুন' : 'Edit Doctor Listing')
+                      : (language === 'bn' ? 'ডাক্তার হিসেবে প্রোফাইল / বিজ্ঞাপন দিন' : 'Register Doctor Profile')}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-bold">
-                    {language === 'bn' ? 'সারাদেশের খামারিদের কাছে আপনার সেবা তুলে ধরুন' : 'Reach thousands of farmers across Bangladesh'}
+                    {editingDoctorId 
+                      ? (language === 'bn' ? 'আপনার বিজ্ঞাপনের প্রয়োজনীয় তথ্য পরিবর্তন করে আপডেট করুন' : 'Update your existing listing information')
+                      : (language === 'bn' ? 'সারাদেশের খামারিদের কাছে আপনার সেবা তুলে ধরুন (১টি বিজ্ঞাপন অনুমোদিত)' : 'Reach thousands of farmers (1 ad allowed)')}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsDoctorPostModalOpen(false)}
+                onClick={() => {
+                  setIsDoctorPostModalOpen(false);
+                  setEditingDoctorId(null);
+                }}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
               >
                 <X size={16} />
@@ -1430,7 +1723,10 @@ export default function DoctorConsultation() {
               <div className="pt-2 flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsDoctorPostModalOpen(false)}
+                  onClick={() => {
+                    setIsDoctorPostModalOpen(false);
+                    setEditingDoctorId(null);
+                  }}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                 >
                   {language === 'bn' ? 'বাতিল' : 'Cancel'}
@@ -1441,7 +1737,13 @@ export default function DoctorConsultation() {
                   className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Sparkles size={14} />
-                  <span>{docPosting ? (language === 'bn' ? 'প্রকাশ হচ্ছে...' : 'Posting...') : (language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করুন' : 'Publish Profile')}</span>
+                  <span>
+                    {docPosting 
+                      ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...') 
+                      : editingDoctorId 
+                        ? (language === 'bn' ? 'বিজ্ঞাপন তথ্য আপডেট করুন' : 'Update Listing')
+                        : (language === 'bn' ? 'বিজ্ঞাপন প্রকাশ করুন' : 'Publish Profile')}
+                  </span>
                 </button>
               </div>
             </form>
@@ -1594,7 +1896,9 @@ export default function DoctorConsultation() {
               {language === 'bn' ? 'ডাক্তার বিজ্ঞাপন মুছে ফেলতে চান?' : 'Delete Doctor Profile?'}
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              {docToDelete.nameBn} - {language === 'bn' ? 'এই বিজ্ঞাপনটি স্থায়ীভাবে মুছে ফেলা হবে।' : 'This profile will be permanently deleted.'}
+              {docToDelete.nameBn} - {language === 'bn' 
+                ? 'এই বিজ্ঞাপনটি স্থায়ীভাবে মুছে ফেলা হবে। বিজ্ঞাপনটি মুছে ফেললে আপনার বিজ্ঞাপনের স্লট খালি হবে এবং আপনি নতুন বিজ্ঞাপন দিতে পারবেন।' 
+                : 'This profile will be permanently deleted and your 1-ad slot will be freed for a new listing.'}
             </p>
             <div className="flex gap-2">
               <button

@@ -3,8 +3,8 @@ import { collection, query, where, getDocs, addDoc, doc, deleteDoc, onSnapshot, 
 import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ShieldPlus, Plus, Trash2, Sparkles, Syringe, ClipboardList, Calendar } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { ShieldPlus, Plus, Trash2, Sparkles, Syringe, ClipboardList, Calendar, Stethoscope, ChevronRight } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -403,6 +403,27 @@ export default function Medicine() {
             <span>{language === 'bn' ? 'ওষুধ হিসাব যোগ' : 'Add Medicine'}</span>
           </button>
         </div>
+
+        {/* Smart Disease Diagnosis & Medicine Rx Quick Launcher */}
+        <Link
+          to="/disease-advisor"
+          className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-700 to-slate-900 text-white shadow-xs hover:shadow-md transition-all group active:scale-98"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Stethoscope size={16} className="text-emerald-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black truncate">
+                {language === 'bn' ? 'কোন রোগে কি ওষুধ ও ডোজ লাগবে? এখানে জানুন' : 'Check Disease Prescription & Exact Dosage'}
+              </p>
+              <p className="text-[10px] text-teal-100 truncate">
+                {language === 'bn' ? 'মুরগি, গরু-ছাগল ও মাছের রোগ অনুযায়ী জেনেরিক ও সঠিক ব্র্যান্ড প্রেসক্রিপশন ➜' : 'Smart Vet Rx Advisor for Poultry, Cattle, and Fish ➜'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-teal-200 shrink-0 group-hover:translate-x-1 transition-transform" />
+        </Link>
 
         {/* Tab switch buttons */}
         <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
