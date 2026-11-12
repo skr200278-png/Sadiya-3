@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, deleteDoc } from 'firebase/firestore';
-import { sendPasswordResetEmail, deleteUser, updatePassword } from 'firebase/auth';
+import { sendPasswordResetEmail, deleteUser, updatePassword, updateProfile } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDocs } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage, Language, SUPPORTED_COUNTRIES } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
-import { User, LogOut, CheckCircle, CheckCircle2, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff, Coins } from 'lucide-react';
+import { User, LogOut, CheckCircle, CheckCircle2, Settings, HelpCircle, Info, Globe, ChevronRight, X, MessageCircle, Phone, Mail, ExternalLink, ShieldCheck, FileText, KeyRound, Stethoscope, Crown, Sparkles, CreditCard, Zap, Trash2, AlertTriangle, Lock, Eye, EyeOff, Coins, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { demoStore } from '../utils/demoStore';
@@ -14,7 +14,7 @@ import AdminFeatureControlCard from '../components/AdminFeatureControlCard';
 import { openWhatsAppSafe } from '../utils/whatsappHelper';
 
 export default function Profile() {
-  const { currentUser, logout, isDemoUser } = useAuth();
+  const { currentUser, logout, isDemoUser, refreshUser } = useAuth();
   const { 
     language: currentLanguage, 
     setLanguage: setGlobalLanguage, 
@@ -49,6 +49,44 @@ export default function Profile() {
   const [confirmPin, setConfirmPin] = useState('');
   const [showPinVisibility, setShowPinVisibility] = useState(false);
   const [isSavingPin, setIsSavingPin] = useState(false);
+
+  // Profile Photo state & reference
+  const [photoURL, setPhotoURL] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Client-side image compression and square crop helper
+  const compressProfileImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const size = 320;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+
+          const minDim = Math.min(img.width, img.height);
+          const startX = (img.width - minDim) / 2;
+          const startY = (img.height - minDim) / 2;
+
+          ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          resolve(dataUrl);
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   useEffect(() => {
     setLanguage(currentLanguage);
@@ -90,6 +128,12 @@ export default function Profile() {
         if (data.country) setCountry(data.country);
         if (data.currency) setCurrency(data.currency);
         if (data.currencySymbol) setCurrencySymbol(data.currencySymbol);
+        if (data.photoURL) {
+          setPhotoURL(data.photoURL);
+        } else {
+          const cached = localStorage.getItem('user_custom_photo_demo');
+          if (cached) setPhotoURL(cached);
+        }
         setLoading(false);
         return;
       }
@@ -105,11 +149,137 @@ export default function Profile() {
         if (data.country) setCountry(data.country);
         if (data.currency) setCurrency(data.currency);
         if (data.currencySymbol) setCurrencySymbol(data.currencySymbol);
+        if (data.photoURL) {
+          setPhotoURL(data.photoURL);
+        } else if (data.imageUrl) {
+          setPhotoURL(data.imageUrl);
+        } else if (currentUser.photoURL) {
+          setPhotoURL(currentUser.photoURL);
+        } else {
+          const cached = localStorage.getItem('user_custom_photo_' + currentUser.uid);
+          if (cached) setPhotoURL(cached);
+        }
+      } else {
+        if (currentUser.photoURL) {
+          setPhotoURL(currentUser.photoURL);
+        } else {
+          const cached = localStorage.getItem('user_custom_photo_' + currentUser.uid);
+          if (cached) setPhotoURL(cached);
+        }
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(currentLanguage === 'en' ? 'Please select a valid image file' : 'অনুগ্রহ করে একটি ছবি নির্বাচন করুন');
+      return;
+    }
+
+    try {
+      setIsUploadingPhoto(true);
+      const compressedDataUrl = await compressProfileImage(file);
+      setPhotoURL(compressedDataUrl);
+
+      // 1. Cache immediately in localStorage
+      if (currentUser?.uid) {
+        try {
+          localStorage.setItem('user_custom_photo_' + currentUser.uid, compressedDataUrl);
+        } catch {}
+      }
+
+      // If demo mode
+      if (isDemo) {
+        const curProf = demoStore.getProfile();
+        demoStore.setProfile({ ...curProf, photoURL: compressedDataUrl });
+        localStorage.setItem('user_custom_photo_demo', compressedDataUrl);
+        toast.success(currentLanguage === 'en' ? 'Profile picture updated!' : 'প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে!');
+        setIsUploadingPhoto(false);
+        return;
+      }
+
+      // 2. Update Firebase Auth Profile
+      if (auth.currentUser) {
+        try {
+          await updateProfile(auth.currentUser, { photoURL: compressedDataUrl });
+          await refreshUser();
+        } catch (authErr) {
+          console.warn('Auth updateProfile notice:', authErr);
+        }
+      }
+
+      // 3. Update Firestore users collection
+      if (currentUser?.uid) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await offlineSafeDocWrite(setDoc(userRef, {
+          photoURL: compressedDataUrl,
+          imageUrl: compressedDataUrl,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }));
+      }
+
+      toast.success(currentLanguage === 'en' ? 'Profile picture updated successfully!' : 'প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে!');
+    } catch (err) {
+      console.error('Error saving profile photo:', err);
+      toast.error(currentLanguage === 'en' ? 'Failed to update photo' : 'ছবি আপলোড করতে সমস্যা হয়েছে');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setIsUploadingPhoto(true);
+      setPhotoURL('');
+
+      if (currentUser?.uid) {
+        try {
+          localStorage.removeItem('user_custom_photo_' + currentUser.uid);
+        } catch {}
+      }
+
+      if (isDemo) {
+        const curProf = demoStore.getProfile();
+        delete curProf.photoURL;
+        demoStore.setProfile(curProf);
+        localStorage.removeItem('user_custom_photo_demo');
+        toast.success(currentLanguage === 'en' ? 'Profile photo removed' : 'প্রোফাইল ছবি মুছে ফেলা হয়েছে');
+        setIsUploadingPhoto(false);
+        return;
+      }
+
+      if (auth.currentUser) {
+        try {
+          await updateProfile(auth.currentUser, { photoURL: '' });
+          await refreshUser();
+        } catch (authErr) {
+          console.warn('Auth updateProfile remove notice:', authErr);
+        }
+      }
+
+      if (currentUser?.uid) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await offlineSafeDocWrite(setDoc(userRef, {
+          photoURL: '',
+          imageUrl: '',
+          updatedAt: new Date().toISOString()
+        }, { merge: true }));
+      }
+
+      toast.success(currentLanguage === 'en' ? 'Profile photo removed' : 'প্রোফাইল ছবি মুছে ফেলা হয়েছে');
+    } catch (err) {
+      console.error('Error removing photo:', err);
+      toast.error(currentLanguage === 'en' ? 'Failed to remove photo' : 'ছবি মুছতে সমস্যা হয়েছে');
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -129,7 +299,8 @@ export default function Profile() {
           language,
           country,
           currency,
-          currencySymbol
+          currencySymbol,
+          photoURL: photoURL || ''
         });
         setGlobalLanguage(language as Language);
         setGlobalCountry(country);
@@ -153,6 +324,7 @@ export default function Profile() {
         country,
         currency,
         currencySymbol,
+        photoURL: photoURL || currentUser.photoURL || '',
         updatedAt: new Date().toISOString()
       };
 
@@ -165,6 +337,7 @@ export default function Profile() {
           country,
           currency,
           currencySymbol,
+          photoURL: photoURL || currentUser.photoURL || '',
           updatedAt: new Date().toISOString()
         }));
       } else {
@@ -353,15 +526,79 @@ export default function Profile() {
         </button>
       </div>
 
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
-        <div className="w-20 h-20 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mb-3">
-          {currentUser?.photoURL ? (
-            <img src={currentUser.photoURL} alt="Profile" className="w-full h-full rounded-full object-cover" />
-          ) : (
-             <User size={40} />
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-150 flex flex-col items-center relative overflow-hidden">
+        {/* Hidden File Input for Camera/Gallery upload */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handlePhotoSelect} 
+          accept="image/*" 
+          className="hidden" 
+        />
+
+        {/* Profile Avatar with Camera Overlay */}
+        <div className="relative mb-2.5 group">
+          <div 
+            onClick={() => fileInputRef.current?.click()} 
+            className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 border-3 border-emerald-500 shadow-md flex items-center justify-center overflow-hidden cursor-pointer active:scale-95 transition-all relative"
+            title={currentLanguage === 'bn' ? 'ছবি পরিবর্তন করতে ট্যাপ করুন' : 'Tap to change photo'}
+          >
+            {(photoURL || currentUser?.photoURL) ? (
+              <img 
+                src={photoURL || currentUser?.photoURL || ''} 
+                alt="Profile" 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <User size={46} className="text-emerald-600" />
+            )}
+
+            {isUploadingPhoto && (
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center">
+                <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+
+          {/* Camera Button Badge */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingPhoto}
+            className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md border-2 border-white cursor-pointer active:scale-90 transition-all"
+            title={currentLanguage === 'bn' ? 'প্রোফাইল ছবি পরিবর্তন করুন' : 'Change photo'}
+          >
+            <Camera size={14} />
+          </button>
+        </div>
+
+        {/* Action Pills for Photo */}
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingPhoto}
+            className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 transition-all"
+          >
+            <Camera size={13} className="text-emerald-600" />
+            <span>{(photoURL || currentUser?.photoURL) ? (currentLanguage === 'bn' ? 'ছবি পরিবর্তন' : 'Change Photo') : (currentLanguage === 'bn' ? 'প্রোফাইল পিক দিন' : 'Add Photo')}</span>
+          </button>
+
+          {(photoURL || currentUser?.photoURL) && (
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              disabled={isUploadingPhoto}
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              title={currentLanguage === 'bn' ? 'ছবি মুছুন' : 'Remove photo'}
+            >
+              <Trash2 size={12} className="text-rose-500" />
+              <span>{currentLanguage === 'bn' ? 'মুছুন' : 'Remove'}</span>
+            </button>
           )}
         </div>
-        <h3 className="font-bold text-lg text-gray-800 flex items-center gap-1.5">
+
+        <h3 className="font-black text-lg text-slate-850 flex items-center gap-1.5 mt-0.5">
           {name || (currentLanguage === 'en' ? 'Name not set' : 'নাম সেট করা নেই')}
           {isPremium && (
             <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
@@ -369,7 +606,7 @@ export default function Profile() {
             </span>
           )}
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-xs text-slate-500 font-bold mt-0.5">
           {currentUser?.email?.includes('@digitalfarm.app') 
             ? (phone ? `মোবাইল: ${phone}` : 'মোবাইল অ্যাকাউন্ট') 
             : (currentUser?.email || (phone ? `মোবাইল: ${phone}` : ''))}

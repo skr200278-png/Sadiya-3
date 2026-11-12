@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSystemConfig } from '../contexts/SystemConfigContext';
+import SmartFarmInsightsCard, { InsightMetricData } from '../components/SmartFarmInsightsCard';
+import { fetchBatchInsightsMetrics, calculateAgeInDays } from '../utils/batchMetricsHelper';
 import { demoStore } from '../utils/demoStore';
 import { 
   Sun, 
@@ -44,6 +46,11 @@ export default function Home() {
   const [selectedType, setSelectedType] = useState<'poultry' | 'cattle' | 'fish'>(
     () => (localStorage.getItem('selected_farm_type') as any) || 'poultry'
   );
+  
+  // Active batch and smart farm insights metrics
+  const [activeBatch, setActiveBatch] = useState<any>(null);
+  const [batchMetrics, setBatchMetrics] = useState<InsightMetricData | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
   
   const [isFeedQualityOpen, setIsFeedQualityOpen] = useState(false);
   const [selectedSubBreed, setSelectedSubBreed] = useState<string>('all');
@@ -228,6 +235,74 @@ export default function Home() {
 
     return () => unsub();
   }, [currentUser, isDemoUser]);
+
+  // Real-time / dynamic load of active batch & insights metrics for selected farm type
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingMetrics(true);
+
+    const loadMetricsForBatch = async (batch: any) => {
+      if (!batch) {
+        if (isMounted) {
+          setActiveBatch(null);
+          setBatchMetrics(null);
+          setIsLoadingMetrics(false);
+        }
+        return;
+      }
+      if (isMounted) setActiveBatch(batch);
+      const metrics = await fetchBatchInsightsMetrics(
+        batch, 
+        currentUser?.uid, 
+        isDemoUser, 
+        language
+      );
+      if (isMounted) {
+        setBatchMetrics(metrics);
+        setIsLoadingMetrics(false);
+      }
+    };
+
+    if (isDemoUser) {
+      const allBatches = demoStore.getBatches();
+      const activeMatching = allBatches.filter(
+        b => b.status === 'active' && (b.farmType || 'poultry') === selectedType
+      );
+      const savedBatchId = localStorage.getItem(`selected_batch_id_${selectedType}`);
+      const selected = activeMatching.find(b => b.id === savedBatchId) || activeMatching[0] || null;
+      loadMetricsForBatch(selected);
+      return;
+    }
+
+    if (!currentUser) {
+      setIsLoadingMetrics(false);
+      return;
+    }
+
+    // Real Firebase user
+    const qBatches = query(
+      collection(db, 'batches'),
+      where('userId', '==', currentUser.uid)
+    );
+
+    const unsubBatches = onSnapshot(qBatches, (snapshot) => {
+      const allBatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const activeBatches = allBatches.filter(
+        (b: any) => b.status === 'active' && (b.farmType || 'poultry') === selectedType
+      );
+      const savedBatchId = localStorage.getItem(`selected_batch_id_${selectedType}`);
+      const matched = activeBatches.find((b: any) => b.id === savedBatchId) || activeBatches[0] || null;
+      loadMetricsForBatch(matched);
+    }, (error) => {
+      console.warn("Home batch load error:", error);
+      if (isMounted) setIsLoadingMetrics(false);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubBatches();
+    };
+  }, [currentUser, isDemoUser, selectedType, language]);
 
   const handleSelectType = (type: 'poultry' | 'cattle' | 'fish') => {
     setSelectedType(type);
@@ -438,7 +513,41 @@ export default function Home() {
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-white/5 to-transparent skew-x-12 pointer-events-none" />
       </div>
 
-      {/* 🚀 4. Smartphone App Icon Grid (Phone App Hub - 8 Essential Features in 2 Clean Rows) */}
+      {/* 🌾 4. খামার ইনসাইটস ও খাদ্য মজুত পূর্বাভাস (Smart Farm Insights & Feed Stock Forecast) */}
+      {batchMetrics ? (
+        <SmartFarmInsightsCard
+          data={batchMetrics}
+          batchName={activeBatch?.name || activeBatch?.batchName}
+          batchAgeDays={activeBatch?.startDate ? calculateAgeInDays(activeBatch.startDate) : undefined}
+          batchId={activeBatch?.id}
+          defaultExpanded={true}
+          showQuickLinks={true}
+        />
+      ) : !isLoadingMetrics && (
+        <div className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-200/90 flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+              <Wheat size={16} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs font-black text-slate-800 leading-tight">
+                {language === 'bn' ? 'খামার ইনসাইটস ও খাদ্য মজুত' : 'Farm Insights & Feed Stock'}
+              </h4>
+              <p className="text-[10px] text-slate-400 font-bold truncate mt-0.5">
+                {language === 'bn' ? 'খাদ্য মজুত ও পূর্বাভাস দেখতে ব্যাচ চালু করুন' : 'Start a batch to view stock forecast'}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/batches"
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shrink-0 transition-colors shadow-2xs active:scale-95"
+          >
+            {language === 'bn' ? '+ ব্যাচ শুরু' : '+ New Batch'}
+          </Link>
+        </div>
+      )}
+
+      {/* 🚀 5. Smartphone App Icon Grid (Phone App Hub - 8 Essential Features in 2 Clean Rows) */}
       <div className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-150">
         <div className="flex items-center justify-between mb-2 px-1">
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -623,47 +732,72 @@ export default function Home() {
       </div>
 
       {/* 🚨 6. Quick Assistance & Hotline 1-Line Footer Bar */}
-      <div className="grid grid-cols-2 gap-2">
-        {/* Call Govt Helpline 16123 */}
-        <a
-          href="tel:16123"
-          className="p-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white flex items-center justify-between gap-1 shadow-xs active:scale-98 transition-all"
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-              <PhoneCall size={13} />
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          {/* Call Govt Helpline 16123 */}
+          <a
+            href="tel:16123"
+            className="p-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white flex items-center justify-between gap-1 shadow-xs active:scale-98 transition-all"
+            title="প্রাণিসম্পদ সেবা কল সেন্টার (টোল ফ্রি ১৬১২৩)"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                <PhoneCall size={13} />
+              </div>
+              <div className="min-w-0 text-left">
+                <p className="text-[8px] font-bold text-red-200 uppercase leading-none">প্রাণিসম্পদ অধিদপ্তর</p>
+                <p className="text-xs font-black font-sans leading-tight">১৬১২৩ (টোল ফ্রি)</p>
+              </div>
             </div>
-            <div className="min-w-0 text-left">
-              <p className="text-[8px] font-bold text-red-200 uppercase leading-none">প্রাণিসম্পদ হটলাইন</p>
-              <p className="text-xs font-black font-sans leading-tight">১৬১২৩ (টোল ফ্রি)</p>
-            </div>
-          </div>
-          <ChevronRight size={14} className="shrink-0 text-red-200" />
-        </a>
+            <ChevronRight size={14} className="shrink-0 text-red-200" />
+          </a>
 
-        {/* WhatsApp Doctor Quick Help */}
-        <button
-          type="button"
-          onClick={() => {
-            openWhatsAppSafe({
-              phone: '8801622384379',
-              message: 'আসসালামু আলাইকুম ডাক্তার সাহেব, আমার খামারে জরুরি পরামর্শ প্রয়োজন।',
-              lang: language === 'bn' ? 'bn' : 'en'
-            });
-          }}
-          className="p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-between gap-1 shadow-xs active:scale-98 transition-all cursor-pointer"
+          {/* Official Govt Veterinary Telemedicine WhatsApp Help (DLS Bangladesh) */}
+          <button
+            type="button"
+            onClick={() => {
+              openWhatsAppSafe({
+                phone: '8801711285098',
+                message: 'আসসালামু আলাইকুম ডাক্তার সাহেব, আমি প্রাণিসম্পদ অধিদপ্তর (DLS) টেলিমেডিসিন সেবার জন্য খামার অ্যাপ থেকে যোগাযোগ করছি। আমার খামারে জরুরি পশু/পাখির চিকিৎসা ও পরামর্শ প্রয়োজন।',
+                lang: language === 'bn' ? 'bn' : 'en'
+              });
+            }}
+            className="p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-between gap-1 shadow-xs active:scale-98 transition-all cursor-pointer"
+            title="সরকারি ভেটেরিনারি ডাক্তার হোয়াটসঅ্যাপ হেল্পলাইন (০১৭১১-২৮৫০৯৮)"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                <MessageCircle size={13} />
+              </div>
+              <div className="min-w-0 text-left">
+                <p className="text-[8px] font-bold text-emerald-200 uppercase leading-none">সরকারি টেলিমেডিসিন</p>
+                <p className="text-xs font-black leading-tight">ডাক্তার হোয়াটসঅ্যাপ</p>
+              </div>
+            </div>
+            <ChevronRight size={14} className="shrink-0 text-emerald-200" />
+          </button>
+        </div>
+
+        {/* Link to Full Doctor Directory for Specialist Consultations */}
+        <Link
+          to="/doctor-consultation"
+          className="w-full bg-slate-900/5 hover:bg-slate-900/10 text-slate-700 border border-slate-200 rounded-xl p-2 px-3 flex items-center justify-between gap-2 text-xs font-bold transition-all active:scale-98"
         >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-              <MessageCircle size={13} />
-            </div>
-            <div className="min-w-0 text-left">
-              <p className="text-[8px] font-bold text-emerald-200 uppercase leading-none">অভিজ্ঞ ডাক্তার</p>
-              <p className="text-xs font-black leading-tight">হোয়াটসঅ্যাপ চ্যাট</p>
-            </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-black text-xs">
+              🩺
+            </span>
+            <span className="truncate">
+              {language === 'bn' 
+                ? 'আপনার এলাকার রেজিস্টার্ড সরকারি ও বেসরকারি ভেট ডাক্তারদের তালিকা' 
+                : 'Browse full registered veterinary doctors & surgeons directory'}
+            </span>
           </div>
-          <ChevronRight size={14} className="shrink-0 text-emerald-200" />
-        </button>
+          <span className="text-[11px] text-emerald-700 font-extrabold flex items-center gap-0.5 shrink-0">
+            <span>{language === 'bn' ? 'ডাক্তার খুঁজুন' : 'Find Doctor'}</span>
+            <ChevronRight size={13} />
+          </span>
+        </Link>
       </div>
 
       {/* Feed Quality Modal */}

@@ -135,6 +135,8 @@ export interface DemoUserProfile {
   country?: string;
   currency?: string;
   currencySymbol?: string;
+  photoURL?: string;
+  imageUrl?: string;
 }
 
 export type MarketCategory = 'poultry' | 'cattle' | 'fish';

@@ -87,8 +87,8 @@ export default function StoreDirectory() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // User's own store listings & Max 2 active stores limit
-  const MAX_USER_STORES = 2;
+  // User's own store listings & Strict 1 active store limit per user
+  const MAX_USER_STORES = 1;
   const [showStoreLimitModal, setShowStoreLimitModal] = useState(false);
 
   const myStores = stores.filter(store => {
@@ -176,7 +176,7 @@ export default function StoreDirectory() {
 
   // Open Form
   const handleOpenForm = (storeToEdit?: DemoStoreListing) => {
-    if (!storeToEdit && hasReachedStoreLimit && !isMasterAdmin) {
+    if (!storeToEdit && hasReachedStoreLimit) {
       setShowStoreLimitModal(true);
       return;
     }
@@ -262,11 +262,11 @@ export default function StoreDirectory() {
       return toast.error(language === 'bn' ? 'বাজার বা এলাকার ঠিকানা লিখুন' : 'Please enter address');
     }
 
-    // Strict Quota: Max 2 stores allowed per user
-    if (!editingStoreId && hasReachedStoreLimit && !isMasterAdmin) {
+    // Strict Quota: Max 1 store allowed per user
+    if (!editingStoreId && hasReachedStoreLimit) {
       toast.error(language === 'bn' 
-        ? 'আপনার ইতিমধ্যে ২টি দোকান তালিকাভুক্ত আছে! ১ ব্যবহারকারী সর্বোচ্চ ২টি দোকান রাখতে পারেন। নতুন দোকান দিতে আগেরটি এডিট বা ডিলিট করুন।' 
-        : 'You already have 2 stores listed! Maximum 2 stores allowed per user.');
+        ? 'আপনার ইতিমধ্যে ১টি দোকান তালিকাভুক্ত আছে! ১ ব্যবহারকারী সর্বোচ্চ ১টি দোকান রাখতে পারেন। দোকানের তথ্য আপডেট করতে এডিট করুন অথবা আগেরটি ডিলিট করে নতুন দোকান দিন।' 
+        : 'You already have 1 store listed! Maximum 1 store allowed per user.');
       setIsFormOpen(false);
       setShowStoreLimitModal(true);
       return;
@@ -520,7 +520,7 @@ export default function StoreDirectory() {
           className="bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-slate-950 px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shadow-xs shrink-0 cursor-pointer transition-all"
         >
           <Plus size={14} />
-          <span>{hasReachedStoreLimit && !isMasterAdmin ? (language === 'bn' ? 'কোটা পূর্ণ' : 'Full') : (language === 'bn' ? 'দোকান দিন' : 'List Shop')}</span>
+          <span>{hasReachedStoreLimit ? (language === 'bn' ? 'কোটা পূর্ণ' : 'Full') : (language === 'bn' ? 'দোকান দিন' : 'List Shop')}</span>
           <span className="text-[9px] bg-slate-900/10 px-1 py-0.2 rounded-md font-sans">
             {myStores.length}/{MAX_USER_STORES}
           </span>
@@ -747,16 +747,6 @@ export default function StoreDirectory() {
                 <Edit3 size={10} />
                 <span>{language === 'bn' ? 'এডিট' : 'Edit'}</span>
               </button>
-
-              {!hasReachedStoreLimit && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenForm()}
-                  className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-md text-[10px] font-black cursor-pointer transition-all"
-                >
-                  +২য় দোকান
-                </button>
-              )}
 
               <button
                 type="button"
@@ -1134,13 +1124,13 @@ export default function StoreDirectory() {
             </div>
 
             <h3 className="text-base font-extrabold text-slate-850 mb-1">
-              {language === 'bn' ? 'আপনার ইতিমধ্যে ২টি দোকান চালু আছে!' : 'You already have 2 active stores listed!'}
+              {language === 'bn' ? 'আপনার ইতিমধ্যে ১টি দোকান তালিকাভুক্ত আছে!' : 'You already have 1 active store listed!'}
             </h3>
 
             <p className="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
               {language === 'bn'
-                ? 'সিস্টেমের সুরক্ষা, সার্ভারের সমতা এবং স্প্যাম রোধে একজন ব্যবহারকারী ডিরেক্টরিতে সর্বোচ্চ ২টি দোকান তালিকাভুক্ত করতে পারেন। আপনি চাইলে নিচের তালিকা থেকে আপনার দোকানের তথ্য পরিবর্তন (এডিট) করতে পারেন অথবা ডিলিট করে নতুন দোকান দেওয়ার স্লট খালি করতে পারেন।'
-                : 'To maintain directory quality and prevent abuse, each user is strictly limited to 2 active stores. You can edit your current stores or delete one to free up a slot for a new listing.'}
+                ? 'সিস্টেমের সুরক্ষা, সার্ভারের সমতা এবং স্প্যাম রোধে একজন ব্যবহারকারী ডিরেক্টরিতে সর্বোচ্চ ১টি দোকান তালিকাভুক্ত করতে পারেন। আপনি চাইলে নিচের তালিকা থেকে আপনার দোকানের তথ্য পরিবর্তন (এডিট) করতে পারেন অথবা ডিলিট করে নতুন দোকান দেওয়ার স্লট খালি করতে পারেন।'
+                : 'To maintain directory quality and prevent abuse, each user is strictly limited to 1 active store. You can edit your current store or delete it to free up a slot for a new listing.'}
             </p>
 
             {/* Current Stores List in Modal */}

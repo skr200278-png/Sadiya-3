@@ -4,7 +4,7 @@ import { db, handleFirestoreError, OperationType, offlineSafeDocWrite, fastGetDo
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle, Award } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Sparkles, Scale, Calculator, LineChart as ChartIcon, Wheat, Package, AlertTriangle, Award, ChevronRight, MessageCircle, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { demoStore } from '../utils/demoStore';
@@ -30,6 +30,8 @@ export default function Feed() {
   const submitLock = useRef(false);
   
   const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'feed' | 'sponsors'>('feed');
+  const [filterBatchId, setFilterBatchId] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
   const [batchId, setBatchId] = useState('');
 
@@ -368,6 +370,7 @@ export default function Feed() {
   const currentReturnAmount = amountPaid !== '' ? Math.max(0, currentPaidRaw - currentTotalAmount) : 0;
 
   const handleSelectSponsorProduct = (productName: string, companyName: string) => {
+    setActiveTab('feed');
     setShowForm(true);
     setDetails((prev) => (prev ? `${prev}, ${productName}` : productName));
     if (!personName) {
@@ -375,74 +378,154 @@ export default function Feed() {
     }
     toast.success(
       language === 'bn' 
-        ? `স্পনসর খাদ্য (${productName}) ফর্মের তথ্যে যুক্ত করা হয়েছে!` 
-        : `Added sponsor product (${productName}) into details!`
+        ? `স্পনসর খাদ্য (${productName}) সিলেক্ট করা হয়েছে, হিসাব ফর্ম পূরণ করুন!` 
+        : `Selected sponsor product (${productName})!`
     );
   };
 
-  const totalPurchasedBags = records.reduce((sum, r) => sum + Number(r.quantityBags || 0), 0);
-  const totalFeedCost = records.reduce((sum, r) => sum + Number(r.cost || 0), 0);
+  const displayRecords = filterBatchId === 'all' 
+    ? records 
+    : records.filter(r => r.batchId === filterBatchId);
+
+  const totalPurchasedBags = displayRecords.reduce((sum, r) => sum + Number(r.quantityBags || 0), 0);
+  const totalFeedCost = displayRecords.reduce((sum, r) => sum + Number(r.cost || 0), 0);
 
   return (
-    <div className="space-y-4 pb-8">
-      {/* Sponsor Feed Partner Spotlight */}
-      <SponsorCard 
-        type="feed" 
-        onSelectProduct={handleSelectSponsorProduct} 
-      />
-
-      {/* Main Header */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-2 justify-between items-center">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
-          <ClipboardList className="text-orange-500" /> {t('feed.title')}
-        </h2>
-        <div className="flex items-center gap-2">
-          <button 
+    <div className="space-y-3 pb-8 select-none max-w-2xl mx-auto">
+      {/* 🧭 Top Segmented Mobile Switcher: Feed Records vs Sponsors */}
+      <div className="bg-white p-1 rounded-2xl shadow-2xs border border-slate-200">
+        <div className="grid grid-cols-2 gap-1">
+          <button
             type="button"
-            onClick={() => setIsQualityGuideOpen(true)}
-            className="bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1.5 font-black text-xs shadow-2xs transition-all active:scale-95"
+            onClick={() => setActiveTab('feed')}
+            className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black transition-all cursor-pointer ${
+              activeTab === 'feed'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
           >
-            <Award size={16} className="text-amber-600" />
-            <span>{language === 'bn' ? 'ফিডের গুণাগুণ ও পুষ্টিমান' : 'Feed Quality Guide'}</span>
+            <Wheat size={14} />
+            <span>{language === 'bn' ? 'খাদ্য হিসাব ও স্টক' : 'Feed & Stock'}</span>
           </button>
-          <button 
-            onClick={() => setShowForm(!showForm)}
-            className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-2 rounded-xl cursor-pointer flex items-center gap-1 font-bold text-xs shadow-sm transition-all"
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('sponsors')}
+            className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black transition-all cursor-pointer ${
+              activeTab === 'sponsors'
+                ? 'bg-slate-900 text-amber-300 shadow-xs border border-amber-400/40'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
           >
-            <Plus size={16} />
-            <span>{language === 'bn' ? 'হিসাব যোগ করুন' : 'Add Record'}</span>
+            <Sparkles size={14} className="text-amber-400" />
+            <span>{language === 'bn' ? 'অফিশিয়াল স্পনসর' : 'Sponsors'}</span>
+            <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full uppercase ml-0.5">
+              VIP
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Feed Quality Quick Advisory Card */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 rounded-2xl p-3.5 border border-amber-200 shadow-2xs flex items-center justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-            <Wheat size={20} />
-          </div>
-          <div>
-            <h4 className="text-xs sm:text-sm font-black text-slate-850 flex items-center gap-1.5">
-              <span>{language === 'bn' ? 'ফিডের গুণাগুণ ও আদর্শ পুষ্টিমান নির্দেশিকা' : 'Feed Quality & Nutrition Standards'}</span>
-              <span className="text-[9px] bg-amber-200 text-amber-950 font-black px-1.5 py-0.2 rounded-md">
-                {language === 'bn' ? 'খামারি গাইড' : 'GUIDE'}
-              </span>
-            </h4>
-            <p className="text-[11px] text-slate-600 font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
-              {language === 'bn' 
-                ? 'ব্রয়লার, সোনালী ও লেয়ার মুরগির কোন বয়সে কোন ফিড উপকারী? খালি চোখে ভালো ফিড চেনার ৫টি উপায় ও প্রোটিন চার্ট দেখুন।'
-                : 'Learn optimal crude protein (CP%), metabolizable energy, and 5 practical physical inspection steps.'}
-            </p>
-          </div>
+      {/* 🌟 TAB 2: DEDICATED OFFICIAL SPONSORS HUB */}
+      {activeTab === 'sponsors' && (
+        <div className="animate-fadeIn space-y-3">
+          <SponsorCard 
+            type="feed" 
+            onSelectProduct={handleSelectSponsorProduct} 
+          />
         </div>
-        <button
-          type="button"
-          onClick={() => setIsQualityGuideOpen(true)}
-          className="shrink-0 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 font-black text-xs px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer transition-all whitespace-nowrap"
-        >
-          {language === 'bn' ? 'গাইড দেখুন' : 'View Guide'}
-        </button>
-      </div>
+      )}
+
+      {/* 🌾 TAB 1: FEED LEDGER & GODOWN STOCK MANAGEMENT */}
+      {activeTab === 'feed' && (
+        <div className="animate-fadeIn space-y-3">
+          {/* Slim 1-Line Sponsor Teaser Bar */}
+          <div 
+            onClick={() => setActiveTab('sponsors')}
+            className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white border border-amber-400/30 rounded-2xl p-2 px-3 flex items-center justify-between gap-2 shadow-2xs cursor-pointer hover:border-amber-400 transition-all active:scale-98"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span className="text-[11px] font-black text-amber-300 shrink-0">
+                🌟 স্পনসর পার্টনার্স:
+              </span>
+              <p className="text-[11px] font-bold text-slate-200 truncate">
+                {language === 'bn' 
+                  ? 'নারিশ, সিপি, আফতাব, রেনেটা — সেরা এফসিআর ফিড ও ফ্রি ডাক্তার পরামর্শ' 
+                  : 'Nourish, CP, Aftab, Renata — verified feed partners & deals'}
+              </p>
+            </div>
+            <span className="text-[9.5px] font-black text-amber-300 bg-white/10 px-2 py-0.5 rounded-lg shrink-0 flex items-center gap-0.5 border border-white/10">
+              <span>{language === 'bn' ? 'পার্টনার্স' : 'View'}</span>
+              <span>➜</span>
+            </span>
+          </div>
+
+          {/* Ultra-Compact Phone Header */}
+          <div className="bg-white p-3 rounded-2xl shadow-2xs border border-slate-150 flex flex-wrap gap-2 justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                <Wheat size={16} />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-black text-slate-850 leading-tight">
+                  {t('feed.title')}
+                </h2>
+                <p className="text-[10px] text-slate-400 font-bold">
+                  {language === 'bn' ? 'খাবার ক্রয়, দর ও অবশিষ্ট মজুত খতিয়ান' : 'Feed purchases & inventory ledger'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button 
+                type="button"
+                onClick={() => setIsQualityGuideOpen(true)}
+                className="bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 px-2.5 py-1.5 rounded-xl cursor-pointer flex items-center gap-1 font-black text-[11px] shadow-2xs transition-all active:scale-95"
+              >
+                <Award size={14} className="text-amber-600" />
+                <span>{language === 'bn' ? 'পুষ্টি গাইড' : 'Guide'}</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setShowForm(!showForm)}
+                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3 py-1.5 rounded-xl cursor-pointer flex items-center gap-1 font-black text-[11px] shadow-2xs transition-all"
+              >
+                <Plus size={14} />
+                <span>{showForm ? (language === 'bn' ? 'ফর্ম বন্ধ' : 'Close') : (language === 'bn' ? '+ হিসাব যোগ' : '+ Add')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Feed Quality Quick Advisory Card */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 rounded-2xl p-3 border border-amber-200/80 shadow-2xs flex items-center justify-between gap-2.5">
+            <div className="flex items-start gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                <Wheat size={16} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-black text-slate-850 flex items-center gap-1.5 flex-wrap">
+                  <span>{language === 'bn' ? 'ফিডের গুণাগুণ ও আদর্শ পুষ্টিমান' : 'Feed Nutrition Guide'}</span>
+                  <span className="text-[8.5px] bg-amber-200 text-amber-950 font-black px-1.5 py-0.2 rounded-md">
+                    GUIDE
+                  </span>
+                </h4>
+                <p className="text-[10px] text-slate-600 font-medium truncate">
+                  {language === 'bn' 
+                    ? 'কোন বয়সে কোন ফিড উপকারী? ভালো ফিড চেনার উপায় ও প্রোটিন চার্ট দেখুন।'
+                    : 'Learn optimal CP%, metabolizable energy and 5 inspection steps.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsQualityGuideOpen(true)}
+              className="shrink-0 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 font-black text-[11px] px-2.5 py-1.5 rounded-xl shadow-2xs cursor-pointer transition-all whitespace-nowrap"
+            >
+              {language === 'bn' ? 'গাইড' : 'View'}
+            </button>
+          </div>
 
       {showForm && (
             <form onSubmit={handleSubmit} className="bg-white p-4 rounded-xl shadow border border-orange-100 space-y-3">
@@ -589,41 +672,93 @@ export default function Feed() {
             )}
           </div>
 
-          <div className="space-y-3">
-            {records.map(record => {
+          {/* Batch Filter Chips (If Multiple Batches) */}
+          {activeBatches.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <button
+                type="button"
+                onClick={() => setFilterBatchId('all')}
+                className={`px-2.5 py-1 rounded-xl text-[10.5px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                  filterBatchId === 'all'
+                    ? 'bg-slate-850 text-white shadow-2xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {language === 'bn' ? 'সকল ব্যাচ' : 'All Batches'} ({records.length})
+              </button>
+              {activeBatches.map(b => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setFilterBatchId(b.id)}
+                  className={`px-2.5 py-1 rounded-xl text-[10.5px] font-black transition-all cursor-pointer whitespace-nowrap ${
+                    filterBatchId === b.id
+                      ? 'bg-amber-500 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {b.batchName} ({records.filter(r => r.batchId === b.id).length})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Feed Records List */}
+          <div className="space-y-2.5">
+            {displayRecords.map(record => {
               const batchName = activeBatches.find(b => b.id === record.batchId)?.batchName || 'Unknown Batch';
               const dueStatus = getRecordDueStatus(record, duesList, 'feed');
               return (
-                <div key={record.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500">{new Date(record.date).toLocaleDateString()} - {batchName}</p>
-                    <h3 className="font-bold text-gray-800">{record.feedType}</h3>
-                    <p className="text-sm text-gray-600">{record.quantityBags}{t('feed.amountLabel')}{record.pricePerBag ? `(৳ ${record.pricePerBag}${t('feed.perUnitLabel')})` : ''}</p>
-                    {record.personName && <p className="text-xs font-semibold text-gray-600 mt-0.5">{t('feed.shopLabel')}{record.personName}</p>}
-                    {record.details && <p className="text-sm text-gray-600 mt-1">{record.details}</p>}
+                <div key={record.id} className="bg-white p-3 rounded-2xl border border-slate-150 shadow-2xs flex items-start justify-between gap-2 transition-all hover:border-amber-200">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-amber-50 text-amber-900 border border-amber-200/80">
+                        {batchName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        {new Date(record.date).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US')}
+                      </span>
+                    </div>
+                    <h3 className="font-black text-xs sm:text-sm text-slate-850 mt-1 leading-tight">{record.feedType}</h3>
+                    <p className="text-[11px] font-bold text-slate-600 mt-0.5">
+                      {record.quantityBags} {t('feed.amountLabel')} {record.pricePerBag ? `(৳ ${record.pricePerBag}/${language === 'bn' ? 'বস্তা' : 'bag'})` : ''}
+                    </p>
+                    {record.personName && <p className="text-[10.5px] font-bold text-slate-500 mt-0.5">🏪 {record.personName}</p>}
+                    {record.details && <p className="text-[10.5px] font-medium text-slate-500 mt-0.5 line-clamp-2">📝 {record.details}</p>}
                   </div>
-                  <div className="text-right flex flex-col items-end">
-                    <span className="font-bold text-orange-600 text-lg">৳ {record.cost}</span>
-                    <DuesStatusBadge
-                      dueStatus={dueStatus}
-                      language={language as any}
-                      defaultPaidLabel={t('feed.paidLabel')}
-                      defaultDueLabel={`${t('feed.dueLabel')}${dueStatus.remainingDue}`}
-                    />
-                    <button onClick={() => handleDelete(record.id)} className="text-red-500 hover:bg-red-50 p-1 rounded-md mt-1 inline-block">
-                      <Trash2 size={16} />
+                  <div className="text-right flex flex-col items-end shrink-0">
+                    <span className="font-black text-amber-600 text-sm sm:text-base">৳ {Number(record.cost || 0).toLocaleString()}</span>
+                    <div className="mt-1">
+                      <DuesStatusBadge
+                        dueStatus={dueStatus}
+                        language={language as any}
+                        defaultPaidLabel={t('feed.paidLabel')}
+                        defaultDueLabel={`${t('feed.dueLabel')}${dueStatus.remainingDue}`}
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setDeleteId(record.id)} 
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg mt-1 inline-flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors"
+                      title={language === 'bn' ? 'হিসাব মুছে ফেলুন' : 'Delete'}
+                    >
+                      <Trash2 size={13} />
+                      <span>{language === 'bn' ? 'মুছুন' : 'Delete'}</span>
                     </button>
                   </div>
                 </div>
               );
             })}
 
-            {records.length === 0 && !showForm && (
-              <div className="text-center text-gray-500 py-10 bg-white rounded-xl border border-dashed border-gray-300">
-                {t('feed.noRecords')}
+            {displayRecords.length === 0 && !showForm && (
+              <div className="text-center text-slate-400 py-10 bg-white rounded-2xl border border-dashed border-slate-200">
+                <Wheat size={24} className="mx-auto text-slate-300 mb-1" />
+                <p className="text-xs font-bold">{t('feed.noRecords')}</p>
               </div>
             )}
           </div>
+        </div>
+      )}
     
       <ConfirmModal 
         isOpen={!!deleteId}

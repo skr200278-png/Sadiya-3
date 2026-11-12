@@ -272,6 +272,68 @@ export interface FeedForecastResult {
   weeklyBreakdown: WeeklyFeedScheduleItem[];
 }
 
+export interface FlockWaterRequirement {
+  dailyWaterLitresNormal: number;
+  dailyWaterLitresSummer: number;
+  recommendedDrinkersCount: number;
+  ratioWaterToFeed: number;
+  tipsBn: string;
+  tipsEn: string;
+}
+
+/**
+ * Universal scientific water intake calculation for poultry, cattle, and fish
+ * Standard normal ratio = 2.0x feed weight in kg. Summer ratio = 2.5x - 3.0x.
+ */
+export const calculateFlockWaterRequirement = (
+  sector: FarmSector = 'poultry',
+  birdType: PoultryBirdType = 'broiler',
+  flockCount: number,
+  dailyFeedKg: number,
+  ageDays: number = 1
+): FlockWaterRequirement => {
+  const count = Math.max(1, flockCount);
+  const feedKg = Math.max(0.5, dailyFeedKg);
+
+  if (sector === 'cattle') {
+    const normalL = Math.round(count * 55);
+    const summerL = Math.round(count * 80);
+    return {
+      dailyWaterLitresNormal: normalL,
+      dailyWaterLitresSummer: summerL,
+      recommendedDrinkersCount: Math.max(1, Math.ceil(count / 2)),
+      ratioWaterToFeed: 4.0,
+      tipsBn: 'গাভী ও গবাদিপশুকে সবসময় পরিষ্কার ঠান্ডা পানি ও পরিমিত লবণ/ইলেক্ট্রোলাইট সরবরাহ করুন।',
+      tipsEn: 'Provide clean cold water with mineral licks for ruminants.'
+    };
+  }
+
+  if (sector === 'fish') {
+    return {
+      dailyWaterLitresNormal: 0,
+      dailyWaterLitresSummer: 0,
+      recommendedDrinkersCount: 0,
+      ratioWaterToFeed: 0,
+      tipsBn: 'পুকুরের পানির গভীরতা ৫-৬ ফুট এবং পিএইচ ৭.৫-৮.৫ বজায় রাখুন। ভোরে অক্সিজেন স্বল্পতা খেয়াল করুন।',
+      tipsEn: 'Maintain pond depth 5-6 feet and pH 7.5-8.5.'
+    };
+  }
+
+  // Poultry (Broiler, Sonali, Layer, Deshi)
+  const normalL = Math.round(feedKg * 2.0);
+  const summerL = Math.round(feedKg * 2.5);
+  const drinkers = Math.max(1, Math.ceil(count / 50)); // 1 bell drinker per 50 birds
+
+  return {
+    dailyWaterLitresNormal: normalL,
+    dailyWaterLitresSummer: summerL,
+    recommendedDrinkersCount: drinkers,
+    ratioWaterToFeed: 2.0,
+    tipsBn: `প্রতি ৫০ মুরগিতে ১টি করে কমপক্ষে ${toBnDigits(drinkers)}টি পাত্রে সার্বক্ষণিক ঠান্ডা ও সুপেয় পানি রাখুন। তীব্র গরমে পানিতে ভিটামিন-সি বা স্যালাইন মিশিয়ে দিন।`,
+    tipsEn: `Keep at least ${drinkers} bell drinkers with cool, fresh water. Add electrolyte/Vit-C in heat stress.`
+  };
+};
+
 export type ProgressiveFeedForecast = FeedForecastResult;
 
 /**
@@ -469,14 +531,10 @@ export const calculateProgressiveFeedForecast = (
     }
     rem -= dayNeed;
     daysSimulated++;
-
-    if (daysRemainingInBatch > 0 && simDay >= targetHarvest) {
-      break;
-    }
   }
 
   const isCoveredUntilHarvest = daysRemainingInBatch > 0 && remainingStockKg >= totalFeedNeededUntilHarvestKg;
-  const daysStockWillLast = isCoveredUntilHarvest ? daysRemainingInBatch : Math.max(1, Math.round(daysSimulated));
+  const daysStockWillLast = Math.max(1, Math.round(daysSimulated));
   const stockRunsOutAtFlockAge = age + daysStockWillLast;
 
   let surplusKg = 0;
@@ -506,19 +564,19 @@ export const calculateProgressiveFeedForecast = (
 
   if (isCoveredUntilHarvest) {
     if (surplusBags > 0) {
-      forecastNoteBn = `বর্তমান মজুত (${toBnDigits(remainingBags)} বস্তা) দিয়ে ব্যাচের বাকি ${toBnDigits(daysRemainingInBatch)} দিন সম্পূর্ণ খাদ্য নিশ্চিত আছে (উদ্বৃত্ত ~${toBnDigits(surplusBags)} বস্তা)`;
-      forecastNoteEn = `Current stock (${remainingBags} bags) covers entire batch until harvest (${daysRemainingInBatch} days left, ~${surplusBags} bags surplus)`;
-      explanationBn = `গুদামে মজুত আছে ${toBnDigits(remainingBags)} বস্তা (${toBnDigits(Math.round(remainingStockKg))} কেজি)। মুরগির বয়স ${toBnDigits(age)} দিন, জীবিত ${toBnDigits(aliveCount)}টি। বাকি ${toBnDigits(daysRemainingInBatch)} দিনে (৩৫তম দিন পর্যন্ত) আনুমানিক ${toBnDigits(totalFeedNeededUntilHarvestBags)} বস্তা (${toBnDigits(Math.round(totalFeedNeededUntilHarvestKg))} কেজি) খাদ্য লাগবে। বর্তমান স্টকে ব্যাচ শেষ হওয়া পর্যন্ত নিশ্চিত আছে এবং ব্যাচ শেষে প্রায় ${toBnDigits(surplusBags)} বস্তা খাদ্য উদ্বৃত্ত থাকবে।`;
+      forecastNoteBn = `বর্তমান মজুত (${toBnDigits(remainingBags)} বস্তা) দিয়ে আগামী ~${toBnDigits(daysStockWillLast)} দিন চলবে (বয়স ${toBnDigits(stockRunsOutAtFlockAge)} দিন পর্যন্ত)। ${toBnDigits(targetHarvest)}তম দিনে বিক্রির জন্য লাগবে মাত্র ~${toBnDigits(totalFeedNeededUntilHarvestBags)} বস্তা, ফলে বিক্রির পরও গুদামে ~${toBnDigits(surplusBags)} বস্তা উদ্বৃত্ত থাকবে`;
+      forecastNoteEn = `Current stock (${remainingBags} bags) will last approx ${daysStockWillLast} days (until age ${stockRunsOutAtFlockAge}d). Need only ~${totalFeedNeededUntilHarvestBags} bags until harvest (${targetHarvest}d), leaving ~${surplusBags} bags surplus`;
+      explanationBn = `গুদামে মজুত আছে ${toBnDigits(remainingBags)} বস্তা (${toBnDigits(Math.round(remainingStockKg))} কেজি)। মুরগির বয়স ${toBnDigits(age)} দিন, জীবিত ${toBnDigits(aliveCount)}টি। বাকি ${toBnDigits(daysRemainingInBatch)} দিনে (${toBnDigits(targetHarvest)}তম দিন পর্যন্ত) আনুমানিক ${toBnDigits(totalFeedNeededUntilHarvestBags)} বস্তা খাদ্য লাগবে। বর্তমান স্টকে ব্যাচ শেষ হওয়া পর্যন্ত নিশ্চিত আছে এবং ব্যাচ শেষে প্রায় ${toBnDigits(surplusBags)} বস্তা খাদ্য উদ্বৃত্ত থাকবে।`;
       explanationEn = `Godown has ${remainingBags} bags (${Math.round(remainingStockKg)} kg). Flock age ${age} days, ${aliveCount} alive. For the remaining ${daysRemainingInBatch} days until harvest (${targetHarvest} days), approx ${totalFeedNeededUntilHarvestBags} bags (${Math.round(totalFeedNeededUntilHarvestKg)} kg) are required. Current stock covers the full batch with ~${surplusBags} bags surplus.`;
     } else {
-      forecastNoteBn = `বর্তমান মজুত দিয়ে ব্যাচের বাকি ${toBnDigits(daysRemainingInBatch)} দিন সম্পূর্ণ খাদ্য নিশ্চিত আছে`;
-      forecastNoteEn = `Current stock covers entire batch until harvest (${daysRemainingInBatch} days left)`;
+      forecastNoteBn = `বর্তমান মজুত (${toBnDigits(remainingBags)} বস্তা) দিয়ে ব্যাচের বাকি ${toBnDigits(daysRemainingInBatch)} দিন সম্পূর্ণ খাদ্য নিশ্চিত আছে (চলবে প্রায় ${toBnDigits(daysStockWillLast)} দিন)`;
+      forecastNoteEn = `Current stock (${remainingBags} bags) covers entire batch until harvest (${daysRemainingInBatch} days left, lasts ~${daysStockWillLast} days)`;
       explanationBn = `গুদামে মজুত ${toBnDigits(remainingBags)} বস্তা দিয়ে ব্যাচের বাকি ${toBnDigits(daysRemainingInBatch)} দিনের প্রয়োজন (মোট ~${toBnDigits(totalFeedNeededUntilHarvestBags)} বস্তা) সম্পূর্ণ পূরণ হবে।`;
       explanationEn = `Current stock of ${remainingBags} bags satisfies the full batch requirement of ~${totalFeedNeededUntilHarvestBags} bags for the remaining ${daysRemainingInBatch} days.`;
     }
   } else if (daysRemainingInBatch > 0) {
-    forecastNoteBn = `বর্তমান মজুত (${toBnDigits(remainingBags)} বস্তা) দিয়ে আগামী ~${toBnDigits(daysStockWillLast)} দিন চলবে (বয়স ${toBnDigits(stockRunsOutAtFlockAge)} দিন পর্যন্ত)। ব্যাচ শেষ করতে আরও প্রায় ${toBnDigits(shortageBags)} বস্তা প্রয়োজন`;
-    forecastNoteEn = `Current stock (${remainingBags} bags) will last approx ${daysStockWillLast} days (until flock age ${stockRunsOutAtFlockAge}d). Need ~${shortageBags} more bags for batch completion`;
+    forecastNoteBn = `বর্তমান মজুত (${toBnDigits(remainingBags)} বস্তা) দিয়ে আগামী ~${toBnDigits(daysStockWillLast)} দিন চলবে (বয়স ${toBnDigits(stockRunsOutAtFlockAge)} দিন পর্যন্ত)। ${toBnDigits(targetHarvest)}তম দিনে ব্যাচ শেষ করতে আরও প্রায় ${toBnDigits(shortageBags)} বস্তা প্রয়োজন`;
+    forecastNoteEn = `Current stock (${remainingBags} bags) will last approx ${daysStockWillLast} days (until flock age ${stockRunsOutAtFlockAge}d). Need ~${shortageBags} more bags for batch completion at day ${targetHarvest}`;
     explanationBn = `গুদামে মজুত আছে ${toBnDigits(remainingBags)} বস্তা (${toBnDigits(Math.round(remainingStockKg))} কেজি)। মুরগির বয়স ${toBnDigits(age)} দিন, জীবিত ${toBnDigits(aliveCount)}টি। বর্তমান খাদ্য দিয়ে আগামী প্রায় ${toBnDigits(daysStockWillLast)} দিন চলবে (মুরগির বয়স ${toBnDigits(stockRunsOutAtFlockAge)} দিন পর্যন্ত)। ${toBnDigits(targetHarvest)}তম দিনে ব্যাচ সমাপ্তি পর্যন্ত সম্পূর্ণ করতে আরও প্রায় ${toBnDigits(shortageBags)} বস্তা (${toBnDigits(Math.round(shortageKg))} কেজি) খাদ্য কিনতে হবে।`;
     explanationEn = `Godown has ${remainingBags} bags (${Math.round(remainingStockKg)} kg). Flock age ${age} days, ${aliveCount} alive. At progressive intake rate, this stock will last approx ${daysStockWillLast} days (until age ${stockRunsOutAtFlockAge} days). You will need ~${shortageBags} more bags (${Math.round(shortageKg)} kg) to complete the batch until harvest (${targetHarvest} days).`;
   } else {

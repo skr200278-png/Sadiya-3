@@ -61,7 +61,11 @@ import { getSopForDay } from '../utils/broilerSopData';
 import { BroilerDailySopCard } from '../components/BroilerDailySopCard';
 import { fetchBatchDailyRecords } from '../services/dailyRecordService';
 import { calculateStrictBatchFcr } from '../utils/fcrCalculationEngine';
-import { calculateProgressiveFeedForecast } from '../utils/feedStockCalculations';
+import { 
+  calculateProgressiveFeedForecast, 
+  calculateStandardFlockCumulativeFeedKg, 
+  calculateFlockWaterRequirement 
+} from '../utils/feedStockCalculations';
 import FeedQualityGuideModal from '../components/FeedQualityGuideModal';
 
 interface Chores {
@@ -494,6 +498,14 @@ export default function Dashboard() {
         }
       }
 
+      const standardFlockCumKg = calculateStandardFlockCumulativeFeedKg(
+        batchScopeItem.farmType,
+        batchScopeItem.subBreed as any,
+        fcrResult.currentLiveCount,
+        fcrResult.batchAgeDays
+      );
+
+      let isAutoCalculatedFeed = false;
       let totalPurchasedBags = tFeedBags;
       if (totalPurchasedBags === 0) {
         if (batch.feedStockInKg !== undefined && Number(batch.feedStockInKg) > 0) {
@@ -507,6 +519,17 @@ export default function Dashboard() {
       }
 
       const totalPurchasedKg = totalPurchasedBags * bagWeightKg;
+
+      // Automatic Feed Tracking without daily farmer logging requirement
+      if (actualUsedFeedKg === 0 && fcrResult.batchAgeDays > 2) {
+        isAutoCalculatedFeed = true;
+        if (totalPurchasedKg > 0) {
+          actualUsedFeedKg = Math.min(totalPurchasedKg, standardFlockCumKg);
+        } else {
+          actualUsedFeedKg = standardFlockCumKg;
+        }
+      }
+
       const remainingKg = Math.max(0, totalPurchasedKg - actualUsedFeedKg);
       const remainingBags = bagWeightKg > 0 ? Number((remainingKg / bagWeightKg).toFixed(1)) : 0;
       const feedPurchasedBags = totalPurchasedBags;
@@ -527,6 +550,25 @@ export default function Dashboard() {
       const feedForecastNote = language === 'bn' ? forecast.forecastNoteBn : forecast.forecastNoteEn;
       const isFeedCoversEntireBatch = forecast.isCoveredUntilHarvest;
       const avgDaily = bagWeightKg > 0 ? Number((forecast.currentDailyRequirementKg / bagWeightKg).toFixed(2)) : 1;
+
+      // Water requirement calculation
+      const waterReq = calculateFlockWaterRequirement(
+        batchScopeItem.farmType,
+        batchScopeItem.subBreed as any,
+        fcrResult.currentLiveCount,
+        forecast.currentDailyRequirementKg,
+        fcrResult.batchAgeDays
+      );
+
+      const targetHarvestDays = forecast.targetHarvestAgeDays || 35;
+      const totalBatchTargetFeedKg = calculateStandardFlockCumulativeFeedKg(
+        batchScopeItem.farmType,
+        batchScopeItem.subBreed as any,
+        fcrResult.currentLiveCount,
+        targetHarvestDays
+      );
+      const totalBatchTargetFeedBags = Number((totalBatchTargetFeedKg / bagWeightKg).toFixed(1));
+      const remainingFeedNeededToHarvestBags = forecast.totalFeedNeededUntilHarvestBags;
 
       // Retrieve measured sample weight from storage if available
       let measuredWeightGram: number | undefined = undefined;
@@ -571,7 +613,15 @@ export default function Dashboard() {
         currentAvgWeightGram: measuredWeightGram,
         batchAgeDays: fcrResult.batchAgeDays || age,
         farmType: batch.farmType || 'poultry',
-        species: batch.subBreed || batch.breed || 'broiler'
+        species: batch.subBreed || batch.breed || 'broiler',
+        isAutoCalculatedFeed,
+        dailyFeedKg: forecast.currentDailyRequirementKg,
+        dailyWaterLitresNormal: waterReq.dailyWaterLitresNormal,
+        dailyWaterLitresSummer: waterReq.dailyWaterLitresSummer,
+        recommendedDrinkersCount: waterReq.recommendedDrinkersCount,
+        totalBatchTargetFeedBags,
+        remainingFeedNeededToHarvestBags,
+        targetHarvestAgeDays: targetHarvestDays
       });
     } catch (err) {
       console.warn('Error computing batch metrics:', err);

@@ -318,39 +318,41 @@ export default function Marketplace() {
 
   // Helper to determine if current user owns a post
   const isPostOwner = (post: DemoMarketPost): boolean => {
-    if (isDemoUser) return true;
-    if (currentUser && post.userId === currentUser.uid) return true;
+    if (currentUser?.uid && post.userId === currentUser.uid) return true;
     if (currentUser?.email && (post as any).userEmail === currentUser.email) return true;
-    if (post.phone && postForm.phone && post.phone.trim() === postForm.phone.trim()) return true;
+    if (currentUser?.phoneNumber && post.phone && (post.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(post.phone))) return true;
     if (myCreatedPostIds.includes(post.id)) return true;
-    if (post.userId === 'demo_user' || post.userId?.startsWith('demo_') || post.id?.startsWith('market_post_')) return true;
+    if (isDemoUser && (post.userId === 'demo_user' || myCreatedPostIds.includes(post.id))) return true;
     return false;
   };
 
   // User's own active posts
   const myPosts = posts.filter(isPostOwner);
 
-  // Get user's post in a specific category and type (if any)
-  const getQuotaPost = (cat: MarketCategory, type: 'sell' | 'buy'): DemoMarketPost | undefined => {
-    return myPosts.find(p => resolvePostCategory(p) === cat && (p.postType || 'sell') === type);
-  };
+  // Active single Sell post and single Buy post
+  const mySellPost = myPosts.find(p => (p.postType || 'sell') === 'sell');
+  const myBuyPost = myPosts.find(p => p.postType === 'buy');
 
-  // Quota enforcement: max 1 sell post and max 1 buy post per category (total max 6)
-  const hasReachedCategoryQuota = (cat: MarketCategory, type: 'sell' | 'buy', excludePostId?: string | null): boolean => {
-    if (isAdmin) return false;
+  // Quota enforcement: strict 1 Sell post and 1 Buy post across entire marketplace (total max 2)
+  const hasReachedTypeQuota = (type: 'sell' | 'buy', excludePostId?: string | null): boolean => {
     return myPosts.some(p => 
       p.id !== excludePostId &&
-      resolvePostCategory(p) === cat && 
       (p.postType || 'sell') === type
     );
   };
 
-  // Total active quota used across all 3 categories (out of 6)
-  const totalActiveAdsCount = (['poultry', 'cattle', 'fish'] as MarketCategory[]).reduce((acc, cat) => {
-    const s = getQuotaPost(cat, 'sell') ? 1 : 0;
-    const b = getQuotaPost(cat, 'buy') ? 1 : 0;
-    return acc + s + b;
-  }, 0);
+  // Backward compatibility alias
+  const hasReachedCategoryQuota = (cat: MarketCategory, type: 'sell' | 'buy', excludePostId?: string | null): boolean => {
+    return hasReachedTypeQuota(type, excludePostId);
+  };
+
+  const getQuotaPost = (cat: MarketCategory, type: 'sell' | 'buy'): DemoMarketPost | undefined => {
+    return type === 'sell' ? mySellPost : myBuyPost;
+  };
+
+  // Total active quota used (out of 2: 1 sell + 1 buy)
+  const MAX_MARKET_ADS = 2;
+  const totalActiveAdsCount = (mySellPost ? 1 : 0) + (myBuyPost ? 1 : 0);
 
   // Buyer Form State
   const [buyerForm, setBuyerForm] = useState({
@@ -459,19 +461,24 @@ export default function Marketplace() {
     let cat: MarketCategory = preferredCategory || (selectedCategoryFilter !== 'all' ? selectedCategoryFilter : 'poultry');
     let type: 'sell' | 'buy' = preferredType || 'sell';
 
-    // If requested slot is full and not admin, try the other slot or an open category
-    if (!isAdmin && hasReachedCategoryQuota(cat, type)) {
+    // Strict Quota: Max 1 Sell ad and max 1 Buy ad per user (Total max 2)
+    if (mySellPost && myBuyPost) {
+      setQuotaConflictCategory(cat);
+      setQuotaConflictType(type);
+      setShowQuotaLimitModal(true);
+      return;
+    }
+
+    // If requested type is already used, switch to the other open slot
+    if (hasReachedTypeQuota(type)) {
       const altType: 'sell' | 'buy' = type === 'sell' ? 'buy' : 'sell';
-      if (!hasReachedCategoryQuota(cat, altType)) {
+      if (!hasReachedTypeQuota(altType)) {
         type = altType;
       } else {
-        const openCat = (['poultry', 'cattle', 'fish'] as MarketCategory[]).find(c => 
-          !hasReachedCategoryQuota(c, 'sell') || !hasReachedCategoryQuota(c, 'buy')
-        );
-        if (openCat) {
-          cat = openCat;
-          type = !hasReachedCategoryQuota(cat, 'sell') ? 'sell' : 'buy';
-        }
+        setQuotaConflictCategory(cat);
+        setQuotaConflictType(type);
+        setShowQuotaLimitModal(true);
+        return;
       }
     }
 
@@ -538,15 +545,15 @@ export default function Marketplace() {
     const targetCat = postForm.category || 'poultry';
     const targetType = postForm.postType || 'sell';
 
-    // Quota Enforcement: Check if user already has an active post for this category & type (unless editing same post)
-    if (!isAdmin && hasReachedCategoryQuota(targetCat, targetType, editingPostId)) {
+    // Quota Enforcement: Strict 1 Sell and 1 Buy ad limit per user across the marketplace
+    if (hasReachedTypeQuota(targetType, editingPostId)) {
       setQuotaConflictCategory(targetCat);
       setQuotaConflictType(targetType);
       setShowQuotaLimitModal(true);
       toast.error(
         language === 'bn'
-          ? `${CATEGORY_CONFIG[targetCat].nameBn} বিভাগে আপনার ১টি ${targetType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে! (কোটা পূর্ণ)`
-          : `You already have 1 active ${targetType} ad in this category! Quota reached.`
+          ? `আপনার ইতিমধ্যে ১টি ${targetType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন চালু আছে! ১ জন ব্যবহারকারী সর্বোচ্চ ১টি ${targetType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন রাখতে পারেন।`
+          : `You already have 1 active ${targetType} ad! Maximum 1 ${targetType} ad allowed per user.`
       );
       return;
     }
@@ -1055,7 +1062,7 @@ export default function Marketplace() {
         </button>
       </div>
 
-      {/* 5. Collapsible Quota Strip (Saves ~200px!) */}
+      {/* 5. Collapsible Quota Strip (Max 2 Ads: 1 Sell + 1 Buy) */}
       {activeTab === 'posts' && (
         <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-teal-950 text-white rounded-2xl p-2 sm:p-2.5 shadow-xs border border-slate-700/60 space-y-1.5">
           {/* 1-Line Quota Summary Bar */}
@@ -1064,13 +1071,13 @@ export default function Marketplace() {
               <span className="text-sm shrink-0">📊</span>
               <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-black text-white">
-                  {language === 'bn' ? 'কোটা:' : 'Quota:'}
+                  {language === 'bn' ? 'বিজ্ঞাপন কোটা:' : 'Ad Quota:'}
                 </span>
                 <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-md text-[10px] font-black font-sans">
-                  {totalActiveAdsCount}/৬ {language === 'bn' ? 'ব্যবহৃত' : 'Used'}
+                  {totalActiveAdsCount}/{MAX_MARKET_ADS} {language === 'bn' ? 'ব্যবহৃত' : 'Used'}
                 </span>
-                <span className="text-[9px] text-slate-400 hidden xs:inline">
-                  ({language === 'bn' ? 'পাখি, পশু, মাছ: প্রতিটিতে ১ বিক্রি + ১ ক্রয়' : '1 Buy + 1 Sell each'})
+                <span className="text-[9.5px] text-slate-300">
+                  ({language === 'bn' ? 'সর্বোচ্চ ১টি বিক্রয় + ১টি ক্রয় বিজ্ঞাপন' : 'Max 1 Sell + 1 Buy ad'})
                 </span>
               </div>
             </div>
@@ -1090,114 +1097,132 @@ export default function Marketplace() {
 
               <button
                 onClick={() => handleOpenPostModal()}
-                className="py-0.5 px-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg font-black text-[10.5px] cursor-pointer transition-all active:scale-95 shadow-xs flex items-center gap-0.5"
+                disabled={totalActiveAdsCount >= MAX_MARKET_ADS}
+                className="py-0.5 px-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 rounded-lg font-black text-[10.5px] cursor-pointer transition-all active:scale-95 shadow-xs flex items-center gap-0.5"
               >
                 <Plus size={11} strokeWidth={3} />
-                <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ad'}</span>
+                <span>{totalActiveAdsCount >= MAX_MARKET_ADS ? (language === 'bn' ? 'কোটা পূর্ণ' : 'Quota Full') : (language === 'bn' ? 'বিজ্ঞাপন দিন' : 'Post Ad')}</span>
               </button>
             </div>
           </div>
 
-          {/* Expanded 3 Categories Grid (Only when user taps 'কোটা স্লট') */}
+          {/* Expanded 2 Master Slots: 1 Sell Slot + 1 Buy Slot */}
           {showQuotaDetails && (
             <div className="pt-1.5 border-t border-white/10 animate-in fade-in space-y-1.5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                {(['poultry', 'cattle', 'fish'] as MarketCategory[]).map((catKey) => {
-                  const cfg = CATEGORY_CONFIG[catKey];
-                  const sellPost = getQuotaPost(catKey, 'sell');
-                  const buyPost = getQuotaPost(catKey, 'buy');
-                  const categoryUsedCount = (sellPost ? 1 : 0) + (buyPost ? 1 : 0);
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* 1. Sell Ad Slot */}
+                <div className={`rounded-xl p-2.5 border transition-all ${
+                  mySellPost ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-100' : 'bg-white/5 border-white/10 text-slate-300'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-xs flex items-center gap-1 text-white">
+                      <span>📢</span>
+                      <span>{language === 'bn' ? '১. বিক্রয় বিজ্ঞাপন স্লট' : '1. Sell Ad Slot'}</span>
+                    </span>
+                    <span className={`text-[10px] font-black px-1.5 py-0.2 rounded ${
+                      mySellPost ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/30' : 'bg-white/10 text-slate-400'
+                    }`}>
+                      {mySellPost ? (language === 'bn' ? '১/১ পূর্ণ' : '1/1 Active') : (language === 'bn' ? '০/১ খালি' : '0/1 Free')}
+                    </span>
+                  </div>
 
-                  return (
-                    <div key={catKey} className="bg-white/5 rounded-xl p-2 border border-white/10 flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-black text-xs text-white flex items-center gap-1">
-                          <span>{cfg.icon}</span>
-                          <span>{language === 'bn' ? cfg.nameBn : cfg.nameEn}</span>
-                        </span>
-                        <span className="text-[10px] text-amber-300 font-sans font-bold">
-                          {categoryUsedCount}/২
-                        </span>
+                  {mySellPost ? (
+                    <div className="flex items-center justify-between gap-1.5 pt-1 text-[11px]">
+                      <div className="min-w-0">
+                        <p className="font-black text-white truncate">
+                          {CATEGORY_CONFIG[resolvePostCategory(mySellPost)].icon} {CATEGORY_CONFIG[resolvePostCategory(mySellPost)].nameBn} • {mySellPost.birdCount} টি
+                        </p>
+                        <p className="text-[10px] text-emerald-300 font-bold truncate">
+                          দর: ৳{mySellPost.expectedPricePerKg} • 📍 {mySellPost.district}
+                        </p>
                       </div>
-
-                      <div className="space-y-1">
-                        {/* Sell Slot */}
-                        <div className={`p-1 rounded-lg text-[10px] flex items-center justify-between transition-colors ${
-                          sellPost ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-200' : 'bg-white/5 text-slate-400'
-                        }`}>
-                          <span className="font-bold flex items-center gap-1">
-                            <span>📢 বিক্রি:</span>
-                            {sellPost ? (
-                              <span className="text-emerald-300 font-black">১/১ পূর্ণ</span>
-                            ) : (
-                              <span className="text-slate-400">০/১ খালি</span>
-                            )}
-                          </span>
-                          {sellPost ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleOpenEditPost(sellPost)}
-                                className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all shadow-2xs"
-                              >
-                                এডিট
-                              </button>
-                              <button
-                                onClick={() => setPostToDelete(sellPost)}
-                                className="px-1 py-0.5 bg-red-500/30 hover:bg-red-500/60 text-red-300 rounded text-[9.5px] font-black cursor-pointer transition-colors"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenPostModal(catKey, 'sell')}
-                              className="px-1.5 py-0.5 bg-white/20 hover:bg-white/30 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all"
-                            >
-                              + দিন
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Buy Slot */}
-                        <div className={`p-1 rounded-lg text-[10px] flex items-center justify-between transition-colors ${
-                          buyPost ? 'bg-indigo-500/20 border border-indigo-400/40 text-indigo-200' : 'bg-white/5 text-slate-400'
-                        }`}>
-                          <span className="font-bold flex items-center gap-1">
-                            <span>🛒 ক্রয়:</span>
-                            {buyPost ? (
-                              <span className="text-indigo-300 font-black">১/১ পূর্ণ</span>
-                            ) : (
-                              <span className="text-slate-400">০/১ খালি</span>
-                            )}
-                          </span>
-                          {buyPost ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleOpenEditPost(buyPost)}
-                                className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all shadow-2xs"
-                              >
-                                এডিট
-                              </button>
-                              <button
-                                onClick={() => setPostToDelete(buyPost)}
-                                className="px-1 py-0.5 bg-red-500/30 hover:bg-red-500/60 text-red-300 rounded text-[9.5px] font-black cursor-pointer transition-colors"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenPostModal(catKey, 'buy')}
-                              className="px-1.5 py-0.5 bg-white/20 hover:bg-white/30 text-white rounded text-[9.5px] font-black cursor-pointer active:scale-95 transition-all"
-                            >
-                              + দিন
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleOpenEditPost(mySellPost)}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black cursor-pointer shadow-2xs"
+                        >
+                          {language === 'bn' ? 'এডিট' : 'Edit'}
+                        </button>
+                        <button
+                          onClick={() => setPostToDelete(mySellPost)}
+                          className="p-1 bg-rose-500/30 hover:bg-rose-500 text-rose-200 rounded-lg text-xs font-bold cursor-pointer"
+                          title={language === 'bn' ? 'ডিলিট' : 'Delete'}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div className="flex items-center justify-between pt-1">
+                      <p className="text-[10px] text-slate-400 font-bold">
+                        {language === 'bn' ? 'যেকোনো ক্যাটাগরিতে ১টি বিক্রয় বিজ্ঞাপন দেওয়া যাবে' : 'You can post 1 sell ad'}
+                      </p>
+                      <button
+                        onClick={() => handleOpenPostModal('poultry', 'sell')}
+                        className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10.5px] rounded-lg cursor-pointer"
+                      >
+                        + বিক্রয় দিন
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Buy Ad Slot */}
+                <div className={`rounded-xl p-2.5 border transition-all ${
+                  myBuyPost ? 'bg-indigo-950/40 border-indigo-500/40 text-indigo-100' : 'bg-white/5 border-white/10 text-slate-300'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-xs flex items-center gap-1 text-white">
+                      <span>🛒</span>
+                      <span>{language === 'bn' ? '২. ক্রয় চাহিদা স্লট' : '2. Buy Requirement Slot'}</span>
+                    </span>
+                    <span className={`text-[10px] font-black px-1.5 py-0.2 rounded ${
+                      myBuyPost ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-400/30' : 'bg-white/10 text-slate-400'
+                    }`}>
+                      {myBuyPost ? (language === 'bn' ? '১/১ পূর্ণ' : '1/1 Active') : (language === 'bn' ? '০/১ খালি' : '0/1 Free')}
+                    </span>
+                  </div>
+
+                  {myBuyPost ? (
+                    <div className="flex items-center justify-between gap-1.5 pt-1 text-[11px]">
+                      <div className="min-w-0">
+                        <p className="font-black text-white truncate">
+                          {CATEGORY_CONFIG[resolvePostCategory(myBuyPost)].icon} {CATEGORY_CONFIG[resolvePostCategory(myBuyPost)].nameBn} • {myBuyPost.birdCount} টি চাহিদা
+                        </p>
+                        <p className="text-[10px] text-indigo-300 font-bold truncate">
+                          দর: ৳{myBuyPost.expectedPricePerKg} • 📍 {myBuyPost.district}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleOpenEditPost(myBuyPost)}
+                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-black cursor-pointer shadow-2xs"
+                        >
+                          {language === 'bn' ? 'এডিট' : 'Edit'}
+                        </button>
+                        <button
+                          onClick={() => setPostToDelete(myBuyPost)}
+                          className="p-1 bg-rose-500/30 hover:bg-rose-500 text-rose-200 rounded-lg text-xs font-bold cursor-pointer"
+                          title={language === 'bn' ? 'ডিলিট' : 'Delete'}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between pt-1">
+                      <p className="text-[10px] text-slate-400 font-bold">
+                        {language === 'bn' ? 'যেকোনো ক্যাটাগরিতে ১টি ক্রয় বিজ্ঞাপন দেওয়া যাবে' : 'You can post 1 buy requirement'}
+                      </p>
+                      <button
+                        onClick={() => handleOpenPostModal('poultry', 'buy')}
+                        className="px-2 py-0.5 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-[10.5px] rounded-lg cursor-pointer"
+                      >
+                        + ক্রয় দিন
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2132,16 +2157,16 @@ export default function Marketplace() {
                 </div>
               </div>
 
-              {/* Quota Conflict Inline Alert (If current selection is full and not admin) */}
-              {hasReachedCategoryQuota(postForm.category, postForm.postType, editingPostId) && !isAdmin && (
+              {/* Quota Conflict Inline Alert (If current selection is full) */}
+              {hasReachedTypeQuota(postForm.postType, editingPostId) && (
                 <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-amber-950 flex items-start gap-2.5 animate-fadeIn">
                   <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-xs">
                     <p className="font-black text-amber-900">
-                      {CATEGORY_CONFIG[postForm.category].nameBn} বিভাগে আপনার ১টি {postForm.postType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে! (কোটা পূর্ণ)
+                      আপনার ইতিমধ্যে ১টি {postForm.postType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন চালু আছে! (কোটা পূর্ণ)
                     </p>
                     <p className="text-[11px] text-amber-800 mt-0.5">
-                      সিস্টেমের সুরক্ষা নিশ্চিত করতে প্রতি বিভাগে সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপনের কোটা নির্ধারিত।
+                      সিস্টেমের সুরক্ষা নিশ্চিত করতে পাইকারি বাজারে প্রতি ব্যবহারকারীর সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপনের কোটা নির্ধারিত।
                     </p>
                     {getQuotaPost(postForm.category, postForm.postType) && (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -2475,7 +2500,7 @@ export default function Marketplace() {
               {/* Submit Button with Quota Guard & Double-Click Protection */}
               <button
                 type="submit"
-                disabled={isSubmittingPost || (hasReachedCategoryQuota(postForm.category, postForm.postType, editingPostId) && !isAdmin)}
+                disabled={isSubmittingPost || hasReachedTypeQuota(postForm.postType, editingPostId)}
                 className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 text-white rounded-xl font-black text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mt-2"
               >
                 {isSubmittingPost ? (
@@ -2511,13 +2536,13 @@ export default function Marketplace() {
             <div className="text-center space-y-1">
               <h3 className="text-sm font-extrabold text-slate-900">
                 {language === 'bn' 
-                  ? `${CATEGORY_CONFIG[quotaConflictCategory].nameBn} কোটা পূর্ণ` 
-                  : 'Category Ad Quota Reached'}
+                  ? `কোটা পূর্ণ: আপনার ১টি ${quotaConflictType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন চালু আছে` 
+                  : `Ad Quota Reached: Active ${quotaConflictType === 'sell' ? 'Sell' : 'Buy'} Ad Exists`}
               </h3>
               <p className="text-xs text-slate-500 font-medium leading-relaxed">
                 {language === 'bn' 
-                  ? `সিস্টেমের সমতা বজায় রাখতে প্রতি বিভাগে সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপন দেওয়া যায়। এই বিভাগে আপনার ১টি ${quotaConflictType === 'sell' ? 'বিক্রয়' : 'ক্রয়'} বিজ্ঞাপন ইতিমধ্যে চালু আছে।` 
-                  : `Each user is allowed max 1 Buy and 1 Sell ad per category.`}
+                  ? `সিস্টেমের সুরক্ষা ও স্প্যাম রোধে পাইকারি বাজারে ১ জন ব্যবহারকারী সর্বোচ্চ ১টি বিক্রয় ও ১টি ক্রয় বিজ্ঞাপন দিতে পারেন। নতুন বিজ্ঞাপন দিতে আগেরটি ডিলিট করুন অথবা আগেরটির তথ্য এডিট করুন।` 
+                  : `Each user is strictly limited to 1 Buy and 1 Sell ad in the wholesale market. Please edit or delete your existing ad to post a new one.`}
               </p>
             </div>
 

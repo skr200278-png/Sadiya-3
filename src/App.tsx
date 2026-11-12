@@ -75,6 +75,7 @@ function AppRoutes() {
             <Route path="dues" element={<Dues />} />
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="doctor" element={<DoctorConsultation />} />
+            <Route path="doctor-consultation" element={<DoctorConsultation />} />
             <Route path="disease-advisor" element={<DiseaseDoctorAdvisor />} />
             <Route path="disease-guide" element={<DiseaseDoctorAdvisor />} />
             <Route path="chicks" element={<ChickMarket />} />

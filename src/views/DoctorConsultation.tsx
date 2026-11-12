@@ -104,8 +104,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ময়মনসিংহ',
     experienceYears: 11,
-    phone: '+8801622384379',
-    whatsapp: '8801622384379',
+    phone: '+8801711285098',
+    whatsapp: '8801711285098',
     visitingHoursBn: 'সকাল ৯:০০ - রাত ৯:০০ (প্রতিদিন)',
     rating: 4.9,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -127,8 +127,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'চট্টগ্রাম',
     experienceYears: 9,
-    phone: '+8801622384379',
-    whatsapp: '8801622384379',
+    phone: '+8801712094939',
+    whatsapp: '8801712094939',
     visitingHoursBn: 'সকাল ১০:০০ - রাত ৮:০০',
     rating: 4.9,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -150,8 +150,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 13,
-    phone: '+8801622384379',
-    whatsapp: '8801622384379',
+    phone: '+8801715029415',
+    whatsapp: '8801715029415',
     visitingHoursBn: 'সকাল ৯:০০ - সন্ধ্যা ৭:০০',
     rating: 4.8,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -173,8 +173,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'গাজীপুর',
     experienceYears: 8,
-    phone: '+8801622384379',
-    whatsapp: '8801622384379',
+    phone: '+8801711429302',
+    whatsapp: '8801711429302',
     visitingHoursBn: 'বিকাল ৩:০০ - রাত ১০:০০',
     rating: 4.8,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -196,8 +196,8 @@ const DEFAULT_DOCTORS: DoctorProfile[] = [
     countryNameEn: 'Bangladesh',
     district: 'ঢাকা',
     experienceYears: 14,
-    phone: '+8801622384379',
-    whatsapp: '8801622384379',
+    phone: '+8801711285098',
+    whatsapp: '8801711285098',
     visitingHoursBn: 'সকাল ১০:০০ - রাত ৯:০০',
     rating: 5.0,
     consultationFeeBn: 'বিনামূল্যে প্রাথমিক পরামর্শ',
@@ -355,7 +355,9 @@ export default function DoctorConsultation() {
     if (!doc.isCommunity) return false;
     return Boolean(
       (currentUser && doc.userId === currentUser.uid) || 
+      (currentUser?.uid && doc.id === `user_${currentUser.uid}`) ||
       (doc.userEmail && currentUser?.email && doc.userEmail === currentUser.email) ||
+      (currentUser?.phoneNumber && doc.phone && (doc.phone.includes(currentUser.phoneNumber.replace('+88', '')) || currentUser.phoneNumber.includes(doc.phone))) ||
       (isDemoUser && doc.isCommunity)
     );
   }) || null;
@@ -725,7 +727,7 @@ export default function DoctorConsultation() {
           : (language === 'bn' ? 'স্বাভাবিক / রুটিন' : 'Routine');
 
       const targetDoctorName = selectedDoctorForModal ? selectedDoctorForModal.nameBn : (language === 'bn' ? 'ভেটেরিনারি ডাক্তার সাহেব' : 'Doctor');
-      const targetPhone = selectedDoctorForModal?.whatsapp || selectedDoctorForModal?.phone || '8801622384379';
+      const targetPhone = selectedDoctorForModal?.whatsapp || selectedDoctorForModal?.phone || '8801711285098';
 
       const waMessage = 
         `আসসালামু আলাইকুম ${targetDoctorName},\n` +

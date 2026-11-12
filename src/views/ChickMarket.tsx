@@ -346,20 +346,23 @@ export const ChickMarket: React.FC = () => {
     });
   };
 
+  // Strict 1-Ad limit check for Chick Market: Max 1 active ad per user
+  const hasReachedChickQuota = myChickPosts.length >= 1;
+
   // Open modal for NEW ad
   const handleOpenNewPost = (preferredCategory?: ChickCategory, preferredBreedKey?: string) => {
     const cat = preferredCategory || activeCategory;
     const availableBreeds = CHICK_BREEDS.filter(b => b.category === cat);
     const chosenBreed = availableBreeds.find(b => b.key === preferredBreedKey) || availableBreeds[0];
 
-    // Check quota for regular users: 1 ad per breed
-    if (!isMasterAdmin && chosenBreed) {
-      const existing = getMyAdInBreed(chosenBreed.key);
-      if (existing) {
-        setQuotaConflictBreed(chosenBreed);
-        setShowQuotaModal(true);
-        return;
-      }
+    // Strict Quota: 1 active ad per user across Chick Market
+    if (hasReachedChickQuota) {
+      const firstAd = myChickPosts[0];
+      const bKey = firstAd?.breedKey || resolveBreedKey(firstAd?.subCategory, firstAd?.category);
+      const breed = CHICK_BREEDS.find(b => b.key === bKey) || chosenBreed;
+      setQuotaConflictBreed(breed);
+      setShowQuotaModal(true);
+      return;
     }
 
     setEditingAdId(null);
@@ -477,15 +480,19 @@ export const ChickMarket: React.FC = () => {
       return;
     }
 
-    // Quota Enforcement: 1 ad per breed for regular users
-    if (!isMasterAdmin) {
-      const existing = getMyAdInBreed(postForm.breedKey, editingAdId);
-      if (existing) {
-        const breed = CHICK_BREEDS.find(b => b.key === postForm.breedKey);
-        setQuotaConflictBreed(breed || null);
-        setShowQuotaModal(true);
-        return;
-      }
+    // Quota Enforcement: Strict 1 active ad allowed per user in Chick Market
+    if (!editingAdId && hasReachedChickQuota) {
+      const firstAd = myChickPosts[0];
+      const bKey = firstAd?.breedKey || resolveBreedKey(firstAd?.subCategory, firstAd?.category);
+      const breed = CHICK_BREEDS.find(b => b.key === bKey) || CHICK_BREEDS[0];
+      setQuotaConflictBreed(breed);
+      setShowQuotaModal(true);
+      toast.error(
+        language === 'bn'
+          ? 'আপনার ইতিমধ্যে ১টি সক্রিয় বিজ্ঞাপন চালু আছে! সর্বোচ্চ ১টি বিজ্ঞাপন দিতে পারবেন। আগেরটি এডিট বা ডিলিট করুন।'
+          : 'You already have 1 active ad. Maximum 1 ad allowed per user.'
+      );
+      return;
     }
 
     setIsSubmittingPost(true);
@@ -642,8 +649,8 @@ export const ChickMarket: React.FC = () => {
         setListings(prev => prev.filter(ad => ad.id !== listingId));
         toast.success(
           language === 'bn' 
-            ? 'বিজ্ঞাপন মুছে ফেলা হয়েছে। এখন এই জাতের জন্য নতুন বিজ্ঞাপন দিতে পারবেন।' 
-            : 'Ad deleted. Slot is now free for a new ad.'
+            ? 'বিজ্ঞাপন মুছে ফেলা হয়েছে! কোটা স্লট খালি হয়েছে, এখন নতুন বিজ্ঞাপন দিতে পারবেন।' 
+            : 'Ad deleted. Quota slot is now free for a new ad.'
         );
       }
     } catch (err: any) {
@@ -1714,10 +1721,10 @@ export const ChickMarket: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  {language === 'bn' ? 'কোটা সীমা: এই জাতে বিজ্ঞাপন সক্রিয় আছে' : 'Ad Quota Limit Reached'}
+                  {language === 'bn' ? 'কোটা পূর্ণ: আপনার ১টি সক্রিয় বিজ্ঞাপন চালু আছে' : 'Ad Quota Limit Reached'}
                 </h3>
                 <p className="text-xs text-emerald-800 font-bold mt-0.5">
-                  {quotaConflictBreed.icon} {quotaConflictBreed.nameBn}
+                  {myChickPosts[0]?.companyName || quotaConflictBreed?.nameBn} • {myChickPosts[0]?.subCategory}
                 </p>
               </div>
             </div>
@@ -1725,19 +1732,19 @@ export const ChickMarket: React.FC = () => {
             <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 mb-4 text-xs text-amber-950 font-medium space-y-2">
               <p>
                 {language === 'bn' 
-                  ? `আপনি ইতিমধ্যে "${quotaConflictBreed.nameBn}"-এর জন্য ১টি সক্রিয় বিজ্ঞাপন দিয়েছেন।` 
-                  : `You already have 1 active advertisement for "${quotaConflictBreed.nameEn}".`}
+                  ? `বাচ্চা ও হ্যাচারি মার্কেটে ১ জন ব্যবহারকারী সর্বোচ্চ ১টি সক্রিয় বিজ্ঞাপন রাখতে পারেন। আপনার ইতিমধ্যে ১টি বিজ্ঞাপন চালু রয়েছে।` 
+                  : `Each user is strictly limited to 1 active advertisement in Chick Market.`}
               </p>
               <p className="font-bold text-emerald-900 bg-white/80 p-2 rounded-xl border border-amber-200">
                 💡 {language === 'bn' 
-                  ? 'সুবিধা: আপনি ওই ১টি বিজ্ঞাপনেই Grade A, Grade B এবং Grade C—এই ৩ গ্রেডের দর ও স্টক একসাথে আপডেট করতে পারেন। একাধিক বিজ্ঞাপনের প্রয়োজন নেই।' 
-                  : 'You can update Grade A, B, and C prices inside that single ad without creating duplicates.'}
+                  ? 'আপনি ওই ১টি বিজ্ঞাপনেই Grade A, Grade B এবং Grade C—সব গ্রেডের দর ও স্টক নিয়মিত আপডেট করতে পারেন। নতুন বিজ্ঞাপন দিতে চাইলে বর্তমান বিজ্ঞাপনটি ডিলিট করুন।' 
+                  : 'You can update prices inside your existing ad. To post for a different breed/product, delete the current ad first.'}
               </p>
             </div>
 
             <div className="flex flex-col gap-2">
               {(() => {
-                const existingAd = getMyAdInBreed(quotaConflictBreed.key);
+                const existingAd = myChickPosts[0] || (quotaConflictBreed ? getMyAdInBreed(quotaConflictBreed.key) : undefined);
                 return (
                   <>
                     {existingAd && (

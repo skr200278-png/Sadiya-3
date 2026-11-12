@@ -109,10 +109,14 @@ export default function Layout() {
           </div>
 
           <Link to="/profile" className="p-0.5 hover:bg-emerald-800 rounded-full transition-colors w-8 h-8 flex items-center justify-center shrink-0">
-            {currentUser?.photoURL ? (
-              <img src={currentUser.photoURL} alt="Profile" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+            {(profileData?.photoURL || profileData?.imageUrl || currentUser?.photoURL || (currentUser?.uid ? localStorage.getItem('user_custom_photo_' + currentUser.uid) : null)) ? (
+              <img 
+                src={(profileData?.photoURL || profileData?.imageUrl || currentUser?.photoURL || (currentUser?.uid ? localStorage.getItem('user_custom_photo_' + currentUser.uid) : '')) || ''} 
+                alt="Profile" 
+                className="w-8 h-8 rounded-full border-2 border-white object-cover shadow-2xs" 
+              />
             ) : (
-              <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-emerald-600">
+              <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-emerald-600 shadow-2xs">
                  <span className="text-xs font-black">{(profileData?.name || currentUser?.displayName || 'U').charAt(0).toUpperCase()}</span>
               </div>
             )}

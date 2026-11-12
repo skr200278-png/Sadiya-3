@@ -11,10 +11,12 @@ import {
   Info,
   Scale,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Droplets
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toBnDigits } from '../utils/feedStockCalculations';
+import SmartFeedWaterModal from './SmartFeedWaterModal';
 
 export interface InsightMetricData {
   totalChicks: number;
@@ -42,14 +44,38 @@ export interface InsightMetricData {
   batchAgeDays: number;
   farmType: 'poultry' | 'cattle' | 'fish';
   species?: string;
+  // Enhanced auto-estimation and water metrics
+  isAutoCalculatedFeed?: boolean;
+  dailyFeedKg?: number;
+  dailyWaterLitresNormal?: number;
+  dailyWaterLitresSummer?: number;
+  recommendedDrinkersCount?: number;
+  totalBatchTargetFeedBags?: number;
+  remainingFeedNeededToHarvestBags?: number;
+  targetHarvestAgeDays?: number;
 }
 
-interface SmartFarmInsightsCardProps {
+import { Link } from 'react-router-dom';
+
+export interface SmartFarmInsightsCardProps {
   data: InsightMetricData;
   onOpenQuickLog?: () => void;
+  batchName?: string;
+  batchAgeDays?: number;
+  batchId?: string;
+  defaultExpanded?: boolean;
+  showQuickLinks?: boolean;
 }
 
-export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFarmInsightsCardProps) {
+export default function SmartFarmInsightsCard({ 
+  data, 
+  onOpenQuickLog, 
+  batchName, 
+  batchAgeDays, 
+  batchId, 
+  defaultExpanded = true, 
+  showQuickLinks = true 
+}: SmartFarmInsightsCardProps) {
   const { language } = useLanguage();
 
   const isBn = language === 'bn';
@@ -68,47 +94,109 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
   const isHighMortality = data.mortalityRate > 4.5;
   const isModerateMortality = data.mortalityRate > 2.5 && data.mortalityRate <= 4.5;
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isFeedWaterModalOpen, setIsFeedWaterModalOpen] = useState(false);
+
+  const dailyFeedKg = data.dailyFeedKg || Math.round(data.avgDailyFeedBags * 50) || 66;
+  const dailyWaterNormal = data.dailyWaterLitresNormal || Math.round(dailyFeedKg * 2.0);
+  const dailyWaterSummer = data.dailyWaterLitresSummer || Math.round(dailyFeedKg * 2.5);
+  const drinkersCount = data.recommendedDrinkersCount || Math.max(1, Math.ceil((data.aliveBirds || data.totalChicks || 100) / 50));
 
   return (
-    <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-xs border border-slate-200/80 space-y-2.5">
+    <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-2xs border border-slate-200/90 space-y-2.5">
       {/* Header - Click to toggle expand */}
       <button 
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
         className="w-full flex items-center justify-between text-left cursor-pointer group"
       >
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold group-hover:bg-indigo-100 transition-colors">
-            <Sparkles size={15} />
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold group-hover:bg-indigo-100 transition-colors shrink-0">
+            <Sparkles size={16} />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-xs sm:text-sm font-extrabold text-slate-850 leading-none">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-xs sm:text-sm font-black text-slate-850 leading-none">
                 {isBn ? 'খামার ইনসাইটস ও বিশ্লেষণ' : 'Smart Farm Data Insights'}
               </h3>
+              {batchName && (
+                <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 truncate max-w-[120px]">
+                  {batchName} {batchAgeDays ? `(${isBn ? toBnDigits(batchAgeDays) : batchAgeDays}d)` : ''}
+                </span>
+              )}
               {(isFeedEmpty || isFeedLow || isHighMortality) && (
                 <span className={`w-2 h-2 rounded-full ${isFeedEmpty ? 'bg-rose-600' : 'bg-amber-500'} animate-ping inline-block`} />
               )}
             </div>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5 truncate">
               {isBn 
-                ? (isExpanded ? 'গাণিতিক মূল্যায়ন ও সতর্কতা' : 'ক্লিক করে স্বাস্থ্য ও মজুত পূর্বাভাস দেখুন') 
-                : (isExpanded ? 'Data assessment and warnings' : 'Click to view health & stock forecast')}
+                ? (isExpanded ? 'গাণিতিক মূল্যায়ন ও সতর্কতা' : `খাদ্য মজুত: ${isFeedEmpty ? 'মজুত শূন্য' : `${toBnDigits(data.feedStockRemainingBags)} বস্তা`} • ক্লিক করে বিস্তারিত দেখুন`) 
+                : (isExpanded ? 'Data assessment and warnings' : `Stock: ${data.feedStockRemainingBags} bags • Click to view details`)}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-            {isBn ? (isExpanded ? 'সংক্ষেপ করুন' : 'বিস্তারিত') : (isExpanded ? 'Collapse' : 'Details')}
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {/* Quick Stock Indicator Badge on collapsed view */}
+          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+            isFeedEmpty 
+              ? 'bg-rose-50 text-rose-700 border-rose-200' 
+              : isFeedLow 
+              ? 'bg-amber-50 text-amber-700 border-amber-200' 
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          }`}>
+            🌾 {isBn ? `${toBnDigits(data.feedStockRemainingBags)}বাকি` : `${data.feedStockRemainingBags} left`}
           </span>
-          {isExpanded ? <ChevronUp size={15} className="text-slate-400" /> : <ChevronDown size={15} className="text-slate-400" />}
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+            {isBn ? (isExpanded ? 'সংক্ষেপ' : 'বিস্তারিত') : (isExpanded ? 'Hide' : 'Show')}
+          </span>
+          {isExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
         </div>
       </button>
 
       {/* Grid of Insight Badges (Shown when expanded) */}
       {isExpanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 animate-fadeIn">
+        <div className="space-y-2.5 pt-2 border-t border-slate-100 animate-fadeIn">
+
+          {/* 💧 Live Today's Feed & Water Demand Quick Banner */}
+          <div 
+            onClick={() => setIsFeedWaterModalOpen(true)}
+            className="bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-emerald-500/10 border border-amber-300/80 rounded-2xl p-2.5 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-400 transition-all shadow-2xs active:scale-99"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-cyan-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Droplets size={16} className="text-cyan-100" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-black text-slate-850">
+                    {isBn ? 'আজকের খাবার ও সুপেয় পানির চাহিদা' : "Today's Feed & Water Demand"}
+                  </span>
+                  <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    {isBn ? 'স্বয়ংক্রিয় হিসাব' : 'AUTO'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[10.5px] font-bold text-slate-700 mt-0.5 truncate">
+                  <span className="text-amber-900">
+                    🌾 খাবার: {isBn ? toBnDigits(dailyFeedKg) : dailyFeedKg} কেজি (~{isBn ? toBnDigits((dailyFeedKg / 50).toFixed(1)) : (dailyFeedKg / 50).toFixed(1)} বস্তা)
+                  </span>
+                  <span>•</span>
+                  <span className="text-cyan-800">
+                    💧 পানি: {isBn ? toBnDigits(dailyWaterNormal) : dailyWaterNormal} লিটার
+                  </span>
+                  <span className="text-slate-400 hidden xs:inline">•</span>
+                  <span className="text-slate-500 hidden xs:inline">
+                    পাত্র: {isBn ? toBnDigits(drinkersCount) : drinkersCount}টি
+                  </span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[10px] font-black text-cyan-950 bg-white border border-cyan-200 px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-0.5 shadow-2xs">
+              <span>{isBn ? 'চার্ট ও গাইড' : 'View'}</span>
+              <span>➜</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         
         {/* 1. Feed Inventory & Days Left Insight */}
         <div className={`p-2.5 rounded-xl border flex flex-col justify-between ${
@@ -237,9 +325,50 @@ export default function SmartFarmInsightsCard({ data, onOpenQuickLog }: SmartFar
             )}
           </p>
         </div>
-
-      </div>
+        </div>
+        </div>
       )}
+
+      {/* Quick Navigation Footer */}
+      {showQuickLinks && isExpanded && (
+        <div className="flex items-center justify-between pt-1 text-[10.5px] font-bold border-t border-slate-150 gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsFeedWaterModalOpen(true)}
+              className="text-cyan-950 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 px-2.5 py-1 rounded-xl border border-cyan-200/90 flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
+            >
+              <Droplets size={12} className="text-cyan-700" />
+              <span>{isBn ? '💧 পানি ও খাদ্যের সম্পূর্ণ চার্ট' : '💧 Feed & Water Chart'}</span>
+            </button>
+
+            <Link 
+              to={`/feed${batchId ? `?batchId=${batchId}` : ''}`}
+              className="text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-xl border border-amber-200 flex items-center gap-1 transition-colors active:scale-98 shadow-2xs"
+            >
+              <span>🌾 {isBn ? 'খাবার স্টক' : 'Feed Stock'}</span>
+              <ArrowUpRight size={12} />
+            </Link>
+          </div>
+
+          <Link 
+            to={`/reports${batchId ? `?batchId=${batchId}` : ''}`}
+            className="text-indigo-900 hover:text-indigo-950 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-xl border border-indigo-200 flex items-center gap-1 transition-colors active:scale-98 shadow-2xs ml-auto"
+          >
+            <span>📊 {isBn ? 'রিপোর্ট' : 'Reports'}</span>
+            <ArrowUpRight size={12} />
+          </Link>
+        </div>
+      )}
+
+      {/* Interactive Smart Feed & Water Full Modal */}
+      <SmartFeedWaterModal 
+        isOpen={isFeedWaterModalOpen}
+        onClose={() => setIsFeedWaterModalOpen(false)}
+        data={data}
+        batchName={batchName}
+        batchAgeDays={batchAgeDays}
+      />
     </div>
   );
 }
